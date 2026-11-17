@@ -12,6 +12,8 @@ t=boot({activeCollaborations:[project],completedCollaborations:[],upcomingDeadli
 t=boot({activeCollaborations:[{...project,submissionDeadline:'2000-01-01'}]});assert.equal(t.run('openProjects().length'),0);
 t=boot({completedCollaborations:[{...project,status:'published'}]});assert.equal(t.run('publishedProjects().length'),0);
 t=boot({completedCollaborations:[{...project,status:'published',publishedReelUrl:'https://example.com/reel'}]});assert.equal(t.run('publishedProjects().length'),1);assert.match(t.elements.get('#project-gallery').innerHTML,/Watch the Reel/);
+t=boot({completedCollaborations:[project]});assert.match(t.elements.get('#project-gallery').innerHTML,/Project discussion/);assert.doesNotMatch(t.elements.get('#project-gallery').innerHTML,/Watch the Reel/);
+t=boot({completedCollaborations:[{...project,discussionUrl:'javascript:alert(1)'}]});assert.doesNotMatch(t.elements.get('#project-gallery').innerHTML,/href="javascript:/);
 t=boot(null,true);assert.equal(JSON.stringify(t.run("loadDraft('pitch')")),'{}');assert.match(t.elements.get('#status').textContent,/storage is unavailable/);
 assert.equal(t.run("publicUrl('javascript:alert(1)')"),'');assert.equal(t.run("dateValid('2026-02-30')"),false);
 console.log('PASS: empty states, configured casting, escaped content, safe URLs, expired/invalid deadlines, verified publication, storage fallback');
