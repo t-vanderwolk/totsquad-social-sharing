@@ -44,7 +44,7 @@ Edit `resources` for sidebar links. Empty URLs remain labeled unavailable. A loc
 ## Drafts and sharing
 Pitch retains the guided form. Join shows eligible casting projects. Submit supports a project or general content, with content URL, caption, credits, accessibility notes and reviewer notes. Share generates messages only for verified published projects.
 
-Users review, copy/download and manually paste into Disco. No personal data is sent by these forms. Each workflow uses its own localStorage key; older saved drafts remain accessible. If storage is blocked (including iframe restrictions), the current page retains the draft in memory and offers copy/download. This does not persist after reload. Clipboard restrictions fall back to selecting the text for manual copying. Clear draft removes only that workflow's stored draft.
+The Submit form links to `submissionInstructionsUrl` for upload instructions and shows the selected project discussion before review. Users review, copy/download and follow the three-step handoff to manually paste and send in Disco. Invalid project URLs fall back to the configured chat channel. No personal data is sent by these forms. Each workflow uses its own localStorage key; older saved drafts remain accessible. If storage is blocked (including iframe restrictions), the current page retains the draft in memory and offers copy/download. This does not persist after reload. Clipboard restrictions fall back to selecting the text for manual copying. Clear draft removes only that workflow's stored draft.
 
 ## Embed in Disco
 Standalone URL: https://t-vanderwolk.github.io/totsquad-social-sharing/

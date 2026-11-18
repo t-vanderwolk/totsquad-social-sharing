@@ -4,6 +4,7 @@ window.HUB_CONTENT = {
   timeZone: 'America/Phoenix',
   appUrl: 'https://tot-squad-hub.disco.co/page-app/UHJvZHVjdEFwcDozODQzNTg=?u=8d8e2732-9268-481e-9d53-1363df5e83ca&drawerTab=analytics',
   discoUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx',
+  submissionInstructionsUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA',
   activeCollaborations: [],
   // These are known project titles, not verified completion or publication claims.
   completedCollaborations: [

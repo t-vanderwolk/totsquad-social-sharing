@@ -2,7 +2,7 @@
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
 const root=require('node:path').join(__dirname,'..');
 function boot(config, storageFailure=false){
- const elements=new Map();const el=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:'',addEventListener(){},classList:{toggle(){}},replaceChildren(){},showModal(){this.open=true;}});return elements.get(id);};
+ const elements=new Map();const el=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:'',elements:[],addEventListener(){},classList:{toggle(){}},replaceChildren(){},showModal(){this.open=true;}});return elements.get(id);};
  const ctx=vm.createContext({window:{},document:{querySelector:el,body:{classList:{toggle(){}}},addEventListener(){}},URL,URLSearchParams,location:{search:'?embed=1'},Intl,Date,Map,console,localStorage:{getItem(){if(storageFailure)throw Error('blocked');return null;}}});
  vm.runInContext(fs.readFileSync(root+'/content.js','utf8'),ctx);if(config)Object.assign(ctx.window.HUB_CONTENT,config);vm.runInContext(fs.readFileSync(root+'/script.js','utf8'),ctx);return {ctx,elements,run:s=>vm.runInContext(s,ctx)};
 }
@@ -17,3 +17,10 @@ t=boot({completedCollaborations:[{...project,discussionUrl:'javascript:alert(1)'
 t=boot(null,true);assert.equal(JSON.stringify(t.run("loadDraft('pitch')")),'{}');assert.match(t.elements.get('#status').textContent,/storage is unavailable/);
 assert.equal(t.run("publicUrl('javascript:alert(1)')"),'');assert.equal(t.run("dateValid('2026-02-30')"),false);
 console.log('PASS: empty states, configured casting, escaped content, safe URLs, expired/invalid deadlines, verified publication, storage fallback');
+
+t=boot();assert.equal(t.run("discussionDestination({discussionUrl:'javascript:alert(1)'}).url"),t.run('content.discoUrl'));assert.equal(t.run("discussionDestination({discussionUrl:'https://example.com/project'}).url"),'https://example.com/project');assert.match(t.run('submissionHelp()'),/Open folder instructions in Disco/);
+t=boot({submissionInstructionsUrl:'javascript:alert(1)'});assert.equal(t.run('submissionHelp()'),'');
+
+t=boot();t.run("openPanel('submit')");assert.match(t.elements.get('#modal-body').innerHTML,/Have footage to upload/);assert.match(t.elements.get('#modal-body').innerHTML,/Opening Disco does not submit your draft/);assert.match(t.elements.get('#modal-body').innerHTML,/Paste your draft, check it, and send it in Disco/);
+t=boot();t.run("openPanel('pitch')");assert.doesNotMatch(t.elements.get('#modal-body').innerHTML,/Have footage to upload/);assert.match(t.elements.get('#modal-body').innerHTML,/handoff-steps/);
+console.log('PASS: submission help, review instructions, and safe discussion fallback');
