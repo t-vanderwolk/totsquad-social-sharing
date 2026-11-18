@@ -1,50 +1,101 @@
 # Tot Squad Social & Sharing
 
-A public, buildless GitHub Pages dashboard for Tot Squad Baby Specialists. The existing branded hero and responsive visual system are preserved. No backend, database, upload service or automatic submissions are used.
+A public, buildless GitHub Pages hub for Tot Squad Baby Specialists: one home for the Squad's ideas, collaborations and content, instead of spreading them across the Instagram chat, a Google Drive and the Hub. No backend, database, upload service or automatic submissions are used.
 
 ## Files
-- `index.html`: semantic page structure and unchanged hero.
-- `styles.css`: existing Tot Squad visual system plus responsive components and embed mode.
-- `content.js`: all project, deadline and resource configuration.
-- `script.js`: rendering, project eligibility, dialogs, separate local drafts, review/copy/download and Disco handoff.
+- `index.html`: page structure: hero, section nav, getting-started steps, action cards, sections and sidebar.
+- `styles.css`: one token-based stylesheet (brand tokens, series tints, components, embed mode, responsive rules).
+- `content.js`: all ideas, projects, events, people, deadlines and resources. **Edit this file for content changes.**
+- `script.js`: rendering, eligibility, Idea Bank filters, dialogs, separate local drafts, review/copy/download and Disco handoff.
+- `scripts/validate-content.cjs`: checks `content.js` for mistakes. Run it after every edit.
+- `tests/content.test.cjs`: renderer/eligibility tests with isolated fixtures.
+- `.github/workflows/checks.yml`: runs the syntax check, validator and tests on every push and pull request.
 - `BRAND-GUIDELINES.md`: website-derived brand and styling rules.
-- `tests/content.test.cjs`: isolated renderer/eligibility checks; no real campaigns are invented by the tests.
+
+## Page sections
+| Section | Driven by |
+|---|---|
+| Currently casting | `activeCollaborations` with `status: 'casting'` and a deadline that hasn't passed |
+| Idea Bank | `ideas`, grouped and filtered by `series` |
+| In production | `activeCollaborations` with status `idea`, `filming` or `editing`, plus `ideas` with stage `filming` or `editing` |
+| Made by the Squad | `completedCollaborations` |
+| Meet the Squad | `featuredSpecialists`; their ideas are listed automatically from idea `credit` |
+| This week in the Squad | `recurringEvents` |
+| On the horizon | collaboration deadlines plus `upcomingDeadlines` |
+| How we work | `waysOfWorking` |
+
+## Add an idea
+Add an object to `ideas`. Only `id`, `title` and `series` are required. Leave anything you don't know blank; never guess a date or credit.
+
+```js
+{
+  id: 'unique-idea-id',
+  title: 'Idea title',
+  series: 'reels',             // must match an id in `series`
+  credit: ['First name'],      // who suggested it; [] if unknown
+  date: '2026-11-18',          // when it was suggested; '' if unknown
+  summary: 'One or two sentences.',
+  titleNote: '',               // e.g. 'Working title'
+  howItWorks: [],              // numbered steps
+  guidance: [],                // "Before you film" rules (privacy, permissions)
+  variations: [{ title: '', text: '', credit: [], date: '' }],
+  notes: [],                   // "From the conversation"
+  altNames: [],                // other names considered
+  questions: [],               // question bank, each with a Copy button
+  stage: '',                   // idea, filming, editing, published ('' = idea)
+  lead: '',                    // one lead per idea
+  dueDate: '',
+  discussionUrl: ''            // Disco discussion for this idea
+}
+```
+
+Ideas dated after a visitor's previous visit get a **New** badge (stored in their browser only).
 
 ## Add a collaboration
-Edit only `content.js`. Add an object to `activeCollaborations` with this shape:
+Add an object to `activeCollaborations`:
 
 ```js
 {
   id: 'unique-project-id',
+  ideaId: '',                   // optional: links the project to an idea ("See the format")
   title: 'Approved project title',
   description: 'Approved public description',
-  status: 'idea', // idea, casting, filming, editing, published; null = unverified
-  thumbnail: '', // approved public HTTPS image URL; blank shows a labeled placeholder
-  submissionDeadline: '', // YYYY-MM-DD, e.g. a real approved deadline
-  instructions: '', // what contributors need to film
-  discussionUrl: '', // approved project-specific Disco discussion
-  publishedReelUrl: '', // verified public Reel URL
-  participatingSpecialists: [] // approved public names, or {name: 'Public name'}
+  status: 'idea',               // idea, casting, filming, editing, published; null = unverified
+  thumbnail: '',                // approved public HTTPS image URL; blank shows a placeholder
+  submissionDeadline: '',       // YYYY-MM-DD
+  instructions: '',             // what contributors need to film (required for casting)
+  discussionUrl: '',            // project-specific Disco discussion
+  publishedReelUrl: '',         // verified public Reel URL
+  participatingSpecialists: []  // approved public names
 }
 ```
 
-IDs must be unique across both lists. Use `casting` only when a project actually accepts participants. Casting with a past deadline is excluded automatically. A blank deadline is shown as “Deadline not announced.” Dates are interpreted as calendar days in `timeZone` (America/Phoenix by default). A deadline stays open through that date.
+Project IDs must be unique across both lists. Use `casting` only when a project actually accepts participants. Casting with a past deadline is hidden automatically. A blank deadline shows "Deadline not announced." Dates are calendar days in `timeZone` (America/Phoenix), and a deadline stays open through that date.
 
 ## Publish a completed Reel
-Move the project to `completedCollaborations`, set `status: 'published'`, and add its verified `publishedReelUrl`. Both are required before the Published label, Watch the Reel link and share-message flow appear. Add the real thumbnail, description and approved contributor names separately. The initial Meet the Squad, Pass the Toy and Tot Squad Round Up records contain only known titles; placement in this list does not verify completion. Their status remains null until confirmed.
+Move the project to `completedCollaborations`, set `status: 'published'` and add its verified `publishedReelUrl`. Both are required before the Published label, Watch the Reel link and Share flow appear. The Meet the Squad, Pass the Toy and Tot Squad Round Up records contain only known titles; their status stays null until confirmed.
 
-## Deadlines
-Collaboration submission deadlines appear automatically. For other approved public events, add `{ id, title, date: 'YYYY-MM-DD', url: '' }` to `upcomingDeadlines`. Invalid and past dates are omitted. Use the same ID/date as a collaboration to avoid duplicate entries. Do not invent dates.
+## Events, people and resources
+- **Recurring events:** `weekday` is 0 (Sunday) to 6 (Saturday); the next date is calculated automatically. Use `weekday: null` with a `scheduleNote` when there's no fixed day. `time` is free text, e.g. `'12 pm MST'`.
+- **Featured specialists:** first names only, as approved. Optional `expertise`, `location`, `photo` (https), `spotlight` and `link`. Matching is by name against idea and `waysOfWorking` credits.
+- **Deadlines:** for approved public events, add `{ id, title, date: 'YYYY-MM-DD', url: '' }` to `upcomingDeadlines`.
+- **Resources:** empty URLs stay labeled unavailable. Never add a confidential Drive folder, tracker or planning doc to this public repo; link through a members-only Disco page instead.
+- **Disco:** `discoUrl` is the Social & Sharing chat channel; `appUrl` keeps the embedded-app URL; `submissionInstructionsUrl` is the Disco message with upload-folder instructions. Review screens route to the project's or idea's `discussionUrl` when one is set. Nothing is ever submitted automatically.
 
-## Configure Disco and resources
-`discoUrl` points to the Social & Sharing chat channel for draft handoffs. `appUrl` retains the supplied embedded-app URL separately. Each gallery card links to its verified project discussion. Set each collaboration's `discussionUrl` to its actual project discussion so the Join and Submit review screens route appropriately. Without one, the interface offers the general channel when configured; it never claims this submits the draft.
-
-Edit `resources` for sidebar links. Empty URLs remain labeled unavailable. A local resource can use `action: 'guide'` or `action: 'brand'`. Only http/https external URLs are accepted. The submission-folder resource opens the authenticated Disco message containing the folder instructions. Social templates and the specialist resource library are connected. The content calendar remains unconfigured. Do not add a confidential folder URL or private planning document to this public repository. Use a member-authenticated Disco page to route users to restricted resources instead. `featuredSpecialists` is reserved for optional future presentation and is not currently displayed.
+## Check your edits
+```sh
+node scripts/validate-content.cjs   # catches bad dates, links, duplicate ids, unknown series
+node tests/content.test.cjs
+```
+GitHub runs both on every push. If the check fails, the error says which entry to fix.
 
 ## Drafts and sharing
-Pitch retains the guided form. Join shows eligible casting projects. Submit supports a project or general content, with content URL, caption, credits, accessibility notes and reviewer notes. Share generates messages only for verified published projects.
+- **Pitch** uses a concept template (hook, shot list, series, lead) and can start from an Idea Bank idea ("Build on this").
+- **Join** shows eligible casting projects.
+- **Submit** supports a project or general content, with link, caption (2,200-character counter), credits, accessibility notes and a permission check.
+- **Share** builds messages only for verified published projects.
 
-The Submit form links to `submissionInstructionsUrl` for upload instructions and shows the selected project discussion before review. Users review, copy/download and follow the three-step handoff to manually paste and send in Disco. Invalid project URLs fall back to the configured chat channel. No personal data is sent by these forms. Drafts save automatically as users edit. The saved-drafts panel shows each draft’s title and save time. Clearing a draft keeps it cleared when the dialog closes or switches flows. Each workflow uses its own localStorage key; older saved drafts remain accessible. If storage is blocked (including iframe restrictions), the current page retains the draft in memory and offers copy/download. This does not persist after reload. Clipboard restrictions fall back to selecting the text for manual copying. Clear draft removes only that workflow's stored draft.
+Each flow is two steps: Write, then Review & copy. Drafts save automatically as you type, and the saved-drafts panel shows each draft's title and save time. Submit links to `submissionInstructionsUrl` for upload-folder instructions. The review screen links to the project's or idea's discussion (falling back to the Social & Sharing chat) with a three-step paste-and-send handoff; nothing is submitted automatically. Each workflow has its own localStorage key; older drafts remain accessible. If storage is blocked (e.g. in an iframe), drafts stay in memory for the session and copy/download still work.
 
 ## Embed in Disco
 Standalone URL: https://t-vanderwolk.github.io/totsquad-social-sharing/
@@ -56,21 +107,19 @@ Embed URL: https://t-vanderwolk.github.io/totsquad-social-sharing/?embed=1
   src="https://t-vanderwolk.github.io/totsquad-social-sharing/?embed=1"
   title="Tot Squad Social & Sharing"
   width="100%"
-  height="1800"
-  style="display:block;width:100%;height:1800px;border:0;"
+  height="2400"
+  style="display:block;width:100%;height:2400px;border:0;"
   loading="lazy"
 ></iframe>
 ```
 
-Embed mode hides the redundant site header and reduces outer padding. Begin with 1800px height on desktop; narrow/mobile single-column galleries may need 2600–3200px or normal internal scrolling. Do not disable scrolling. The parent Disco editor may override dimensions; adjust its resize handle and save. The iframe does not automatically resize. Dialogs scroll inside the iframe viewport, support Escape, trap keyboard focus with native `<dialog>`, and return focus to their trigger. Outbound links open a new tab.
+Embed mode hides the site header. The page is longer now, so start around 2400px on desktop; narrow single-column layouts may need 4000px+ or internal scrolling. Do not disable scrolling. The iframe does not resize automatically. Dialogs scroll inside the iframe, support Escape and return focus to their trigger. On phones, dialogs open full screen.
 
 ## Preview and verify
-Run `python3 -m http.server 4173` from this directory, then open http://127.0.0.1:4173/ and http://127.0.0.1:4173/?embed=1.
-
-Run `node --check script.js` and `node tests/content.test.cjs`. Check 1440px desktop, 768px tablet and 375px mobile. Verify the four cards, native required-field validation, save/reload, copy/download, empty states, configured project links, Escape/focus return and a real iframe. Use test-only fixtures locally; never commit fictional active campaigns into `content.js`.
+Run `python3 -m http.server 4173` from this directory, then open http://127.0.0.1:4173/ and http://127.0.0.1:4173/?embed=1. Check 1440px, 768px and 375px widths, the four flows, Idea Bank filters, idea dialogs, Build on this, save/reload, copy/download, Escape/focus return and a real iframe. Use test-only fixtures locally; never commit fictional campaigns into `content.js`.
 
 ## Deploy
-GitHub Pages already deploys from `main` at `/ (root)`. No build step or deployment setting change is needed. Commit the HTML, CSS, JS and documentation together, push to `main`, and wait for the Pages workflow to succeed. Verify the live page; if an older version is cached, use a one-time `?v=COMMIT` parameter (or `?embed=1&v=COMMIT`). The normal embed URL remains valid.
+GitHub Pages deploys from `main` at `/ (root)`. No build step. Push to `main`, wait for Pages and the Checks workflow, then verify the live page (use `?v=COMMIT` to bypass a cached version).
 
 ## Public-data boundary
-Everything in this repository and page is publicly accessible. Never add client information, private mentor information, internal scoring, confidential planning, confidential submission-folder URLs, API keys or credentials. Public branding assets/fonts load from Tot Squad's official asset hosts. Submitted draft contents stay in the browser until the user explicitly copies/downloads them and chooses where to share.
+Everything in this repository and page is public. Idea details and first-name credits are shown by decision of the hub owner. Never add client information, specialist locations or contact details, private mentor information, internal scoring, confidential planning, confidential folder URLs, API keys or credentials. Draft contents stay in the browser until the user copies or downloads them.

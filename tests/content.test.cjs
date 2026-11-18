@@ -1,48 +1,120 @@
-// Render/eligibility tests using isolated public-content fixtures, never deployed content.
-const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
-const root=require('node:path').join(__dirname,'..');
-function boot(config, storageFailure=false, stored=new Map()){
- const elements=new Map();const el=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:'',elements:[],formData:[],reset(){this.formData=[];},addEventListener(){},classList:{toggle(){}},replaceChildren(){},showModal(){this.open=true;}});return elements.get(id);};
- const ctx=vm.createContext({window:{},document:{querySelector:el,body:{classList:{toggle(){}}},addEventListener(){}},URL,URLSearchParams,location:{search:'?embed=1'},Intl,Date,Map,console,FormData:class {constructor(form){return form.formData;}},localStorage:{getItem(key){if(storageFailure)throw Error('blocked');return stored.get(key)||null;},setItem(key,value){if(storageFailure)throw Error('blocked');stored.set(key,value);},removeItem(key){if(storageFailure)throw Error('blocked');stored.delete(key);}}});
- vm.runInContext(fs.readFileSync(root+'/content.js','utf8'),ctx);if(config)Object.assign(ctx.window.HUB_CONTENT,config);vm.runInContext(fs.readFileSync(root+'/script.js','utf8'),ctx);return {ctx,elements,run:s=>vm.runInContext(s,ctx)};
+// Render/eligibility tests. Fixtures here are test-only and never deployed.
+const vm = require('node:vm'), fs = require('node:fs'), assert = require('node:assert/strict');
+const root = require('node:path').join(__dirname, '..');
+const { validate, load } = require('../scripts/validate-content.cjs');
+
+function boot(config, storageFailure = false, stored = new Map()) {
+  const elements = new Map();
+  const el = id => { if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, addEventListener() {}, classList: { toggle() {} }, replaceChildren() {}, showModal() { this.open = true; } }); return elements.get(id); };
+  const storage = { getItem(k) { if (storageFailure) throw Error('blocked'); return stored.get(k) ?? null; }, setItem(k, v) { if (storageFailure) throw Error('blocked'); stored.set(k, String(v)); }, removeItem(k) { if (storageFailure) throw Error('blocked'); stored.delete(k); } };
+  const ctx = vm.createContext({ window: {}, document: { querySelector: el, body: { classList: { toggle() {} } }, addEventListener() {} }, URL, URLSearchParams, location: { search: '?embed=1' }, Intl, Date, Map, Set, console, localStorage: storage, FormData: class { constructor(form) { return form.formData || []; } } });
+  vm.runInContext(fs.readFileSync(root + '/content.js', 'utf8'), ctx);
+  if (config) Object.assign(ctx.window.HUB_CONTENT, config);
+  vm.runInContext(fs.readFileSync(root + '/script.js', 'utf8'), ctx);
+  return { ctx, run: s => vm.runInContext(s, ctx), html: id => el(id).innerHTML, el };
 }
-let t=boot();assert.match(t.elements.get('#casting-projects').innerHTML,/Something fun is in the works/);assert.match(t.elements.get('#project-gallery').innerHTML,/Meet the Squad/);assert.doesNotMatch(t.elements.get('#project-gallery').innerHTML,/class="label">Published/);assert.match(t.elements.get('#resource-links').innerHTML,/aria-disabled="true"/);
-const project={id:'fixture',title:'Fixture <script>',description:'Testing only',status:'casting',thumbnail:'javascript:alert(1)',submissionDeadline:'2099-01-01',instructions:'Record a short tip',discussionUrl:'https://example.com/discussion',publishedReelUrl:'',participatingSpecialists:[]};
-t=boot({activeCollaborations:[project],completedCollaborations:[],upcomingDeadlines:[{id:'bad',title:'Invalid',date:'2026-99-99'}]});assert.match(t.elements.get('#casting-projects').innerHTML,/Fixture &lt;script&gt;/);assert.match(t.elements.get('#casting-projects').innerHTML,/Record a short tip/);assert.doesNotMatch(t.elements.get('#casting-projects').innerHTML,/src="javascript:/);assert.match(t.elements.get('#deadlines').innerHTML,/2099/);
-t=boot({activeCollaborations:[{...project,submissionDeadline:'2000-01-01'}]});assert.equal(t.run('openProjects().length'),0);
-t=boot({completedCollaborations:[{...project,status:'published'}]});assert.equal(t.run('publishedProjects().length'),0);
-t=boot({completedCollaborations:[{...project,status:'published',publishedReelUrl:'https://example.com/reel'}]});assert.equal(t.run('publishedProjects().length'),1);assert.match(t.elements.get('#project-gallery').innerHTML,/Watch the Reel/);
-t=boot({completedCollaborations:[project]});assert.match(t.elements.get('#project-gallery').innerHTML,/Project discussion/);assert.doesNotMatch(t.elements.get('#project-gallery').innerHTML,/Watch the Reel/);
-t=boot({completedCollaborations:[{...project,discussionUrl:'javascript:alert(1)'}]});assert.doesNotMatch(t.elements.get('#project-gallery').innerHTML,/href="javascript:/);
-t=boot(null,true);assert.equal(JSON.stringify(t.run("loadDraft('pitch')")),'{}');assert.match(t.elements.get('#status').textContent,/storage is unavailable/);
-assert.equal(t.run("publicUrl('javascript:alert(1)')"),'');assert.equal(t.run("dateValid('2026-02-30')"),false);
-console.log('PASS: empty states, configured casting, escaped content, safe URLs, expired/invalid deadlines, verified publication, storage fallback');
 
-t=boot();assert.equal(t.run("discussionDestination({discussionUrl:'javascript:alert(1)'}).url"),t.run('content.discoUrl'));assert.equal(t.run("discussionDestination({discussionUrl:'https://example.com/project'}).url"),'https://example.com/project');assert.match(t.run('submissionHelp()'),/Open folder instructions in Disco/);
-t=boot({submissionInstructionsUrl:'javascript:alert(1)'});assert.equal(t.run('submissionHelp()'),'');
+// Real content renders its empty and placeholder states honestly.
+let t = boot();
+assert.match(t.html('#casting-projects'), /Something fun is in the works/);
+assert.match(t.html('#project-gallery'), /Meet the Squad/);
+assert.match(t.html('#project-gallery'), /Details coming/);
+assert.doesNotMatch(t.html('#project-gallery'), /Watch the Reel/);
+assert.match(t.html('#project-gallery'), /See the format/); // Round Up links to its idea
+assert.match(t.html('#resource-links'), /aria-disabled="true"/);
+assert.match(t.html('#idea-grid'), /Registry NOT Roast/);
+assert.match(t.html('#idea-filters'), /aria-pressed="true"/);
+assert.match(t.html('#squad-grid'), /Kristin/);
+assert.match(t.html('#squad-grid'), /data-id="tot-squad-round-up"/); // contributions computed from credits
+assert.match(t.html('#week-events'), /Every Thursday/);
+assert.match(t.html('#week-events'), /Dates to come/);
+assert.match(t.html('#production-board'), /Nothing in production yet/);
+assert.match(t.html('#ways'), /engagement pact/i);
+assert.equal(t.el('#welcome').hidden, false);
 
-t=boot();t.run("openPanel('submit')");assert.match(t.elements.get('#modal-body').innerHTML,/Have footage to upload/);assert.match(t.elements.get('#modal-body').innerHTML,/Opening Disco does not submit your draft/);assert.match(t.elements.get('#modal-body').innerHTML,/Paste your draft, check it, and send it in Disco/);
-t=boot();t.run("openPanel('pitch')");assert.doesNotMatch(t.elements.get('#modal-body').innerHTML,/Have footage to upload/);assert.match(t.elements.get('#modal-body').innerHTML,/handoff-steps/);
-console.log('PASS: submission help, review instructions, and safe discussion fallback');
+// Filtering the Idea Bank.
+t.run("ideaFilter='registry';renderIdeas()");
+assert.match(t.html('#idea-grid'), /Registry NOT Roast/);
+assert.doesNotMatch(t.html('#idea-grid'), /Fund or No Fund/);
+t.run("ideaFilter='missing';renderIdeas()");
+assert.match(t.html('#idea-grid'), /Fund or No Fund/); // unknown filter falls back to all
 
-// Exercise input -> persistence -> new page -> clear -> close/flow switch.
-const stored=new Map();
-t=boot(null,false,stored);t.run("openPanel('pitch')");
-t.elements.get('#flow-form').formData=[['title','A useful idea'],['idea','Draft details']];
-t.elements.get('#flow-form').oninput();
-assert.equal(JSON.parse(stored.get('totsquad-pitch-v2')).title,'A useful idea');
-assert.match(t.elements.get('#status').textContent,/saved on this device/);
-t=boot(null,false,stored);assert.equal(t.run("loadDraft('pitch').title"),'A useful idea');
-t.run("openPanel('pitch')");t.elements.get('#clear-draft').onclick();t.run('stash()');
-assert.equal(stored.has('totsquad-pitch-v2'),false);
-assert.equal(JSON.stringify(t.run("loadDraft('pitch')")),'{}');
-t.run("openPanel('submit')");assert.equal(stored.has('totsquad-pitch-v2'),false);
-t.elements.get('#flow-form').formData=[['title','My submission']];t.elements.get('#flow-form').oninput();
-assert.equal(JSON.parse(stored.get('totsquad-submit-v2')).title,'My submission');
-assert.equal(stored.has('totsquad-pitch-v2'),false);
-// A blocked storage write retains an in-memory draft and reports the limitation.
-t=boot(null,true);t.run("openPanel('pitch')");t.elements.get('#flow-form').formData=[['title','Session only']];t.elements.get('#flow-form').oninput();
-assert.equal(t.run("loadDraft('pitch').title"),'Session only');assert.match(t.elements.get('#status').textContent,/page session/);
-t.elements.get('#clear-draft').onclick();t.run('stash()');assert.equal(JSON.stringify(t.run("loadDraft('pitch')")),'{}');
-t=boot();t.run("persistDraft('pitch',{title:'<img src=x onerror=alert(1)>'})");assert.match(t.run('draftCards()'),/&lt;img/);assert.doesNotMatch(t.run('draftCards()'),/<img/);
-console.log('PASS: automatic draft recovery, separate flows, clearing, blocked storage, escaped previews');
+// Recurring events land on the right weekday, today or later.
+const next = t.run('nextOccurrence(4)');
+assert.equal(new Date(next + 'T12:00:00Z').getUTCDay(), 4);
+assert.ok(next >= t.run('today()'));
+
+// Escaping and URL safety in every configurable section.
+const project = { id: 'fixture', title: 'Fixture <script>', description: 'Testing only', status: 'casting', thumbnail: 'javascript:alert(1)', submissionDeadline: '2099-01-01', instructions: 'Record a short tip', discussionUrl: 'https://example.com/discussion', publishedReelUrl: '', participatingSpecialists: [] };
+t = boot({ activeCollaborations: [project], completedCollaborations: [], upcomingDeadlines: [{ id: 'bad', title: 'Invalid', date: '2026-99-99' }] });
+assert.match(t.html('#casting-projects'), /Fixture &lt;script&gt;/);
+assert.match(t.html('#casting-projects'), /Record a short tip/);
+assert.doesNotMatch(t.html('#casting-projects'), /src="javascript:/);
+assert.match(t.html('#deadlines'), /2099/);
+assert.doesNotMatch(t.html('#deadlines'), /Invalid/);
+
+t = boot({ ideas: [{ id: 'x', title: '<b>Fixture</b>', series: 'reels', credit: ['Tester'] }], featuredSpecialists: [{ name: 'Tester', photo: 'javascript:alert(1)' }] });
+assert.match(t.html('#idea-grid'), /&lt;b&gt;Fixture/);
+assert.match(t.html('#squad-grid'), /&lt;b&gt;Fixture/);
+assert.doesNotMatch(t.html('#squad-grid'), /javascript:/);
+
+// Production board.
+t = boot({ activeCollaborations: [{ ...project, status: 'filming' }] });
+assert.match(t.html('#production-board'), /Filming/);
+assert.match(t.html('#production-board'), /Fixture &lt;script&gt;/);
+
+// Eligibility.
+t = boot({ activeCollaborations: [{ ...project, submissionDeadline: '2000-01-01' }] });
+assert.equal(t.run('openProjects().length'), 0);
+t = boot({ completedCollaborations: [{ ...project, status: 'published' }] });
+assert.equal(t.run('publishedProjects().length'), 0);
+t = boot({ completedCollaborations: [{ ...project, status: 'published', publishedReelUrl: 'https://example.com/reel' }] });
+assert.equal(t.run('publishedProjects().length'), 1);
+assert.match(t.html('#project-gallery'), /Watch the Reel/);
+
+// Drafts: share download only lists fields that exist in the form.
+t = boot();
+assert.doesNotMatch(t.run("draftText('share',{tone:'Warm invitation'})"), /Public link/);
+assert.match(t.run("draftText('pitch',{title:'T',basedOn:'registry-not-roast'})"), /Building on: Registry NOT Roast/);
+
+// Storage blocked.
+t = boot(null, true);
+assert.equal(JSON.stringify(t.run("loadDraft('pitch')")), '{}');
+assert.match(t.el('#status').textContent, /storage is unavailable/);
+assert.equal(t.run("publicUrl('javascript:alert(1)')"), '');
+assert.equal(t.run("dateValid('2026-02-30')"), false);
+
+// Content validation: real content passes, broken content is caught.
+assert.deepEqual(validate(load()), []);
+const broken = validate({ ...load(), ideas: [{ id: 'a', title: 'A', series: 'nope', date: '2026-02-30' }, { id: 'a', title: 'B', series: 'reels' }], completedCollaborations: [{ id: 'p', title: 'P', status: 'published', participatingSpecialists: [], ideaId: 'zzz' }] });
+for (const pattern of [/series "nope"/, /not a real/, /duplicate id/, /no publishedReelUrl/, /does not match an idea/]) assert.ok(broken.some(e => pattern.test(e)), 'expected error ' + pattern);
+
+console.log('PASS: empty states, Idea Bank + filters, squad credits, weekly events, production board, escaping, safe URLs, eligibility, drafts, storage fallback, content validation');
+
+// Upload guidance, safe Disco fallback and autosave (ported from the Nov 18 GitHub updates).
+t = boot();
+assert.match(t.run('submissionHelp()'), /Open folder instructions in Disco/);
+assert.match(t.html('#resource-links'), /Specialist social templates/);
+assert.match(t.html('#project-gallery'), /See the format/);
+t = boot({ submissionInstructionsUrl: 'javascript:alert(1)' });
+assert.equal(t.run('submissionHelp()'), '');
+
+const stored = new Map();
+t = boot(null, false, stored);
+t.el('#flow-form').formData = [['title', 'A useful idea'], ['idea', 'Draft details']];
+t.run("activeFlow = 'pitch'; draftDirty = true; stash()");
+assert.equal(JSON.parse(stored.get('totsquad-pitch-v2')).title, 'A useful idea');
+assert.ok(JSON.parse(stored.get('totsquad-pitch-v2'))._savedAt);
+assert.match(t.el('#status').textContent, /saved on this device/);
+t.el('#flow-form').formData = [['title', 'Changed but not edited']];
+t.run('stash()'); // nothing new typed, nothing rewritten
+assert.equal(JSON.parse(stored.get('totsquad-pitch-v2')).title, 'A useful idea');
+t = boot(null, false, stored); // new page load recovers the draft
+assert.equal(t.run("loadDraft('pitch').title"), 'A useful idea');
+t = boot(null, true); // blocked storage keeps an in-memory draft
+t.el('#flow-form').formData = [['title', 'Session only']];
+t.run("activeFlow = 'pitch'; draftDirty = true; stash()");
+assert.equal(t.run("loadDraft('pitch').title"), 'Session only');
+assert.match(t.el('#status').textContent, /page session/);
+
+console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');
