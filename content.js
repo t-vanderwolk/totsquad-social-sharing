@@ -5,6 +5,7 @@ window.HUB_CONTENT = {
   timeZone: 'America/Phoenix',
   appUrl: 'https://tot-squad-hub.disco.co/page-app/UHJvZHVjdEFwcDozODQzNTg=?u=8d8e2732-9268-481e-9d53-1363df5e83ca&drawerTab=analytics',
   discoUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx',
+  submissionFolderUrl: 'https://drive.google.com/drive/folders/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd',
   submissionInstructionsUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA',
 
   // Idea Bank groups. color: plum, teal, peach or linen.
@@ -18,7 +19,8 @@ window.HUB_CONTENT = {
   /* Idea Bank. Source: Squad chat, Sep 2 – Nov 17, 2026. Leave date/credit blank when unknown.
      Fields: id, title, series, credit [names], date, summary, titleNote, howItWorks [],
      guidance [], variations [{title, text, credit, date}], notes [], altNames [], questions [],
-     stage (idea|filming|editing|published), lead, dueDate, discussionUrl */
+     stage (idea|filming|editing|published), lead, dueDate, discussionUrl,
+     image (optional photo in images/; otherwise the series illustration shows). Published ideas move to completedCollaborations. */
   ideas: [
     // Game Shows & Series — mostly from the Sep 2 founding brainstorm
     { id: 'baby-gear-game-shows', title: 'Baby Gear Game Shows', series: 'game-shows', credit: ['Taylor'], date: '2026-09-02',
@@ -43,14 +45,6 @@ window.HUB_CONTENT = {
 
     // Content & Reels
     { id: 'stroll-with-us', title: '#StrollWithUs', series: 'reels', credit: ['Kristin'], date: '', summary: '' },
-    { id: 'tot-squad-round-up', title: 'Tot Squad Round Up', series: 'reels', credit: ['Kristin'], date: '',
-      summary: 'Short pointing clips from across the Squad, built on a shared list of about 14 questions.' },
-    { id: 'pass-the-item', title: 'Pass-the-item intro', series: 'reels', credit: ['Lora'], date: '',
-      summary: 'Specialists pass an item from clip to clip to introduce the Squad.',
-      notes: ['It became the pass-the-sun Reel, which the Squad filmed.'],
-      variations: [{ title: 'Watch the Squad Grow', text: 'A redo of the pass-the-sun Reel.', credit: ['Taylor'], date: '2026-11-06' }] },
-    { id: 'day-in-the-life', title: 'Day in the life, hour by hour', series: 'reels', credit: [], date: '',
-      summary: 'A specialist’s day, told hour by hour.' },
     { id: 'on-duty-off-duty', title: 'On-Duty vs Off-Duty', series: 'reels', credit: [], date: '',
       summary: 'A carousel comparing specialists on duty and off duty.' },
     { id: 'controversial-items-poll', title: 'Controversial-items poll', series: 'reels', credit: ['Constance'], date: '',
@@ -97,26 +91,33 @@ window.HUB_CONTENT = {
       notes: ['Hub posts get noticed days late, which is why brainstorming moved to Instagram.'] }
   ],
 
-  // status: idea, casting, filming, editing, published; null = unverified
-  activeCollaborations: [],
+  // status: idea, casting, filming, editing, published; null = unverified. Optional: lead, exampleReelUrl.
+  activeCollaborations: [
+    { id: 'meet-the-squad-part-2', title: 'Meet the Squad, Part 2: Pass the Toy', status: 'casting', lead: 'Kristin',
+      description: 'Welcome to our newest specialists! Introduce yourself by passing the sunshine toy, just like the original Meet the Squad.',
+      instructions: 'A short intro clip: catch the sunshine toy, say hi, and pass it on.',
+      thumbnail: 'images/meet-the-squad.jpg', exampleReelUrl: 'https://www.instagram.com/reel/DdxH92sTWXo/',
+      submissionDeadline: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA',
+      publishedReelUrl: '', participatingSpecialists: [] }
+  ],
   // These are known project titles, not verified completion or publication claims.
   completedCollaborations: [
-    { id: 'meet-the-squad', ideaId: 'pass-the-item', title: 'Meet the Squad', status: 'published',
+    { id: 'meet-the-squad', title: 'Meet the Squad', status: 'published',
       description: 'A sunny introduction to the Tot Squad Baby Specialists and their free registry appointments at Target and online.',
       thumbnail: 'images/meet-the-squad.jpg', publishedReelUrl: 'https://www.instagram.com/reel/DdxH92sTWXo/',
       submissionDeadline: '', instructions: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-paGvAFsgM4iy3UR6LCJ3-',
       participatingSpecialists: ['Kristin', 'Lora', 'Constance', 'Atiba', 'Aly', 'Taylor'] },
-    { id: 'tot-squad-round-up', ideaId: 'tot-squad-round-up', title: 'Tot Squad Round Up: Strollers', status: 'published',
+    { id: 'tot-squad-round-up', title: 'Tot Squad Round Up: Strollers', status: 'published',
       description: 'The Squad answers “What’s your go-to stroller?” There’s no one-size-fits-all registry.',
       thumbnail: 'images/round-up-strollers.jpg', publishedReelUrl: 'https://www.instagram.com/reel/DeIYf50zTwr/',
       submissionDeadline: '', instructions: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=a92626f1-e32b-4c90-8cb2-d1fb97be5d93-L1Q8bG670t7qveiyVI5RD',
       participatingSpecialists: ['Kristin', 'Sarah', 'Lora', 'Constance', 'Aly', 'Taylor'] },
-    { id: 'tot-squad-round-up-favorites', ideaId: 'tot-squad-round-up', title: 'Tot Squad Round Up: Registry Favorites', status: 'published',
+    { id: 'tot-squad-round-up-favorites', title: 'Tot Squad Round Up: Registry Favorites', status: 'published',
       description: 'The Squad answers “What’s one registry item you couldn’t live without?”',
       thumbnail: 'images/round-up-registry-favorites.jpg', publishedReelUrl: 'https://www.instagram.com/reel/DeuxzYWTQhv/',
       submissionDeadline: '', instructions: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=a92626f1-e32b-4c90-8cb2-d1fb97be5d93-L1Q8bG670t7qveiyVI5RD',
       participatingSpecialists: [] },
-    { id: 'day-in-the-life', ideaId: 'day-in-the-life', title: 'A Day in the Life, Hour by Hour', status: 'published',
+    { id: 'day-in-the-life', title: 'A Day in the Life, Hour by Hour', status: 'published',
       description: 'The Squad sent photos all day to show how different our days are, from Target stores to virtual appointments.',
       thumbnail: 'images/day-in-the-life.jpg', publishedReelUrl: 'https://www.instagram.com/reel/DeUnaELy3Er/',
       submissionDeadline: '', instructions: '', discussionUrl: '',
@@ -170,6 +171,7 @@ window.HUB_CONTENT = {
 
   resources: [
     { label: 'Social & Sharing chat', url: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx' },
+    { label: 'Content submission folder', url: 'https://drive.google.com/drive/folders/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd' },
     { label: 'Submission folder instructions in Disco', url: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA' },
     { label: 'Specialist social templates', url: 'https://www.canva.com/design/DAG1czWO5Y0/j7Vm_P-c6yyRmcjj0JtB-Q/view' },
     { label: 'Specialist resource library', url: 'https://tot-squad-hub.disco.co/collection/Q29sbGVjdGlvbjozOTA3Nw==' },

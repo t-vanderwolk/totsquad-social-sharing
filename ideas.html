@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Idea Bank · Social & Sharing · Tot Squad</title>
+<meta name="description" content="Every idea the Tot Squad has shared, gathered in one place.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a href="#main" class="skip">Skip to content</a>
+
+<header class="site-header">
+  <a href="#main" class="brand" aria-label="Tot Squad Social & Sharing home"><img class="official-logo" src="https://cdn.prod.website-files.com/5f4a9ffd91010361e130f380/68407ea76a2d0b8be6420f9e_Tot-Squad-Logo-NEW-REG.png" alt="Tot Squad"><span class="hub-label">SPECIALIST HUB</span></a>
+  <span class="pill">Social &amp; Sharing</span>
+</header>
+
+<main id="main" class="ideas-page">
+  <div class="eyebrow"><a href="index.html" class="crumb">Social &amp; Sharing</a> / Idea Bank</div>
+
+  <section class="page-hero" aria-labelledby="title">
+    <div>
+      <h1 id="title">Idea <span>Bank</span></h1>
+      <p>Every idea the Squad has shared, gathered in one place. Find one to lead, build on it, or add your own. <span id="idea-summary"></span></p>
+    </div>
+    <div class="button-row"><button class="button" data-action="pitch">Pitch an idea</button><a class="button secondary" href="index.html">← Back to Social &amp; Sharing</a></div>
+  </section>
+
+  <noscript><p>Please enable JavaScript to view the Idea Bank.</p></noscript>
+
+  <section class="section" id="ideas" aria-label="All ideas">
+    <div class="filters" id="idea-filters" role="group" aria-label="Filter ideas by series"></div>
+    <div class="idea-grid" id="idea-grid" aria-live="polite"></div>
+  </section>
+
+  <section class="band band-linen" aria-labelledby="ways-title">
+    <div class="section-head"><div><h2 id="ways-title">How we work</h2><p>Small habits that keep ideas moving.</p></div></div>
+    <ul class="ways ways-grid" id="ways"></ul>
+  </section>
+
+  <section class="crew-band" aria-labelledby="crew-title">
+    <div><h2 id="crew-title">Got a “what if?”</h2><p>It doesn’t need to be perfect. Pitch it and the Squad can help shape it.</p></div>
+    <div class="button-row"><button class="button light" data-action="pitch">Pitch an idea</button></div>
+  </section>
+
+  <footer><span>Tot Squad Hub · Supporting the experts who support families.</span><span>Drafts stay on this device · Share in Disco when ready</span></footer>
+</main>
+
+<dialog id="modal" aria-labelledby="modal-title">
+  <button class="close" type="button" aria-label="Close dialog">×</button>
+  <div class="eyebrow">Tot Squad · Social &amp; Sharing</div>
+  <h2 id="modal-title"></h2>
+  <div id="modal-body"></div>
+  <p id="status" role="status" aria-live="polite"></p>
+</dialog>
+
+<script src="content.js" defer></script>
+<script src="script.js" defer></script>
+</body>
+</html>

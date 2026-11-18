@@ -7,7 +7,7 @@ function boot(config, storageFailure = false, stored = new Map()) {
   const elements = new Map();
   const el = id => { if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, addEventListener() {}, classList: { toggle() {} }, replaceChildren() {}, showModal() { this.open = true; } }); return elements.get(id); };
   const storage = { getItem(k) { if (storageFailure) throw Error('blocked'); return stored.get(k) ?? null; }, setItem(k, v) { if (storageFailure) throw Error('blocked'); stored.set(k, String(v)); }, removeItem(k) { if (storageFailure) throw Error('blocked'); stored.delete(k); } };
-  const ctx = vm.createContext({ window: {}, document: { querySelector: el, body: { classList: { toggle() {} } }, addEventListener() {} }, URL, URLSearchParams, location: { search: '?embed=1' }, Intl, Date, Map, Set, console, localStorage: storage, FormData: class { constructor(form) { return form.formData || []; } } });
+  const ctx = vm.createContext({ window: {}, document: { querySelector: el, querySelectorAll: () => [], body: { classList: { toggle() {} } }, addEventListener() {} }, URL, URLSearchParams, location: { search: '?embed=1' }, Intl, Date, Map, Set, console, localStorage: storage, FormData: class { constructor(form) { return form.formData || []; } } });
   vm.runInContext(fs.readFileSync(root + '/content.js', 'utf8'), ctx);
   if (config) Object.assign(ctx.window.HUB_CONTENT, config);
   vm.runInContext(fs.readFileSync(root + '/script.js', 'utf8'), ctx);
@@ -16,14 +16,18 @@ function boot(config, storageFailure = false, stored = new Map()) {
 
 // Real content renders its empty and placeholder states honestly.
 let t = boot();
-assert.match(t.html('#casting-projects'), /Something fun is in the works/);
+assert.match(t.html('#casting-projects'), /Meet the Squad, Part 2: Pass the Toy/); // currently casting
+assert.match(t.html('#casting-projects'), /Led by Kristin/);
+assert.match(t.html('#casting-projects'), /Watch Part 1/);
 assert.match(t.html('#project-gallery'), /Meet the Squad/);
 assert.doesNotMatch(t.html('#project-gallery'), /Pass the Toy|Details coming/);
 assert.equal((t.html('#project-gallery').match(/Watch the Reel/g) || []).length, 4); // four verified Reels
 assert.match(t.html('#project-gallery'), /src="images\/meet-the-squad\.jpg"/); // local cover images allowed
 assert.equal(t.run("imageUrl('images/../x.jpg')"), ''); // but only plain files in images/
 assert.equal(t.run("imageUrl('javascript:alert(1)')"), '');
-assert.match(t.html('#project-gallery'), /See the format/); // Round Up links to its idea
+assert.doesNotMatch(t.html('#idea-grid'), /Pass-the-item intro|>Tot Squad Round Up<|Day in the life/); // published ideas leave the Idea Bank
+assert.match(t.html('#idea-grid'), /class="idea-art"><svg/); // series illustration
+assert.equal(t.el('#production').hidden, true); // empty production board stays hidden
 assert.match(t.html('#resource-links'), /aria-disabled="true"/);
 assert.match(t.html('#idea-grid'), /Registry NOT Roast/);
 assert.match(t.html('#idea-filters'), /aria-pressed="true"/);
@@ -98,10 +102,11 @@ console.log('PASS: empty states, Idea Bank + filters, squad credits, weekly even
 
 // Upload guidance, safe Disco fallback and autosave (ported from the Nov 18 GitHub updates).
 t = boot();
-assert.match(t.run('submissionHelp()'), /Open folder instructions in Disco/);
+assert.match(t.run('submissionHelp()'), /href="https:\/\/drive\.google\.com\/drive\/folders\/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd"/);
+assert.match(t.run('submissionHelp()'), /Folder instructions in Disco/);
+assert.match(t.html('#resource-links'), /Content submission folder/);
 assert.match(t.html('#resource-links'), /Specialist social templates/);
-assert.match(t.html('#project-gallery'), /See the format/);
-t = boot({ submissionInstructionsUrl: 'javascript:alert(1)' });
+t = boot({ submissionFolderUrl: 'javascript:alert(1)', submissionInstructionsUrl: 'javascript:alert(1)' });
 assert.equal(t.run('submissionHelp()'), '');
 
 const stored = new Map();
@@ -131,11 +136,11 @@ assert.ok(validate({ ...load(), featuredSpecialists: [{ name: 'Bad', instagram: 
 
 // Leader spotlight.
 t = boot();
-assert.match(t.html('#squad-leader'), /Tot Squad CEO/);
-assert.match(t.html('#squad-leader'), /AKA The Queen/);
-assert.match(t.html('#squad-leader'), /instagram\.com\/jenbsaxton\//);
-assert.doesNotMatch(t.html('#squad-grid'), />Jen</);
+assert.match(t.html('#squad-grid'), /Tot Squad CEO/);
+assert.match(t.html('#squad-grid'), /AKA The Queen/);
+assert.match(t.html('#squad-grid'), /instagram\.com\/jenbsaxton\//);
+assert.equal((t.html('#squad-grid').match(/>Jen</g) || []).length, 1); // Jen only as the leader card
 t = boot({ leader: null });
-assert.equal(t.html('#squad-leader'), '');
+assert.doesNotMatch(t.html('#squad-grid'), /Leader spotlight/);
 
 console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');

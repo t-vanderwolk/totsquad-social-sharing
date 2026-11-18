@@ -3,7 +3,8 @@
 A public, buildless GitHub Pages hub for Tot Squad Baby Specialists: one home for the Squad's ideas, collaborations and content, instead of spreading them across the Instagram chat, a Google Drive and the Hub. No backend, database, upload service or automatic submissions are used.
 
 ## Files
-- `index.html`: page structure: hero, section nav, getting-started steps, action cards, sections and sidebar.
+- `index.html`: home page: hero, getting-started steps, action cards, Currently casting, a row of schedule/toolkit/links boxes, then full-width bands for Made by the Squad and Meet the Squad. Ideas live only on `ideas.html`.
+- `ideas.html`: the full Idea Bank with series filters, idea details and How we work. Links between the two pages keep `?embed=1`.
 - `styles.css`: one token-based stylesheet (brand tokens, series tints, components, embed mode, responsive rules).
 - `content.js`: all ideas, projects, events, people, deadlines and resources. **Edit this file for content changes.**
 - `script.js`: rendering, eligibility, Idea Bank filters, dialogs, separate local drafts, review/copy/download and Disco handoff.
@@ -82,6 +83,7 @@ For the cover, save a 4:5 image (e.g. 448×560 JPG) in `images/` and set `thumbn
 - **Featured specialists:** first names only, as approved. Optional `expertise`, `location`, `photo` (https), `spotlight`, `link` and `instagram` (`'handle'`, `'@handle'` or an instagram.com profile link; shown as an @handle link on the squad card). Add a handle only with that specialist's OK. Matching is by name against idea and `waysOfWorking` credits.
 - **Deadlines:** for approved public events, add `{ id, title, date: 'YYYY-MM-DD', url: '' }` to `upcomingDeadlines`.
 - **Resources:** empty URLs stay labeled unavailable. Never add a confidential Drive folder, tracker or planning doc to this public repo; link through a members-only Disco page instead.
+- **Submissions:** `submissionFolderUrl` is the Google Drive folder the Submit form and the resources list link to.
 - **Disco:** `discoUrl` is the Social & Sharing chat channel; `appUrl` keeps the embedded-app URL; `submissionInstructionsUrl` is the Disco message with upload-folder instructions. Review screens route to the project's or idea's `discussionUrl` when one is set. Nothing is ever submitted automatically.
 
 ## Check your edits

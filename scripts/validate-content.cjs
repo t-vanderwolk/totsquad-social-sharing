@@ -58,7 +58,7 @@ function validate(c) {
     if (p.status != null && !STAGES.includes(p.status)) err(w, `status must be null or one of ${STAGES.join(', ')}`);
     optDate(w + ' submissionDeadline', p.submissionDeadline);
     if (/^images\//.test(p.thumbnail || '')) { if (!require('node:fs').existsSync(require('node:path').join(__dirname, '..', p.thumbnail))) err(w + ' thumbnail', `"${p.thumbnail}" is not in the images folder`); }
-    else optUrl(w + ' thumbnail', p.thumbnail); optUrl(w + ' discussionUrl', p.discussionUrl); optUrl(w + ' publishedReelUrl', p.publishedReelUrl);
+    else optUrl(w + ' thumbnail', p.thumbnail); optUrl(w + ' discussionUrl', p.discussionUrl); optUrl(w + ' publishedReelUrl', p.publishedReelUrl); optUrl(w + ' exampleReelUrl', p.exampleReelUrl);
     if (p.status === 'published' && !p.publishedReelUrl) err(w, 'is published but has no publishedReelUrl');
     if (p.status === 'casting' && !p.instructions) err(w, 'is casting but has no filming instructions');
     if (p.ideaId && !ideaIds.has(p.ideaId)) err(w, `ideaId "${p.ideaId}" does not match an idea`);
@@ -88,6 +88,7 @@ function validate(c) {
     optImage('leader photo', l.photo); optUrl('leader link', l.link);
     if (l.instagram && !/^[A-Za-z0-9._]{1,30}$/.test(String(l.instagram).trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, ''))) err('leader instagram', `"${l.instagram}" is not a valid Instagram handle`);
   }
+  list('ideas').forEach(i => { if (i && i.image) optImage(`ideas (${i.id}) image`, i.image); });
   list('featuredSpecialists').forEach((p, i) => {
     const w = `featuredSpecialists[${i}]`;
     const n = typeof p === 'string' ? p : p && p.name;

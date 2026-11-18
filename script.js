@@ -91,7 +91,7 @@ function instagramHandle(value) {
   const raw = String(value || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, '');
   return /^[A-Za-z0-9._]{1,30}$/.test(raw) ? raw : '';
 }
-const instagramLink = value => { const h = instagramHandle(value); return h ? `<a class="text-button insta" href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer" aria-label="${escapeHTML('@'+h+' on Instagram')}">@${escapeHTML(h)} ↗</a>` : ''; };
+const instagramLink = value => { const h = instagramHandle(value); return h ? `<a class="text-button insta" href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer" aria-label="${escapeHTML('@'+h+' on Instagram')}" title="${escapeHTML('@'+h)}"><svg class="ig" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg><span>@${escapeHTML(h)}</span></a>` : ''; };
 const initials = name => name.trim().split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase();
 function byline(item) { const who = credits(item.credit); return [who.length ? 'Suggested by '+who.join(' & ') : '', shortDate(item.date)].filter(Boolean).join(' · '); }
 function externalLink(url,label,cls='button') { const safe = publicUrl(url); return safe ? `<a class="${cls}" href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)} ↗</a>` : ''; }
@@ -99,29 +99,66 @@ function emptyState(heading,text,actions='',icon=ICON.spark) { return `<div clas
 function storageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function storageSet(key,value) { try { localStorage.setItem(key,value); return true; } catch { return false; } }
 function submissionHelp() {
-  const link = externalLink(content.submissionInstructionsUrl,'Open folder instructions in Disco','button secondary');
-  return link ? `<div class="flow-note"><strong>Have footage to upload?</strong><p>Open the folder instructions in Disco, upload your content there, then paste its shareable link below. Check that the reviewer can open it.</p>${link}</div>` : '';
+  const folder = externalLink(content.submissionFolderUrl,'Open the submission folder','button');
+  const steps = externalLink(content.submissionInstructionsUrl,'Folder instructions in Disco','button secondary');
+  return folder || steps ? `<div class="flow-note"><strong>Have footage to upload?</strong><p>Upload your content to the submission folder, then paste its shareable link below. Check that the reviewer can open it.</p><div class="button-row">${folder}${steps}</div></div>` : '';
 }
 
 /* "New" badges: ideas dated after this browser's previous visit. */
 const lastVisit = storageGet('totsquad-last-visit') || '';
 const isNew = d => !!lastVisit && dateValid(d) && d > lastVisit;
 
+/* Two pages share this script: index.html and ideas.html. Links between them keep ?embed=1. */
+const EMBED = new URLSearchParams(location.search).get('embed') === '1';
+const pageUrl = file => file + (EMBED ? '?embed=1' : '');
+const IDEAS_URL = pageUrl('ideas.html');
+const has = sel => !!document.querySelector(sel);
+
 /* ---------- Page sections ---------- */
 function renderCasting() {
   const casting = openProjects();
   $('#casting-projects').innerHTML = casting.length ? casting.map(p => `<article class="casting">
     <div class="casting-art">${imageUrl(p.thumbnail) ? `<img src="${escapeHTML(imageUrl(p.thumbnail))}" alt="">` : ICON.people}</div>
-    <div class="casting-copy"><span class="chip">Accepting participants</span><h3>${escapeHTML(p.title)}</h3><p>${escapeHTML(p.description || 'Project details to come.')}</p>
+    <div class="casting-copy"><span class="chip">Accepting participants</span><h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
-    <div class="button-row"><button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
-    : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.','<a class="button secondary" href="#ideas">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>', ICON.people);
+    <div class="button-row"><button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
+    : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
 }
 
+/* Idea Bank art: one original illustration per series. An idea's own `image` (images/ file) replaces it. */
+const SVG = (inner) => `<svg viewBox="0 0 240 120" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const SPARKS = '<g stroke-width="2.5"><path d="M30 28v10M25 33h10"/><path d="M208 84v8M204 88h8"/><circle cx="206" cy="30" r="2.5" fill="currentColor"/><circle cx="40" cy="92" r="2" fill="currentColor"/></g>';
+const ART = {
+  buzzer: '<path d="M92 92h56M100 92l6-26h28l6 26"/><path d="M104 66c0-18 32-18 32 0"/><circle cx="120" cy="50" r="5" fill="currentColor"/><path d="M70 40l-12-10M170 40l12-10M66 60H50M174 60h16"/>',
+  mic: '<rect x="106" y="18" width="28" height="48" rx="14"/><path d="M94 58c0 18 12 28 26 28s26-10 26-28M120 86v16M104 102h32"/><path d="M112 34h16M112 44h16"/>',
+  trophy: '<path d="M96 22h48v22c0 16-10 28-24 28s-24-12-24-28z"/><path d="M96 30H82c0 14 6 20 16 20M144 30h14c0 14-6 20-16 20M120 72v14M102 100h36l-4-14h-28z"/>',
+  stroller: '<path d="M78 40h44v34H86c-6 0-8-4-8-8z"/><path d="M122 40c22 0 36 14 36 34h-36z"/><path d="M78 40l-8-12h-10M86 74l-6 16M150 74l6 16"/><circle cx="88" cy="96" r="8"/><circle cx="148" cy="96" r="8"/>',
+  heart: '<path d="M120 98C94 80 80 66 80 50c0-12 9-20 20-20 9 0 16 6 20 13 4-7 11-13 20-13 11 0 20 8 20 20 0 16-14 30-40 48z"/><path d="M104 50c0-4 3-7 7-7"/>',
+  question: '<path d="M70 28h100a10 10 0 0 1 10 10v36a10 10 0 0 1-10 10h-60l-18 14V84H70a10 10 0 0 1-10-10V38a10 10 0 0 1 10-10z"/><path d="M110 46c0-6 5-10 10-10s10 4 10 9c0 8-10 8-10 15"/><circle cx="120" cy="70" r="2.5" fill="currentColor"/>',
+  phone: '<rect x="98" y="16" width="44" height="88" rx="9"/><path d="M114 48v24l20-12z" fill="currentColor"/><path d="M112 96h16"/><path d="M68 44c-8 10-8 22 0 32M172 44c8 10 8 22 0 32"/>',
+  clapper: '<rect x="76" y="50" width="88" height="52" rx="6"/><path d="M76 50l4-20 84 0-4 20M96 30l-6 20M118 30l-6 20M140 30l-6 20"/><path d="M112 66v20l16-10z" fill="currentColor"/>',
+  clock: '<circle cx="120" cy="60" r="38"/><path d="M120 36v24l16 10"/><path d="M120 22v6M120 92v6M82 60h6M152 60h6"/>',
+  moon: '<path d="M134 24a38 38 0 1 0 20 64 32 32 0 0 1-20-64z"/><path d="M158 34v10M153 39h10M168 58v6M165 61h6"/>',
+  tiers: '<rect x="72" y="22" width="96" height="22" rx="6"/><rect x="72" y="50" width="96" height="22" rx="6"/><rect x="72" y="78" width="96" height="22" rx="6"/><path d="M82 33h6M82 61h6M82 89h6M96 33h50M96 61h40M96 89h28"/>',
+  poll: '<path d="M70 100h100"/><rect x="82" y="64" width="18" height="36" rx="3"/><rect x="111" y="36" width="18" height="64" rx="3"/><rect x="140" y="52" width="18" height="48" rx="3"/>',
+  gift: '<rect x="84" y="50" width="72" height="50" rx="5"/><path d="M80 38h80v12H80zM120 38v62"/><path d="M120 38c-6-14-26-16-24-4 1 6 14 6 24 4zM120 38c6-14 26-16 24-4-1 6-14 6-24 4z"/>',
+  checklist: '<rect x="86" y="18" width="68" height="88" rx="8"/><path d="M106 18v-4h28v4"/><path d="M98 42l6 6 10-10M98 64l6 6 10-10M98 86l6 6 10-10M122 46h20M122 68h20M122 90h20"/>',
+  store: '<path d="M70 50l8-24h84l8 24"/><path d="M70 50c0 8 6 12 12 12s12-4 12-12c0 8 6 12 12 12s12-4 12-12c0 8 6 12 12 12s12-4 12-12c0 8 6 12 12 12s12-4 12-12"/><path d="M78 62v38h84V62M108 100V76h24v24"/>',
+  people: '<circle cx="98" cy="46" r="13"/><path d="M72 98c2-18 12-28 26-28s24 10 26 28"/><circle cx="146" cy="50" r="11"/><path d="M128 72c4-2 10-4 18-4 12 0 22 10 22 28"/>',
+  coin: '<circle cx="120" cy="60" r="34"/><circle cx="120" cy="60" r="24"/><path d="M120 46v28M112 52c0-4 4-6 8-6s8 2 8 6-4 6-8 6-8 2-8 6 4 6 8 6 8-2 8-6"/>',
+  chat: '<path d="M70 30h70a10 10 0 0 1 10 10v26a10 10 0 0 1-10 10H96l-16 12v-12h-10a10 10 0 0 1-10-10V40a10 10 0 0 1 10-10z"/><path d="M162 54h8a10 10 0 0 1 10 10v20a10 10 0 0 1-10 10h-6v10l-14-10h-20a10 10 0 0 1-8-4"/><circle cx="90" cy="53" r="3" fill="currentColor"/><circle cx="105" cy="53" r="3" fill="currentColor"/><circle cx="120" cy="53" r="3" fill="currentColor"/>',
+  pin: '<path d="M120 102s-32-30-32-54a32 32 0 0 1 64 0c0 24-32 54-32 54z"/><circle cx="120" cy="48" r="11"/>',
+  bell: '<path d="M90 82V58a30 30 0 0 1 60 0v24l8 10H82z"/><path d="M110 96a10 10 0 0 0 20 0M120 22v6"/><path d="M164 40c4 6 4 14 0 20M76 40c-4 6-4 14 0 20"/>'
+};
+/* Matched by keywords in the title/summary first, then rotated within the series so neighbours differ. */
+const ART_RULES = [[/game show/i,'buzzer'],[/love is blind|dating/i,'heart'],[/night before|holiday|trick or treat|halloween/i,'moon'],[/stroller/i,'stroller'],[/fund|bank|deal/i,'coin'],[/buzzer/i,'buzzer'],[/question|q&a|explains/i,'question'],[/court|poll|controversial/i,'poll'],[/hour by hour|day in the life|on-duty/i,'clock'],[/gotta have|tier/i,'tiers'],[/tipping|survey/i,'coin'],[/two-specialist|event-style/i,'people'],[/in-store|store/i,'store'],[/roast|registry/i,'checklist'],[/finder|city/i,'pin'],[/notif/i,'bell'],[/channel|social/i,'chat']];
+const SERIES_ART = {'game-shows':['buzzer','trophy','mic'],'reels':['phone','clapper','mic'],'registry':['gift','checklist','store'],'hub':['chat','bell','pin']};
+const artKey = i => { const hit = ART_RULES.find(([re]) => re.test(i.title||'')) || ART_RULES.find(([re]) => re.test(i.summary||'')); if (hit) return hit[1]; const pool = SERIES_ART[i.series] || SERIES_ART.hub; const n = [...String(i.id)].reduce((a,c) => a + c.charCodeAt(0), 0); return pool[n % pool.length]; };
+const ideaArt = i => { const img = imageUrl(i.image); return `<div class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(SPARKS+ART[artKey(i)])}</div>`; };
 function ideaCard(i) {
   const s = seriesById(i.series); const stage = stageKey(i.stage);
-  return `<article class="idea-card tint-${tintFor(i)}">
+  return `<article class="idea-card tint-${tintFor(i)}">${ideaArt(i)}
     <div class="idea-top"><span class="chip series">${escapeHTML(s ? s.label : 'Idea')}</span>${isNew(i.date) ? '<span class="chip new">New</span>' : ''}</div>
     <h3>${escapeHTML(i.title)}</h3>${i.titleNote ? `<p class="idea-note">${escapeHTML(i.titleNote)}</p>` : ''}
     <p>${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</p>
@@ -154,9 +191,10 @@ function laneItem(x) {
 function renderProduction() {
   const items = productionItems();
   const lanes = [['idea','Planning'],['filming','Filming'],['editing','Editing']];
+  const section = $('#production'); if (section) section.hidden = !items.length;
   $('#production-board').innerHTML = items.length
     ? `<div class="board">${lanes.map(([key,label]) => { const list = items.filter(x => x.stage === key); return `<section class="lane" aria-label="${label}"><h3>${label} <span>${list.length}</span></h3>${list.length ? list.map(laneItem).join('') : '<p class="lane-empty">Nothing here yet.</p>'}</section>`; }).join('')}</div>`
-    : emptyState('Nothing in production yet.','Pick an idea from the Idea Bank and raise your hand to lead it. It will show up here as it moves from planning to filming to editing.','<a class="button secondary" href="#ideas">Find an idea to lead</a>');
+    : emptyState('Nothing in production yet.','Pick an idea from the Idea Bank and raise your hand to lead it. It will show up here as it moves from planning to filming to editing.',`<a class="button secondary" href="${IDEAS_URL}">Find an idea to lead</a>`);
 }
 
 function poster(p,label) {
@@ -176,18 +214,19 @@ function renderGallery() {
 
 const REGIONS = ['East','Central','West'];
 const regionBadge = r => REGIONS.includes(r) ? `<span class="region region-${r.toLowerCase()}">${r}</span>` : '';
-function renderLeader() {
+/* The leader card sits first in the squad grid and spans two columns, so 1 leader + 10 specialists fill even rows. */
+function leaderCard() {
   const p = content.leader;
-  if (!p || !p.name) { $('#squad-leader').innerHTML = ''; return; }
+  if (!p || !p.name) return '';
   const photo = imageUrl(p.photo);
-  $('#squad-leader').innerHTML = `<article class="leader">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
+  return `<article class="leader">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
     <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(p.name)}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.bio ? `<p>${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
     <div class="person-links">${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
 }
 function renderSquad() {
-  renderLeader();
+  const leader = leaderCard();
   const people = (content.featuredSpecialists || []).map(p => typeof p === 'string' ? {name:p} : p).filter(p => p && p.name);
-  $('#squad-grid').innerHTML = people.length ? people.map((p,i) => {
+  $('#squad-grid').innerHTML = people.length || leader ? leader + people.map((p,i) => {
     const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
     return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
       <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio">${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
@@ -228,10 +267,11 @@ function renderResources() {
 }
 
 function renderContent() {
-  document.body.classList.toggle('embed', new URLSearchParams(location.search).get('embed') === '1');
-  $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
-  renderCasting(); renderIdeas(); renderProduction(); renderGallery(); renderSquad();
-  renderWeek(); renderWays(); renderDeadlines(); renderResources();
+  document.body.classList.toggle('embed', EMBED);
+  if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
+  if (has('#welcome')) $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
+  const sections = [['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#deadlines',renderDeadlines],['#resource-links',renderResources]];
+  for (const [sel,render] of sections) if (has(sel)) render();
   storageSet('totsquad-last-visit', today());
 }
 
@@ -348,7 +388,7 @@ function openFlow(action,data) {
   const nav = flowNav(action);
   if ((action === 'collab' && !openProjects().length) || (action === 'share' && !publishedProjects().length)) {
     const collab = action === 'collab';
-    body.innerHTML = nav+emptyState(collab ? 'Something fun is in the works!' : 'Good things are worth sharing.', collab ? 'No collaborations are accepting participants right now. Check back soon, or browse the Idea Bank for one to lead.' : 'Shareable messages will be available when a completed project has a verified published Reel link.', collab ? '<a class="button secondary" href="#ideas">Browse the Idea Bank</a>' : '')+'<div id="previous-draft"></div>';
+    body.innerHTML = nav+emptyState(collab ? 'Something fun is in the works!' : 'Good things are worth sharing.', collab ? 'No collaborations are accepting participants right now. Check back soon, or browse the Idea Bank for one to lead.' : 'Shareable messages will be available when a completed project has a verified published Reel link.', collab ? `<a class="button secondary" href="${IDEAS_URL}">Browse the Idea Bank</a>` : '')+'<div id="previous-draft"></div>';
     const saved = loadDraft(action);
     if (hasDraft(action,saved)) { const area = $('#previous-draft'); const p = document.createElement('p'); p.textContent = 'You have an earlier local draft. You can download it for your records.'; const b = document.createElement('button'); b.className = 'button secondary'; b.textContent = 'Download earlier draft'; b.onclick = () => downloadText(draftText(action,saved),'tot-squad-'+action+'-draft.txt'); area.append(p,b); }
     showModal(); return;

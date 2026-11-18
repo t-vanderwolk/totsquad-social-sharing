@@ -45,8 +45,7 @@
   <nav class="section-nav" aria-label="On this page">
     <ul>
       <li><a href="#casting">Casting</a></li>
-      <li><a href="#ideas">Idea Bank</a></li>
-      <li><a href="#production">In production</a></li>
+      <li><a href="ideas.html">Idea Bank</a></li>
       <li><a href="#made">Made by the Squad</a></li>
       <li><a href="#squad">Meet the Squad</a></li>
       <li><a href="#week">This week</a></li>
@@ -59,7 +58,7 @@
       <button class="close" type="button" data-dismiss="welcome" aria-label="Hide the getting-started steps">×</button>
     </div>
     <ol>
-      <li><a href="#ideas"><strong>Browse the Idea Bank</strong><span>See what the Squad has dreamed up.</span></a></li>
+      <li><a href="ideas.html"><strong>Browse the Idea Bank</strong><span>See what the Squad has dreamed up.</span></a></li>
       <li><button type="button" data-action="brand"><strong>Read the brand &amp; voice</strong><span>How Tot Squad sounds and looks.</span></button></li>
       <li><a href="#week"><strong>Join a Pop-In</strong><span>Meet the Squad every Thursday.</span></a></li>
       <li><button type="button" data-action="pitch"><strong>Pitch your first idea</strong><span>It doesn’t need to be perfect.</span></button></li>
@@ -75,57 +74,45 @@
 
   <noscript><p>Please enable JavaScript to view collaborations, the Idea Bank and the draft tools.</p></noscript>
 
-  <div class="layout">
-    <div>
-      <section class="section" id="casting" aria-labelledby="casting-title">
-        <div class="section-head"><div><h2 id="casting-title">Currently casting</h2><p>A little teamwork goes a long way.</p></div></div>
-        <div id="casting-projects"></div>
-      </section>
+  <section class="section" id="casting" aria-labelledby="casting-title">
+    <div class="section-head"><div><h2 id="casting-title">Currently casting</h2><p>A little teamwork goes a long way.</p></div><a class="button secondary" href="ideas.html">Browse the Idea Bank <span aria-hidden="true">→</span></a></div>
+    <div id="casting-projects"></div>
+  </section>
 
-      <section class="section" id="ideas" aria-labelledby="ideas-title">
-        <div class="section-head"><div><h2 id="ideas-title">Idea Bank</h2><p>Every idea the Squad has shared, gathered in one place. <span id="idea-summary"></span></p></div><button class="button secondary" data-action="pitch">Add an idea</button></div>
-        <div class="filters" id="idea-filters" role="group" aria-label="Filter ideas by series"></div>
-        <div class="idea-grid" id="idea-grid" aria-live="polite"></div>
-      </section>
+  <section class="section" id="production" aria-labelledby="production-title" hidden>
+    <div class="section-head"><div><h2 id="production-title">In production</h2><p>From planning to filming to editing.</p></div></div>
+    <div id="production-board"></div>
+  </section>
 
-      <section class="section" id="production" aria-labelledby="production-title">
-        <div class="section-head"><div><h2 id="production-title">In production</h2><p>From planning to filming to editing.</p></div></div>
-        <div id="production-board"></div>
-      </section>
-
-      <section class="section" id="made" aria-labelledby="gallery-title">
-        <div class="section-head"><div><h2 id="gallery-title">Made by the Squad</h2><p>Our community collaborations.</p></div></div>
-        <div class="gallery" id="project-gallery"></div>
-      </section>
-
-      <section class="section" id="squad" aria-labelledby="squad-title">
-        <div class="section-head"><div><h2 id="squad-title">Meet the Squad</h2><p>The specialists behind the ideas.</p></div></div>
-        <div id="squad-leader"></div>
-        <div class="squad-grid" id="squad-grid"></div>
-      </section>
-    </div>
-
-    <aside aria-label="Squad schedule and resources">
-      <section class="sidebox" id="week" aria-labelledby="week-title"><h2 id="week-title">This week in the Squad</h2><div id="week-events"></div></section>
+  <div class="info-row" aria-label="Squad schedule and resources">
+    <section class="sidebox" id="week" aria-labelledby="week-title"><h2 id="week-title">This week in the Squad</h2><div id="week-events"></div></section>
+    <div class="info-stack">
       <section class="sidebox" aria-labelledby="horizon-title"><h2 id="horizon-title">On the horizon</h2><div id="deadlines"></div></section>
       <section class="sidebox" aria-labelledby="toolkit-title">
         <h2 id="toolkit-title">Your creative toolkit</h2>
-        <p class="mini-label">Get started</p>
         <button class="linkrow" data-action="brand">Tot Squad brand &amp; voice <span aria-hidden="true">→</span></button>
         <button class="linkrow" data-action="guide">Content starter guide <span aria-hidden="true">→</span></button>
         <button class="linkrow" data-action="checklist">Before-you-share checklist <span aria-hidden="true">→</span></button>
         <button class="linkrow" data-action="drafts">My saved drafts <span aria-hidden="true">→</span></button>
-        <p class="mini-label">Links</p>
-        <div id="resource-links"></div>
       </section>
-      <section class="sidebox" aria-labelledby="ways-title"><h2 id="ways-title">How we work</h2><ul class="ways" id="ways"></ul></section>
-      <section class="crew">
-        <h3>There’s a place for your voice.</h3>
-        <p>You don’t need a perfect pitch or a polished video. Start with something you care about.</p>
-        <button class="button" data-action="pitch">Start with an idea</button>
-      </section>
-    </aside>
+    </div>
+    <section class="sidebox" aria-labelledby="links-title"><h2 id="links-title">Links</h2><div id="resource-links"></div></section>
   </div>
+
+  <section class="band band-linen" id="made" aria-labelledby="gallery-title">
+    <div class="section-head"><div><h2 id="gallery-title">Made by the Squad</h2><p>Our community collaborations. Watch, share and cheer each other on.</p></div></div>
+    <div class="gallery" id="project-gallery"></div>
+  </section>
+
+  <section class="band band-lavender" id="squad" aria-labelledby="squad-title">
+    <div class="section-head"><div><h2 id="squad-title">Meet the Squad</h2><p>The specialists behind the ideas.</p></div></div>
+    <div class="squad-grid" id="squad-grid"></div>
+  </section>
+
+  <section class="crew-band" aria-labelledby="crew-title">
+    <div><h2 id="crew-title">There’s a place for your voice.</h2><p>You don’t need a perfect pitch or a polished video. Start with something you care about.</p></div>
+    <div class="button-row"><button class="button light" data-action="pitch">Pitch an idea</button><a class="button outline-light" href="ideas.html">Browse the Idea Bank</a></div>
+  </section>
 
   <footer><span>Tot Squad Hub · Supporting the experts who support families.</span><span>Drafts stay on this device · Share in Disco when ready</span></footer>
 </main>
