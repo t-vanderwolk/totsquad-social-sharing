@@ -53,7 +53,8 @@ function validate(c) {
     if (!p.title) err(w, 'needs a title');
     if (p.status != null && !STAGES.includes(p.status)) err(w, `status must be null or one of ${STAGES.join(', ')}`);
     optDate(w + ' submissionDeadline', p.submissionDeadline);
-    optUrl(w + ' thumbnail', p.thumbnail); optUrl(w + ' discussionUrl', p.discussionUrl); optUrl(w + ' publishedReelUrl', p.publishedReelUrl);
+    if (/^images\//.test(p.thumbnail || '')) { if (!require('node:fs').existsSync(require('node:path').join(__dirname, '..', p.thumbnail))) err(w + ' thumbnail', `"${p.thumbnail}" is not in the images folder`); }
+    else optUrl(w + ' thumbnail', p.thumbnail); optUrl(w + ' discussionUrl', p.discussionUrl); optUrl(w + ' publishedReelUrl', p.publishedReelUrl);
     if (p.status === 'published' && !p.publishedReelUrl) err(w, 'is published but has no publishedReelUrl');
     if (p.status === 'casting' && !p.instructions) err(w, 'is casting but has no filming instructions');
     if (p.ideaId && !ideaIds.has(p.ideaId)) err(w, `ideaId "${p.ideaId}" does not match an idea`);
@@ -77,6 +78,12 @@ function validate(c) {
   list('waysOfWorking').forEach((x, i) => { const w = `waysOfWorking[${i}]`; if (!x.title) err(w, 'needs a title'); names(w, x.credit); optDate(w + ' date', x.date); });
 
   const people = new Set();
+  if (c.leader) {
+    const l = c.leader;
+    if (!l.name) err('leader', 'needs a name');
+    optUrl('leader photo', l.photo); optUrl('leader link', l.link);
+    if (l.instagram && !/^[A-Za-z0-9._]{1,30}$/.test(String(l.instagram).trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, ''))) err('leader instagram', `"${l.instagram}" is not a valid Instagram handle`);
+  }
   list('featuredSpecialists').forEach((p, i) => {
     const w = `featuredSpecialists[${i}]`;
     const n = typeof p === 'string' ? p : p && p.name;
@@ -84,6 +91,10 @@ function validate(c) {
     if (people.has(n.toLowerCase())) err(w, `"${n}" is listed twice`);
     people.add(n.toLowerCase());
     if (typeof p === 'object') { optUrl(w + ' photo', p.photo); optUrl(w + ' link', p.link); }
+    if (p && p.instagram) {
+      const h = String(p.instagram).trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, '');
+      if (!/^[A-Za-z0-9._]{1,30}$/.test(h)) err(w + ' instagram', `"${p.instagram}" is not a valid Instagram handle`);
+    }
   });
 
   list('resources').forEach((r, i) => { if (!r.label) err(`resources[${i}]`, 'needs a label'); optUrl(`resources[${i}] url`, r.url); });

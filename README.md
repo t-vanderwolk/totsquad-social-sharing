@@ -19,7 +19,7 @@ A public, buildless GitHub Pages hub for Tot Squad Baby Specialists: one home fo
 | Idea Bank | `ideas`, grouped and filtered by `series` |
 | In production | `activeCollaborations` with status `idea`, `filming` or `editing`, plus `ideas` with stage `filming` or `editing` |
 | Made by the Squad | `completedCollaborations` |
-| Meet the Squad | `featuredSpecialists`; their ideas are listed automatically from idea `credit` |
+| Meet the Squad | `leader` (spotlight card on top: `name`, `title`, `aka`, `spotlight`, `instagram`) and `featuredSpecialists`; their ideas are listed automatically from idea `credit` |
 | This week in the Squad | `recurringEvents` |
 | On the horizon | collaboration deadlines plus `upcomingDeadlines` |
 | How we work | `waysOfWorking` |
@@ -73,11 +73,13 @@ Add an object to `activeCollaborations`:
 Project IDs must be unique across both lists. Use `casting` only when a project actually accepts participants. Casting with a past deadline is hidden automatically. A blank deadline shows "Deadline not announced." Dates are calendar days in `timeZone` (America/Phoenix), and a deadline stays open through that date.
 
 ## Publish a completed Reel
-Move the project to `completedCollaborations`, set `status: 'published'` and add its verified `publishedReelUrl`. Both are required before the Published label, Watch the Reel link and Share flow appear. The Meet the Squad, Pass the Toy and Tot Squad Round Up records contain only known titles; their status stays null until confirmed.
+Move the project to `completedCollaborations`, set `status: 'published'` and add its verified `publishedReelUrl`. Both are required before the Published label, Watch the Reel link and Share flow appear. Use the plain Reel link (`https://www.instagram.com/reel/CODE/`) without the `?utm_source=…` tracking part.
+
+For the cover, save a 4:5 image (e.g. 448×560 JPG) in `images/` and set `thumbnail: 'images/your-file.jpg'`. Don't hotlink Instagram image URLs; they expire. The validator flags a missing file. Set `ideaId` to link the card to its Idea Bank format.
 
 ## Events, people and resources
 - **Recurring events:** `weekday` is 0 (Sunday) to 6 (Saturday); the next date is calculated automatically. Use `weekday: null` with a `scheduleNote` when there's no fixed day. `time` is free text, e.g. `'12 pm MST'`.
-- **Featured specialists:** first names only, as approved. Optional `expertise`, `location`, `photo` (https), `spotlight` and `link`. Matching is by name against idea and `waysOfWorking` credits.
+- **Featured specialists:** first names only, as approved. Optional `expertise`, `location`, `photo` (https), `spotlight`, `link` and `instagram` (`'handle'`, `'@handle'` or an instagram.com profile link; shown as an @handle link on the squad card). Add a handle only with that specialist's OK. Matching is by name against idea and `waysOfWorking` credits.
 - **Deadlines:** for approved public events, add `{ id, title, date: 'YYYY-MM-DD', url: '' }` to `upcomingDeadlines`.
 - **Resources:** empty URLs stay labeled unavailable. Never add a confidential Drive folder, tracker or planning doc to this public repo; link through a members-only Disco page instead.
 - **Disco:** `discoUrl` is the Social & Sharing chat channel; `appUrl` keeps the embedded-app URL; `submissionInstructionsUrl` is the Disco message with upload-folder instructions. Review screens route to the project's or idea's `discussionUrl` when one is set. Nothing is ever submitted automatically.

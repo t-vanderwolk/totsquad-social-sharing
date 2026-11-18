@@ -101,9 +101,26 @@ window.HUB_CONTENT = {
   activeCollaborations: [],
   // These are known project titles, not verified completion or publication claims.
   completedCollaborations: [
-    { id: 'meet-the-squad', title: 'Meet the Squad', description: '', status: null, thumbnail: '', submissionDeadline: '', instructions: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-paGvAFsgM4iy3UR6LCJ3-', publishedReelUrl: '', participatingSpecialists: [] },
-    { id: 'pass-the-toy', title: 'Pass the Toy', description: '', status: null, thumbnail: '', submissionDeadline: '', instructions: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA', publishedReelUrl: '', participatingSpecialists: [] },
-    { id: 'tot-squad-round-up', ideaId: 'tot-squad-round-up', title: 'Tot Squad Round Up', description: '', status: null, thumbnail: '', submissionDeadline: '', instructions: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=a92626f1-e32b-4c90-8cb2-d1fb97be5d93-L1Q8bG670t7qveiyVI5RD', publishedReelUrl: '', participatingSpecialists: [] }
+    { id: 'meet-the-squad', ideaId: 'pass-the-item', title: 'Meet the Squad', status: 'published',
+      description: 'A sunny introduction to the Tot Squad Baby Specialists and their free registry appointments at Target and online.',
+      thumbnail: 'images/meet-the-squad.jpg', publishedReelUrl: 'https://www.instagram.com/reel/DdxH92sTWXo/',
+      submissionDeadline: '', instructions: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-paGvAFsgM4iy3UR6LCJ3-',
+      participatingSpecialists: ['Kristin', 'Lora', 'Constance', 'Atiba', 'Aly', 'Taylor'] },
+    { id: 'tot-squad-round-up', ideaId: 'tot-squad-round-up', title: 'Tot Squad Round Up: Strollers', status: 'published',
+      description: 'The Squad answers “What’s your go-to stroller?” There’s no one-size-fits-all registry.',
+      thumbnail: 'images/round-up-strollers.jpg', publishedReelUrl: 'https://www.instagram.com/reel/DeIYf50zTwr/',
+      submissionDeadline: '', instructions: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=a92626f1-e32b-4c90-8cb2-d1fb97be5d93-L1Q8bG670t7qveiyVI5RD',
+      participatingSpecialists: ['Kristin', 'Sarah', 'Lora', 'Constance', 'Aly', 'Taylor'] },
+    { id: 'tot-squad-round-up-favorites', ideaId: 'tot-squad-round-up', title: 'Tot Squad Round Up: Registry Favorites', status: 'published',
+      description: 'The Squad answers “What’s one registry item you couldn’t live without?”',
+      thumbnail: 'images/round-up-registry-favorites.jpg', publishedReelUrl: 'https://www.instagram.com/reel/DeuxzYWTQhv/',
+      submissionDeadline: '', instructions: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=a92626f1-e32b-4c90-8cb2-d1fb97be5d93-L1Q8bG670t7qveiyVI5RD',
+      participatingSpecialists: [] },
+    { id: 'day-in-the-life', ideaId: 'day-in-the-life', title: 'A Day in the Life, Hour by Hour', status: 'published',
+      description: 'The Squad sent photos all day to show how different our days are, from Target stores to virtual appointments.',
+      thumbnail: 'images/day-in-the-life.jpg', publishedReelUrl: 'https://www.instagram.com/reel/DeUnaELy3Er/',
+      submissionDeadline: '', instructions: '', discussionUrl: '',
+      participatingSpecialists: ['Sarah', 'Lora', 'Atiba', 'Taylor', 'Kristin'] }
   ],
   upcomingDeadlines: [],
 
@@ -122,13 +139,18 @@ window.HUB_CONTENT = {
     { id: 'b-roll', title: 'Shared b-roll library', text: 'Clips anyone can reuse, kept in the shared Drive.', credit: [] }
   ],
 
+  // Leader spotlight, shown above the squad cards. Same optional fields as specialists, plus title and aka.
+  leader: { name: 'Jen', title: 'Tot Squad CEO', aka: 'AKA The Queen', instagram: 'jenbsaxton',
+    spotlight: 'Cast as the MotherFunder in Fund or No Fund.' },
+
   // Approved first names. Contributions are listed automatically from idea credits.
-  // Optional: expertise, location, photo (https), spotlight, link (https).
+  // Optional: expertise, location, photo (https), spotlight, link (https), instagram ('handle', '@handle' or profile link).
   featuredSpecialists: [
-    { name: 'Kristin' }, { name: 'Taylor' }, { name: 'Lora' }, { name: 'Lindsay' }, { name: 'Aly' },
-    { name: 'Jessica' }, { name: 'Constance' }, { name: 'Sarah' },
-    { name: 'Jen', spotlight: 'Cast as the MotherFunder in Fund or No Fund.' },
-    { name: 'Linden' }
+    { name: 'Kristin', instagram: 'kristinbabyregistryspecialist' }, { name: 'Taylor', instagram: 'taylormadebabyco' }, { name: 'Lora', instagram: 'lora_thebabyspecialist' }, { name: 'Lindsay', instagram: 'northdenverbabyspecialist' }, { name: 'Aly', instagram: 'alygbabygoto' },
+    { name: 'Jessica', instagram: 'registrywithjessica' }, { name: 'Constance', instagram: 'constance_babygearspecialist' }, { name: 'Sarah', instagram: 'sarahcarlislestewart' },
+    { name: 'Linden', expertise: 'Tot Squad team', instagram: 'totsquad' },
+    { name: 'Atiba', expertise: 'Central Mentor', instagram: 'tiba.cooper' },
+    { name: 'Melissa', expertise: 'Eastern Mentor', instagram: 'melissababyconcierge' }
   ],
 
   resources: [

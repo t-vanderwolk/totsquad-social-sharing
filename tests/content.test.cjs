@@ -18,8 +18,11 @@ function boot(config, storageFailure = false, stored = new Map()) {
 let t = boot();
 assert.match(t.html('#casting-projects'), /Something fun is in the works/);
 assert.match(t.html('#project-gallery'), /Meet the Squad/);
-assert.match(t.html('#project-gallery'), /Details coming/);
-assert.doesNotMatch(t.html('#project-gallery'), /Watch the Reel/);
+assert.doesNotMatch(t.html('#project-gallery'), /Pass the Toy|Details coming/);
+assert.equal((t.html('#project-gallery').match(/Watch the Reel/g) || []).length, 4); // four verified Reels
+assert.match(t.html('#project-gallery'), /src="images\/meet-the-squad\.jpg"/); // local cover images allowed
+assert.equal(t.run("imageUrl('images/../x.jpg')"), ''); // but only plain files in images/
+assert.equal(t.run("imageUrl('javascript:alert(1)')"), '');
 assert.match(t.html('#project-gallery'), /See the format/); // Round Up links to its idea
 assert.match(t.html('#resource-links'), /aria-disabled="true"/);
 assert.match(t.html('#idea-grid'), /Registry NOT Roast/);
@@ -116,5 +119,21 @@ t.el('#flow-form').formData = [['title', 'Session only']];
 t.run("activeFlow = 'pitch'; draftDirty = true; stash()");
 assert.equal(t.run("loadDraft('pitch').title"), 'Session only');
 assert.match(t.el('#status').textContent, /page session/);
+
+// Instagram handles: normalized, linked, escaped; bad values dropped and caught by the validator.
+t = boot({ featuredSpecialists: [{ name: 'Tester', instagram: '@tot.squad_test' }, { name: 'Other', instagram: 'https://www.instagram.com/other.handle/?hl=en' }, { name: 'Bad', instagram: '"><script>' }] });
+assert.match(t.html('#squad-grid'), /href="https:\/\/www\.instagram\.com\/tot\.squad_test\/"/);
+assert.match(t.html('#squad-grid'), /@other\.handle/);
+assert.doesNotMatch(t.html('#squad-grid'), /<script>/);
+assert.ok(validate({ ...load(), featuredSpecialists: [{ name: 'Bad', instagram: 'not a handle!' }] }).some(e => /Instagram handle/.test(e)));
+
+// Leader spotlight.
+t = boot();
+assert.match(t.html('#squad-leader'), /Tot Squad CEO/);
+assert.match(t.html('#squad-leader'), /AKA The Queen/);
+assert.match(t.html('#squad-leader'), /instagram\.com\/jenbsaxton\//);
+assert.doesNotMatch(t.html('#squad-grid'), />Jen</);
+t = boot({ leader: null });
+assert.equal(t.html('#squad-leader'), '');
 
 console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');

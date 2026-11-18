@@ -69,6 +69,8 @@ const allProjects = [...content.activeCollaborations, ...content.completedCollab
 /* ---------- Helpers ---------- */
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function publicUrl(value) { try { const u = new URL(value); return ['https:','http:'].includes(u.protocol) ? u.href : ''; } catch { return ''; } }
+/* Images: a full https:// link, or a file in this repo's images/ folder. */
+function imageUrl(value) { const v = String(value || '').trim(); return /^images\/[A-Za-z0-9._-]+\.(jpe?g|png|webp)$/i.test(v) ? v : publicUrl(v); }
 function dateValid(value) { if(!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return false; const date = new Date(value+'T12:00:00Z'); return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10) === value; }
 function today() { return new Intl.DateTimeFormat('en-CA',{timeZone:content.timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
 function upcoming(value) { return dateValid(value) && value >= today(); }
@@ -84,6 +86,12 @@ const tintOf = color => TINTS.includes(color) ? color : 'linen';
 const tintFor = idea => tintOf(seriesById(idea.series)?.color);
 const stageKey = s => STAGES[s] ? s : 'idea';
 const credits = list => (Array.isArray(list) ? list : []).map(x => typeof x === 'string' ? x : x?.name).filter(Boolean);
+/* Accepts 'handle', '@handle' or an instagram.com profile link. Returns the bare handle or ''. */
+function instagramHandle(value) {
+  const raw = String(value || '').trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, '');
+  return /^[A-Za-z0-9._]{1,30}$/.test(raw) ? raw : '';
+}
+const instagramLink = value => { const h = instagramHandle(value); return h ? `<a class="text-button insta" href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer" aria-label="${escapeHTML('@'+h+' on Instagram')}">@${escapeHTML(h)} ↗</a>` : ''; };
 const initials = name => name.trim().split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase();
 function byline(item) { const who = credits(item.credit); return [who.length ? 'Suggested by '+who.join(' & ') : '', shortDate(item.date)].filter(Boolean).join(' · '); }
 function externalLink(url,label,cls='button') { const safe = publicUrl(url); return safe ? `<a class="${cls}" href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)} ↗</a>` : ''; }
@@ -103,7 +111,7 @@ const isNew = d => !!lastVisit && dateValid(d) && d > lastVisit;
 function renderCasting() {
   const casting = openProjects();
   $('#casting-projects').innerHTML = casting.length ? casting.map(p => `<article class="casting">
-    <div class="casting-art">${publicUrl(p.thumbnail) ? `<img src="${escapeHTML(publicUrl(p.thumbnail))}" alt="">` : ICON.people}</div>
+    <div class="casting-art">${imageUrl(p.thumbnail) ? `<img src="${escapeHTML(imageUrl(p.thumbnail))}" alt="">` : ICON.people}</div>
     <div class="casting-copy"><span class="chip">Accepting participants</span><h3>${escapeHTML(p.title)}</h3><p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
@@ -152,7 +160,7 @@ function renderProduction() {
 }
 
 function poster(p,label) {
-  const src = publicUrl(p.thumbnail);
+  const src = imageUrl(p.thumbnail);
   return `<div class="poster">${src ? `<img src="${escapeHTML(src)}" alt="" loading="lazy">` : `<span class="play">${ICON.play}</span>`}<span class="chip">${escapeHTML(label)}</span></div>`;
 }
 function renderGallery() {
@@ -171,15 +179,24 @@ function contributions(name) {
   const match = x => credits(x.credit).some(c => c.toLowerCase() === n);
   return {ideas: ideas().filter(match), ways: (content.waysOfWorking || []).filter(match)};
 }
+function renderLeader() {
+  const p = content.leader;
+  if (!p || !p.name) { $('#squad-leader').innerHTML = ''; return; }
+  const photo = imageUrl(p.photo);
+  $('#squad-leader').innerHTML = `<article class="leader">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
+    <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(p.name)}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
+    <div class="person-links">${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
+}
 function renderSquad() {
+  renderLeader();
   const people = (content.featuredSpecialists || []).map(p => typeof p === 'string' ? {name:p} : p).filter(p => p && p.name);
   $('#squad-grid').innerHTML = people.length ? people.map((p,i) => {
-    const c = contributions(p.name); const photo = publicUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
+    const c = contributions(p.name); const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
     return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
       <h3>${escapeHTML(p.name)}</h3>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
       ${c.ideas.length ? `<p class="mini-label">Ideas</p><ul class="tags">${c.ideas.map(x => `<li><button type="button" data-action="idea" data-id="${escapeHTML(x.id)}">${escapeHTML(x.title)}</button></li>`).join('')}</ul>` : ''}
       ${c.ways.length ? `<p class="mini-label">How we work</p><ul class="tags">${c.ways.map(w => `<li><span>${escapeHTML(w.title)}</span></li>`).join('')}</ul>` : ''}
-      ${externalLink(p.link,'Profile','text-button')}</article>`;
+      <div class="person-links">${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
 }
 
