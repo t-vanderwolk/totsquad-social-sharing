@@ -83,6 +83,7 @@ For the cover, save a 4:5 image (e.g. 448×560 JPG) in `images/` and set `thumbn
 - **Featured specialists:** first names only, as approved. Optional `expertise`, `location`, `photo` (https), `spotlight`, `link` and `instagram` (`'handle'`, `'@handle'` or an instagram.com profile link; shown as an @handle link on the squad card). Add a handle only with that specialist's OK. Matching is by name against idea and `waysOfWorking` credits.
 - **Deadlines:** for approved public events, add `{ id, title, date: 'YYYY-MM-DD', url: '' }` to `upcomingDeadlines`.
 - **Resources:** empty URLs stay labeled unavailable. Never add a confidential Drive folder, tracker or planning doc to this public repo; link through a members-only Disco page instead.
+- **Reels tracker & content calendar:** `reelsTrackerUrl` links the Reels – Status Report sheet. `contentCalendar` is a copy of its rows (title, lead, date, status, Reel link) shown in the Content calendar panel; update it when the sheet changes.
 - **Submissions:** `submissionFolderUrl` is the Google Drive folder the Submit form and the resources list link to.
 - **Disco:** `discoUrl` is the Social & Sharing chat channel; `appUrl` keeps the embedded-app URL; `submissionInstructionsUrl` is the Disco message with upload-folder instructions. Review screens route to the project's or idea's `discussionUrl` when one is set. Nothing is ever submitted automatically.
 

@@ -143,4 +143,14 @@ assert.equal((t.html('#squad-grid').match(/>Jen</g) || []).length, 1); // Jen on
 t = boot({ leader: null });
 assert.doesNotMatch(t.html('#squad-grid'), /Leader spotlight/);
 
+// Reels tracker link and content calendar.
+t = boot();
+assert.match(t.html('#resource-links'), /href="https:\/\/docs\.google\.com\/spreadsheets\/d\/1onXGs/);
+assert.match(t.html('#resource-links'), /data-action="calendar"/);
+t.run("openPanel('calendar')");
+const cal = t.html('#modal-body');
+assert.ok(cal.indexOf('Up next') < cal.indexOf('Posted') && cal.indexOf('Posted') < cal.indexOf('Future ideas'));
+assert.match(cal, /Daddy’s Home/); assert.match(cal, /In edit/); assert.match(cal, /Open the Reels tracker/);
+assert.ok(validate({ ...load(), contentCalendar: [{ title: 'X', status: 'someday' }] }).some(e => /must be posted/.test(e)));
+
 console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');

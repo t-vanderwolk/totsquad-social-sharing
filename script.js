@@ -355,6 +355,26 @@ function openDrafts() {
   showModal();
 }
 
+const CAL_STATUS = {posted:['published','Posted'],editing:['editing','In edit'],filming:['filming','Filming'],casting:['casting','Casting'],scheduled:['idea','Scheduled'],idea:['idea','Idea']};
+function calendarRow(x) {
+  const [cls,label] = CAL_STATUS[x.status] || CAL_STATUS.idea;
+  const when = dateValid(x.date) ? `<time datetime="${x.date}"><b>${fmt(x.date,{month:'short'})}</b>${fmt(x.date,{day:'numeric'})}</time>` : '<time class="tbd"><b>Date</b>TBD</time>';
+  return `<li class="cal-row">${when}<div><strong>${escapeHTML(x.title)}</strong><span>${x.lead ? 'Led by '+escapeHTML(x.lead) : ''}</span></div><span class="stage stage-${cls}">${label}</span>${x.status === 'posted' ? externalLink(x.url,'Watch','text-button') : ''}</li>`;
+}
+function openCalendar() {
+  const all = (content.contentCalendar || []).filter(x => x && x.title);
+  const byDate = (a,b) => (a.date || '9999').localeCompare(b.date || '9999');
+  const groups = [
+    ['Up next', all.filter(x => !['posted','idea'].includes(x.status)).sort(byDate)],
+    ['Posted', all.filter(x => x.status === 'posted').sort((a,b) => (b.date || '').localeCompare(a.date || ''))],
+    ['Future ideas', all.filter(x => x.status === 'idea')]
+  ].filter(([,list]) => list.length);
+  title.textContent = 'Content calendar';
+  body.innerHTML = (groups.length ? groups.map(([h,list]) => `<h3 class="cal-head">${h}</h3><ul class="cal-list">${list.map(calendarRow).join('')}</ul>`).join('') : '<p>No content is scheduled yet.</p>')
+    + `<p class="quiet">From the Reels tracker. Dates are deadlines.</p><div class="button-row">${externalLink(content.reelsTrackerUrl,'Open the Reels tracker','button secondary')}</div>`;
+  showModal();
+}
+
 function openIdea(id) {
   const i = ideas().find(x => x.id === id); if (!i) return;
   const s = seriesById(i.series); const stage = stageKey(i.stage);
@@ -465,6 +485,7 @@ function openFlow(action,data) {
 function openPanel(action,data={}) {
   stash(); activeFlow = null; status.textContent = ''; body.replaceChildren();
   if (action === 'drafts') return openDrafts();
+  if (action === 'calendar') return openCalendar();
   if (action === 'idea') return openIdea(data.id);
   if (flows[action]) return openFlow(action,data);
   const item = info[action]; if (!item) return;

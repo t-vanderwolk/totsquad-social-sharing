@@ -125,6 +125,22 @@ window.HUB_CONTENT = {
   ],
   upcomingDeadlines: [],
 
+  /* Content calendar, copied from the Reels – Status Report (updated Nov 18, 2026).
+     status: posted, editing, filming, casting, scheduled, idea. date: YYYY-MM-DD or '' when unknown. */
+  reelsTrackerUrl: 'https://docs.google.com/spreadsheets/d/1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg/edit',
+  contentCalendar: [
+    { title: 'Meet the Squad (Pass the Toy)', lead: 'Kristin', date: '2026-09-26', status: 'posted', url: 'https://www.instagram.com/reel/DdxH92sTWXo/' },
+    { title: 'Tot Squad Round Up #1: Strollers', lead: 'Kristin', date: '', status: 'posted', url: 'https://www.instagram.com/reel/DeIYf50zTwr/' },
+    { title: 'Day in the Life', lead: 'Sarah', date: '', status: 'posted', url: 'https://www.instagram.com/reel/DeUnaELy3Er/' },
+    { title: 'Tot Squad Round Up #2: Registry Favorites', lead: 'Kristin', date: '2026-10-18', status: 'posted', url: 'https://www.instagram.com/reel/DeuxzYWTQhv/' },
+    { title: 'Daddy’s Home', lead: 'Sarah', date: '2026-10-25', status: 'editing', url: '' },
+    { title: 'Tot Squad Round Up #3', lead: 'Kristin', date: '2026-11-08', status: 'scheduled', url: '' },
+    { title: 'Meet the Squad, Part 2: Pass the Toy (Fall Recruits)', lead: 'Kristin', date: '2026-11-13', status: 'casting', url: '' },
+    { title: 'My “Why” carousel', lead: 'Kristin', date: '', status: 'idea', url: '' },
+    { title: 'Registry Roast on Google Meet', lead: 'Taylor', date: '', status: 'idea', url: '' },
+    { title: 'Trick or Treat', lead: 'Taylor', date: '', status: 'idea', url: '' }
+  ],
+
   // weekday: 0 Sunday … 6 Saturday, or null when the schedule isn't set. time is optional text.
   recurringEvents: [
     { id: 'mentor-huddle', title: 'Mentor Huddle', weekday: 3, time: '', description: '', url: '' },
@@ -176,7 +192,7 @@ window.HUB_CONTENT = {
     { label: 'Specialist social templates', url: 'https://www.canva.com/design/DAG1czWO5Y0/j7Vm_P-c6yyRmcjj0JtB-Q/view' },
     { label: 'Specialist resource library', url: 'https://tot-squad-hub.disco.co/collection/Q29sbGVjdGlvbjozOTA3Nw==' },
     { label: 'B-roll library', url: '', unavailableLabel: 'Link via a members-only Disco page' },
-    { label: 'Reels tracker', url: '', unavailableLabel: 'Not configured' },
-    { label: 'Content calendar', url: '', unavailableLabel: 'Awaiting approval' }
+    { label: 'Reels tracker', url: 'https://docs.google.com/spreadsheets/d/1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg/edit' },
+    { label: 'Content calendar', action: 'calendar' }
   ]
 };

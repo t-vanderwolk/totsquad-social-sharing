@@ -89,6 +89,14 @@ function validate(c) {
     if (l.instagram && !/^[A-Za-z0-9._]{1,30}$/.test(String(l.instagram).trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, ''))) err('leader instagram', `"${l.instagram}" is not a valid Instagram handle`);
   }
   list('ideas').forEach(i => { if (i && i.image) optImage(`ideas (${i.id}) image`, i.image); });
+  optUrl('reelsTrackerUrl', c.reelsTrackerUrl);
+  list('contentCalendar').forEach((x, i) => {
+    const w = `contentCalendar[${i}]`;
+    if (!x || !x.title) err(w, 'needs a title');
+    if (x && !['posted','editing','filming','casting','scheduled','idea'].includes(x.status)) err(w, `status "${x && x.status}" must be posted, editing, filming, casting, scheduled or idea`);
+    if (x && x.date) optDate(w + ' date', x.date);
+    if (x) optUrl(w + ' url', x.url);
+  });
   list('featuredSpecialists').forEach((p, i) => {
     const w = `featuredSpecialists[${i}]`;
     const n = typeof p === 'string' ? p : p && p.name;
