@@ -1,9 +1,9 @@
 // Render/eligibility tests using isolated public-content fixtures, never deployed content.
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
 const root=require('node:path').join(__dirname,'..');
-function boot(config, storageFailure=false){
- const elements=new Map();const el=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:'',elements:[],addEventListener(){},classList:{toggle(){}},replaceChildren(){},showModal(){this.open=true;}});return elements.get(id);};
- const ctx=vm.createContext({window:{},document:{querySelector:el,body:{classList:{toggle(){}}},addEventListener(){}},URL,URLSearchParams,location:{search:'?embed=1'},Intl,Date,Map,console,localStorage:{getItem(){if(storageFailure)throw Error('blocked');return null;}}});
+function boot(config, storageFailure=false, stored=new Map()){
+ const elements=new Map();const el=id=>{if(!elements.has(id))elements.set(id,{innerHTML:'',textContent:'',elements:[],formData:[],reset(){this.formData=[];},addEventListener(){},classList:{toggle(){}},replaceChildren(){},showModal(){this.open=true;}});return elements.get(id);};
+ const ctx=vm.createContext({window:{},document:{querySelector:el,body:{classList:{toggle(){}}},addEventListener(){}},URL,URLSearchParams,location:{search:'?embed=1'},Intl,Date,Map,console,FormData:class {constructor(form){return form.formData;}},localStorage:{getItem(key){if(storageFailure)throw Error('blocked');return stored.get(key)||null;},setItem(key,value){if(storageFailure)throw Error('blocked');stored.set(key,value);},removeItem(key){if(storageFailure)throw Error('blocked');stored.delete(key);}}});
  vm.runInContext(fs.readFileSync(root+'/content.js','utf8'),ctx);if(config)Object.assign(ctx.window.HUB_CONTENT,config);vm.runInContext(fs.readFileSync(root+'/script.js','utf8'),ctx);return {ctx,elements,run:s=>vm.runInContext(s,ctx)};
 }
 let t=boot();assert.match(t.elements.get('#casting-projects').innerHTML,/Something fun is in the works/);assert.match(t.elements.get('#project-gallery').innerHTML,/Meet the Squad/);assert.doesNotMatch(t.elements.get('#project-gallery').innerHTML,/class="label">Published/);assert.match(t.elements.get('#resource-links').innerHTML,/aria-disabled="true"/);
@@ -24,3 +24,25 @@ t=boot({submissionInstructionsUrl:'javascript:alert(1)'});assert.equal(t.run('su
 t=boot();t.run("openPanel('submit')");assert.match(t.elements.get('#modal-body').innerHTML,/Have footage to upload/);assert.match(t.elements.get('#modal-body').innerHTML,/Opening Disco does not submit your draft/);assert.match(t.elements.get('#modal-body').innerHTML,/Paste your draft, check it, and send it in Disco/);
 t=boot();t.run("openPanel('pitch')");assert.doesNotMatch(t.elements.get('#modal-body').innerHTML,/Have footage to upload/);assert.match(t.elements.get('#modal-body').innerHTML,/handoff-steps/);
 console.log('PASS: submission help, review instructions, and safe discussion fallback');
+
+// Exercise input -> persistence -> new page -> clear -> close/flow switch.
+const stored=new Map();
+t=boot(null,false,stored);t.run("openPanel('pitch')");
+t.elements.get('#flow-form').formData=[['title','A useful idea'],['idea','Draft details']];
+t.elements.get('#flow-form').oninput();
+assert.equal(JSON.parse(stored.get('totsquad-pitch-v2')).title,'A useful idea');
+assert.match(t.elements.get('#status').textContent,/saved on this device/);
+t=boot(null,false,stored);assert.equal(t.run("loadDraft('pitch').title"),'A useful idea');
+t.run("openPanel('pitch')");t.elements.get('#clear-draft').onclick();t.run('stash()');
+assert.equal(stored.has('totsquad-pitch-v2'),false);
+assert.equal(JSON.stringify(t.run("loadDraft('pitch')")),'{}');
+t.run("openPanel('submit')");assert.equal(stored.has('totsquad-pitch-v2'),false);
+t.elements.get('#flow-form').formData=[['title','My submission']];t.elements.get('#flow-form').oninput();
+assert.equal(JSON.parse(stored.get('totsquad-submit-v2')).title,'My submission');
+assert.equal(stored.has('totsquad-pitch-v2'),false);
+// A blocked storage write retains an in-memory draft and reports the limitation.
+t=boot(null,true);t.run("openPanel('pitch')");t.elements.get('#flow-form').formData=[['title','Session only']];t.elements.get('#flow-form').oninput();
+assert.equal(t.run("loadDraft('pitch').title"),'Session only');assert.match(t.elements.get('#status').textContent,/page session/);
+t.elements.get('#clear-draft').onclick();t.run('stash()');assert.equal(JSON.stringify(t.run("loadDraft('pitch')")),'{}');
+t=boot();t.run("persistDraft('pitch',{title:'<img src=x onerror=alert(1)>'})");assert.match(t.run('draftCards()'),/&lt;img/);assert.doesNotMatch(t.run('draftCards()'),/<img/);
+console.log('PASS: automatic draft recovery, separate flows, clearing, blocked storage, escaped previews');
