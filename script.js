@@ -174,28 +174,23 @@ function renderGallery() {
   }).join('') : emptyState('Squad projects will appear here.','Finished collaborations show up once their details are ready.');
 }
 
-function contributions(name) {
-  const n = name.trim().toLowerCase();
-  const match = x => credits(x.credit).some(c => c.toLowerCase() === n);
-  return {ideas: ideas().filter(match), ways: (content.waysOfWorking || []).filter(match)};
-}
+const REGIONS = ['East','Central','West'];
+const regionBadge = r => REGIONS.includes(r) ? `<span class="region region-${r.toLowerCase()}">${r}</span>` : '';
 function renderLeader() {
   const p = content.leader;
   if (!p || !p.name) { $('#squad-leader').innerHTML = ''; return; }
   const photo = imageUrl(p.photo);
   $('#squad-leader').innerHTML = `<article class="leader">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
-    <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(p.name)}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
+    <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(p.name)}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.bio ? `<p>${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
     <div class="person-links">${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
 }
 function renderSquad() {
   renderLeader();
   const people = (content.featuredSpecialists || []).map(p => typeof p === 'string' ? {name:p} : p).filter(p => p && p.name);
   $('#squad-grid').innerHTML = people.length ? people.map((p,i) => {
-    const c = contributions(p.name); const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
+    const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
     return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
-      <h3>${escapeHTML(p.name)}</h3>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-      ${c.ideas.length ? `<p class="mini-label">Ideas</p><ul class="tags">${c.ideas.map(x => `<li><button type="button" data-action="idea" data-id="${escapeHTML(x.id)}">${escapeHTML(x.title)}</button></li>`).join('')}</ul>` : ''}
-      ${c.ways.length ? `<p class="mini-label">How we work</p><ul class="tags">${c.ways.map(w => `<li><span>${escapeHTML(w.title)}</span></li>`).join('')}</ul>` : ''}
+      <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio">${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
       <div class="person-links">${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
 }

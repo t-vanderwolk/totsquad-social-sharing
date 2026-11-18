@@ -140,17 +140,32 @@ window.HUB_CONTENT = {
   ],
 
   // Leader spotlight, shown above the squad cards. Same optional fields as specialists, plus title and aka.
-  leader: { name: 'Jen', title: 'Tot Squad CEO', aka: 'AKA The Queen', instagram: 'jenbsaxton',
-    spotlight: 'Cast as the MotherFunder in Fund or No Fund.' },
+  leader: { name: 'Jen', photo: 'images/squad-jen.jpg', title: 'Tot Squad CEO', aka: 'AKA The Queen', instagram: 'jenbsaxton' },
 
-  // Approved first names. Contributions are listed automatically from idea credits.
-  // Optional: expertise, location, photo (https), spotlight, link (https), instagram ('handle', '@handle' or profile link).
+  // Approved first names.
+  // region: East, Central or West (from the Squad Cup mentor sub-groups).
+  // Optional: bio (one or two sentences), expertise, location, photo (https or images/ file), spotlight, link (https), instagram.
   featuredSpecialists: [
-    { name: 'Kristin', instagram: 'kristinbabyregistryspecialist' }, { name: 'Taylor', instagram: 'taylormadebabyco' }, { name: 'Lora', instagram: 'lora_thebabyspecialist' }, { name: 'Lindsay', instagram: 'northdenverbabyspecialist' }, { name: 'Aly', instagram: 'alygbabygoto' },
-    { name: 'Jessica', instagram: 'registrywithjessica' }, { name: 'Constance', instagram: 'constance_babygearspecialist' }, { name: 'Sarah', instagram: 'sarahcarlislestewart' },
-    { name: 'Linden', expertise: 'Tot Squad team', instagram: 'totsquad' },
-    { name: 'Atiba', expertise: 'Central Mentor', instagram: 'tiba.cooper' },
-    { name: 'Melissa', expertise: 'Eastern Mentor', instagram: 'melissababyconcierge' }
+    { name: 'Kristin', region: 'East', photo: 'images/squad-kristin.jpg', 
+      bio: 'Mom of three in Holly Springs, NC, and a former reality TV producer. Loves baking, all things Disney and musicals.',
+      instagram: 'kristinbabyregistryspecialist' }, { name: 'Taylor', region: 'West', photo: 'images/squad-taylor.jpg', 
+      bio: 'Scottsdale-based baby gear expert with hands-on experience from Strolleria and Pottery Barn Kids. Certified Babywearing Educator and CPST, and the force behind Squad Cup.',
+      instagram: 'taylormadebabyco' }, { name: 'Lora', region: 'East', photo: 'images/squad-lora.jpg', 
+      bio: 'East Coast mentor, mom of four boys, esthetician and former birth doula who loves helping families navigate their registries.',
+      instagram: 'lora_thebabyspecialist' }, { name: 'Lindsay', region: 'Central', photo: 'images/squad-lindsay.jpg', 
+      bio: 'Serves North Denver-area Target stores, bringing social work, healthcare and postpartum-advocacy experience to zero-judgment registry help.',
+      instagram: 'northdenverbabyspecialist' }, { name: 'Aly', region: 'West', photo: 'images/squad-aly.jpg', 
+      bio: 'Redmond, WA mom of three, including twins, with a background in medical support. Loves music, nature and shopping.',
+      instagram: 'alygbabygoto' },
+    { name: 'Jessica', region: 'East', photo: 'images/squad-jessica.jpg', instagram: 'registrywithjessica' }, { name: 'Constance', region: 'East', photo: 'images/squad-constance.jpg', 
+      bio: 'Charlotte, NC-based former critical care nurse who now runs a virtual practice for infant sleep and registry guidance. Certified CPST.',
+      instagram: 'constance_babygearspecialist' }, { name: 'Sarah', region: 'West', photo: 'images/squad-sarah.jpg', 
+      bio: 'San Diego-based creator of The Modern Nanny and the Nanny Census Report, building community for domestic workers with humor and heart.',
+      instagram: 'sarahcarlislestewart' },
+    { name: 'Atiba', region: 'Central', photo: 'images/squad-atiba.jpg', instagram: 'tiba.cooper' },
+    { name: 'Melissa', region: 'East', photo: 'images/squad-melissa.jpg', 
+      bio: 'Mom of many, full-spectrum doula, newborn care specialist and pediatric sleep consultant who also co-owns a baby clothing brand.',
+      instagram: 'melissababyconcierge' }
   ],
 
   resources: [

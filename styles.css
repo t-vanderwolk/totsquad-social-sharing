@@ -183,7 +183,10 @@ main{max-width:1320px;margin:0 auto;padding:var(--s6) var(--gutter) var(--s8)}
 .person h3{font:800 19px/1.2 var(--serif)}
 .person .role{font-size:12px;color:var(--muted);margin:0}
 .person p{font-size:13px;margin:0}
-.person .mini-label{margin:var(--s2) 0 0}
+.person-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s2);flex-wrap:wrap}
+.region{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:100px;line-height:1.4}
+.region-east{background:var(--teal-soft);color:var(--teal-dark)}.region-central{background:var(--lavender);color:var(--plum-text)}.region-west{background:var(--peach);color:#8a4b2f}
+.person .bio{line-height:1.6;color:var(--body)}
 .leader{display:flex;gap:var(--s5);align-items:center;background:var(--lavender);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s5) var(--s6, 28px);margin-bottom:var(--s5)}
 .leader .avatar{width:84px;height:84px;font-size:30px;flex:none;background:var(--plum);color:var(--white)}
 .leader-copy{display:flex;flex-direction:column;gap:var(--s2);min-width:0}.leader-copy .chip{align-self:flex-start}
@@ -191,9 +194,6 @@ main{max-width:1320px;margin:0 auto;padding:var(--s6) var(--gutter) var(--s8)}
 .leader .aka{font:800 18px/1.2 var(--serif);font-style:italic;color:var(--plum);margin:0}.leader p{margin:0}
 @media(max-width:560px){.leader{flex-direction:column;align-items:flex-start}}
 .person-links{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);margin-top:auto;padding-top:var(--s2)}.person-links:empty{display:none}.insta{overflow-wrap:anywhere}
-.tags{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:6px}
-.tags button,.tags span{display:inline-block;border:0;background:var(--lavender);border-radius:100px;padding:4px 10px;font-size:12px;line-height:1.4;color:var(--plum-ink);text-align:left}
-.tags button:hover{background:var(--line)}
 
 /* ---------- Sidebar ---------- */
 aside{display:flex;flex-direction:column;gap:var(--s5)}

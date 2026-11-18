@@ -19,7 +19,7 @@ A public, buildless GitHub Pages hub for Tot Squad Baby Specialists: one home fo
 | Idea Bank | `ideas`, grouped and filtered by `series` |
 | In production | `activeCollaborations` with status `idea`, `filming` or `editing`, plus `ideas` with stage `filming` or `editing` |
 | Made by the Squad | `completedCollaborations` |
-| Meet the Squad | `leader` (spotlight card on top: `name`, `title`, `aka`, `spotlight`, `instagram`) and `featuredSpecialists`; their ideas are listed automatically from idea `credit` |
+| Meet the Squad | `leader` (spotlight card on top: `name`, `title`, `aka`, `spotlight`, `instagram`) and `featuredSpecialists` (photo, `region` badge: East/Central/West, short `bio`, Instagram) |
 | This week in the Squad | `recurringEvents` |
 | On the horizon | collaboration deadlines plus `upcomingDeadlines` |
 | How we work | `waysOfWorking` |

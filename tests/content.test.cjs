@@ -28,7 +28,9 @@ assert.match(t.html('#resource-links'), /aria-disabled="true"/);
 assert.match(t.html('#idea-grid'), /Registry NOT Roast/);
 assert.match(t.html('#idea-filters'), /aria-pressed="true"/);
 assert.match(t.html('#squad-grid'), /Kristin/);
-assert.match(t.html('#squad-grid'), /data-id="tot-squad-round-up"/); // contributions computed from credits
+assert.match(t.html('#squad-grid'), /class="bio">Mom of three in Holly Springs/);
+assert.doesNotMatch(t.html('#squad-grid'), /class="tags"/); // no idea tags on squad cards
+assert.equal((t.html('#squad-grid').match(/class="region region-/g) || []).length, 10); // every specialist has a region
 assert.match(t.html('#week-events'), /Every Thursday/);
 assert.match(t.html('#week-events'), /Dates to come/);
 assert.match(t.html('#production-board'), /Nothing in production yet/);
@@ -56,7 +58,7 @@ assert.doesNotMatch(t.html('#casting-projects'), /src="javascript:/);
 assert.match(t.html('#deadlines'), /2099/);
 assert.doesNotMatch(t.html('#deadlines'), /Invalid/);
 
-t = boot({ ideas: [{ id: 'x', title: '<b>Fixture</b>', series: 'reels', credit: ['Tester'] }], featuredSpecialists: [{ name: 'Tester', photo: 'javascript:alert(1)' }] });
+t = boot({ ideas: [{ id: 'x', title: '<b>Fixture</b>', series: 'reels', credit: ['Tester'] }], featuredSpecialists: [{ name: 'Tester', bio: '<b>Fixture</b> bio', photo: 'javascript:alert(1)' }] });
 assert.match(t.html('#idea-grid'), /&lt;b&gt;Fixture/);
 assert.match(t.html('#squad-grid'), /&lt;b&gt;Fixture/);
 assert.doesNotMatch(t.html('#squad-grid'), /javascript:/);

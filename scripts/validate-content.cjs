@@ -16,6 +16,10 @@ function validate(c) {
   const isDate = v => { if (!/^\d{4}-\d{2}-\d{2}$/.test(v || '')) return false; const d = new Date(v + 'T12:00:00Z'); return Number.isFinite(d.getTime()) && d.toISOString().slice(0, 10) === v; };
   const isUrl = v => { try { return ['https:', 'http:'].includes(new URL(v).protocol); } catch { return false; } };
   const optDate = (w, v) => { if (v && !isDate(v)) err(w, `"${v}" is not a real YYYY-MM-DD date`); };
+  const optImage = (w, v) => {
+    if (/^images\//.test(v || '')) { if (!/^images\/[A-Za-z0-9._-]+\.(jpe?g|png|webp)$/i.test(v) || !require('node:fs').existsSync(require('node:path').join(__dirname, '..', v))) err(w, `"${v}" is not in the images folder`); }
+    else optUrl(w, v);
+  };
   const optUrl = (w, v) => { if (v && !isUrl(v)) err(w, `"${v}" must be a full https:// link`); };
   const list = name => { const v = c[name]; if (v === undefined) return []; if (!Array.isArray(v)) { err(name, 'must be a list'); return []; } return v; };
   const names = (w, v) => { if (v !== undefined && (!Array.isArray(v) || v.some(n => typeof n !== 'string' || !n.trim()))) err(w, 'credit must be a list of names'); };
@@ -81,7 +85,7 @@ function validate(c) {
   if (c.leader) {
     const l = c.leader;
     if (!l.name) err('leader', 'needs a name');
-    optUrl('leader photo', l.photo); optUrl('leader link', l.link);
+    optImage('leader photo', l.photo); optUrl('leader link', l.link);
     if (l.instagram && !/^[A-Za-z0-9._]{1,30}$/.test(String(l.instagram).trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, ''))) err('leader instagram', `"${l.instagram}" is not a valid Instagram handle`);
   }
   list('featuredSpecialists').forEach((p, i) => {
@@ -90,7 +94,8 @@ function validate(c) {
     if (!n) { err(w, 'needs a name'); return; }
     if (people.has(n.toLowerCase())) err(w, `"${n}" is listed twice`);
     people.add(n.toLowerCase());
-    if (typeof p === 'object') { optUrl(w + ' photo', p.photo); optUrl(w + ' link', p.link); }
+    if (p && p.region && !['East', 'Central', 'West'].includes(p.region)) err(w + ' region', `"${p.region}" must be East, Central or West`);
+    if (typeof p === 'object') { optImage(w + ' photo', p.photo); optUrl(w + ' link', p.link); }
     if (p && p.instagram) {
       const h = String(p.instagram).trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, '');
       if (!/^[A-Za-z0-9._]{1,30}$/.test(h)) err(w + ' instagram', `"${p.instagram}" is not a valid Instagram handle`);
