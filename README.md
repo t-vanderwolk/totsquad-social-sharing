@@ -118,7 +118,7 @@ Embed URL: https://t-vanderwolk.github.io/totsquad-social-sharing/?embed=1
 ></iframe>
 ```
 
-Embed mode hides the site header. The page is longer now, so start around 2400px on desktop; narrow single-column layouts may need 4000px+ or internal scrolling. Do not disable scrolling. The iframe does not resize automatically. Dialogs scroll inside the iframe, support Escape and return focus to their trigger. On phones, dialogs open full screen.
+Embed mode switches to Disco's white background, hides the header, breadcrumb and footer Disco already shows, and uses the full column width. Links to tot-squad-hub.disco.co open inside Disco (`target="_top"`); other links open a new tab. In Disco's 703px column the home page is about 6,400px tall and the Idea Bank about 5,400px, so set the iframe height to match to avoid an inner scrollbar.
 
 ## Preview and verify
 Run `python3 -m http.server 4173` from this directory, then open http://127.0.0.1:4173/ and http://127.0.0.1:4173/?embed=1. Check 1440px, 768px and 375px widths, the four flows, Idea Bank filters, idea dialogs, Build on this, save/reload, copy/download, Escape/focus return and a real iframe. Use test-only fixtures locally; never commit fictional campaigns into `content.js`.

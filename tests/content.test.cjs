@@ -153,4 +153,11 @@ assert.ok(cal.indexOf('Up next') < cal.indexOf('Posted') && cal.indexOf('Posted'
 assert.match(cal, /Daddy’s Home/); assert.match(cal, /In edit/); assert.match(cal, /Open the Reels tracker/);
 assert.ok(validate({ ...load(), contentCalendar: [{ title: 'X', status: 'someday' }] }).some(e => /must be posted/.test(e)));
 
+// Hub links: open inside Disco when embedded (tests boot with ?embed=1), new tab otherwise.
+t = boot();
+assert.match(t.html('#week-events'), /href="https:\/\/tot-squad-hub\.disco\.co\/events-calendar" target="_top"/);
+assert.match(t.html('#resource-links'), /Squad Cup/);
+assert.match(t.html('#resource-links'), /canva\.com[^"]*" target="_blank"/);
+assert.match(t.html('#directory-link'), /\/members" target="_top"/);
+
 console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');

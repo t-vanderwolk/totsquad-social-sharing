@@ -142,10 +142,12 @@ window.HUB_CONTENT = {
   ],
 
   // weekday: 0 Sunday … 6 Saturday, or null when the schedule isn't set. time is optional text.
+  eventsCalendarUrl: 'https://tot-squad-hub.disco.co/events-calendar',
+  specialistDirectoryUrl: 'https://tot-squad-hub.disco.co/members',
   recurringEvents: [
-    { id: 'mentor-huddle', title: 'Mentor Huddle', weekday: 3, time: '', description: '', url: '' },
-    { id: 'pop-ins', title: 'Pop-Ins takeover', weekday: 4, time: '', description: 'A specialist takes over Pop-Ins, answering anonymous follower questions.', url: '' },
-    { id: 'lunch-and-learn', title: 'Lunch & Learn', weekday: null, scheduleNote: 'Dates to come', description: 'Certified specialists take turns teaching a skill. Grew from Taylor’s babywearing idea (Nov 14).', url: '' }
+    { id: 'mentor-huddle', title: 'Squad Cup Mentor Huddle', weekday: 3, time: '1:30–2:00 PM MST', description: '', url: 'https://tot-squad-hub.disco.co/events-calendar' },
+    { id: 'pop-ins', title: 'Pop In With Us', weekday: 4, time: '1:00–1:30 PM MST', description: 'A specialist takes over Pop-Ins, answering anonymous follower questions.', url: 'https://tot-squad-hub.disco.co/events-calendar' },
+    { id: 'lunch-and-learn', title: 'Lunch & Learn', weekday: null, scheduleNote: 'Dates to come', description: 'Certified specialists take turns teaching a skill. Grew from Taylor’s babywearing idea (Nov 14).', url: 'https://tot-squad-hub.disco.co/events-calendar' }
   ],
 
   waysOfWorking: [
@@ -191,6 +193,12 @@ window.HUB_CONTENT = {
     { label: 'Submission folder instructions in Disco', url: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA' },
     { label: 'Specialist social templates', url: 'https://www.canva.com/design/DAG1czWO5Y0/j7Vm_P-c6yyRmcjj0JtB-Q/view' },
     { label: 'Specialist resource library', url: 'https://tot-squad-hub.disco.co/collection/Q29sbGVjdGlvbjozOTA3Nw==' },
+    { label: 'Business card templates', url: 'https://www.canva.com/design/DAHDF2JeKso/hMtv0gg4VPPZD2Dzdddugg/view' },
+    { label: 'Postcard templates', url: 'https://www.canva.com/design/DAHDdusaNMk/kn_2ItHFhPICJi3D5amkaw/view' },
+    { label: 'Virtual backgrounds', url: 'https://drive.google.com/drive/folders/1NU7jNGaqDXVPe9ScjRPRAl6_mfU3K2kF' },
+    { label: 'Referral Toolkit', url: 'https://tot-squad-hub.disco.co/?u=37034d2e-42e1-44b9-9ce5-13d8a80b999b' },
+    { label: 'Squad Cup', url: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjMyOTg4' },
+    { label: 'Events calendar', url: 'https://tot-squad-hub.disco.co/events-calendar' },
     { label: 'B-roll library', url: '', unavailableLabel: 'Link via a members-only Disco page' },
     { label: 'Reels tracker', url: 'https://docs.google.com/spreadsheets/d/1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg/edit' },
     { label: 'Content calendar', action: 'calendar' }

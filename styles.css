@@ -205,6 +205,7 @@ main{max-width:1320px;margin:0 auto;padding:var(--s6) var(--gutter) var(--s8)}
 
 /* ---------- Sidebar ---------- */
 .sidebox{background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s5)}
+#calendar-link .text-button{display:inline-block;margin-top:var(--s3)}
 .sidebox h2{font:700 15px/1.3 var(--sans);margin-bottom:var(--s2)}
 .linkrow{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);width:100%;padding:var(--s3) 0;background:none;border:0;border-bottom:1px solid var(--line-soft);text-align:left;font-size:13px;font-weight:600;color:var(--plum-ink);text-decoration:none}
 .linkrow:hover{color:var(--plum)}
@@ -308,9 +309,13 @@ textarea{min-height:110px;resize:vertical}
 .brand-swatches span{padding:var(--s3);border:1px solid var(--line);border-radius:var(--r-sm);font-size:12px}
 
 /* ---------- Embed mode (?embed=1) ---------- */
-body.embed .site-header{display:none}
-body.embed main{padding-top:var(--s4)}
-body.embed footer{margin-top:var(--s4)}
+/* Embedded in Disco: match its white page, drop what Disco already shows, use the full column. */
+body.embed{--bg:#fff;background:#fff}
+body.embed .site-header,body.embed main>.eyebrow,body.embed footer{display:none}
+body.embed main{padding:0 0 var(--s4);max-width:none}
+body.embed .hero{margin-top:0}
+body.embed .section-nav{margin-bottom:var(--s5)}
+body.embed .page-hero{margin-top:0}
 
 /* ---------- Responsive ---------- */
 @media (max-width:1080px){

@@ -94,7 +94,16 @@ function instagramHandle(value) {
 const instagramLink = value => { const h = instagramHandle(value); return h ? `<a class="text-button insta" href="https://www.instagram.com/${h}/" target="_blank" rel="noopener noreferrer" aria-label="${escapeHTML('@'+h+' on Instagram')}" title="${escapeHTML('@'+h)}"><svg class="ig" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg><span>@${escapeHTML(h)}</span></a>` : ''; };
 const initials = name => name.trim().split(/\s+/).map(w => w[0]).slice(0,2).join('').toUpperCase();
 function byline(item) { const who = credits(item.credit); return [who.length ? 'Suggested by '+who.join(' & ') : '', shortDate(item.date)].filter(Boolean).join(' · '); }
-function externalLink(url,label,cls='button') { const safe = publicUrl(url); return safe ? `<a class="${cls}" href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)} ↗</a>` : ''; }
+/* Hub links open in the hub itself when the page is embedded in Disco; everything else opens a new tab. */
+const HUB_HOST = 'tot-squad-hub.disco.co';
+const inHub = url => { try { return new URL(url).host === HUB_HOST; } catch { return false; } };
+function externalLink(url,label,cls='button') {
+  const safe = publicUrl(url); if (!safe) return '';
+  const embedded = new URLSearchParams(location.search).get('embed') === '1';
+  return embedded && inHub(safe)
+    ? `<a class="${cls}" href="${escapeHTML(safe)}" target="_top">${escapeHTML(label)} →</a>`
+    : `<a class="${cls}" href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)} ↗</a>`;
+}
 function emptyState(heading,text,actions='',icon=ICON.spark) { return `<div class="empty-state"><span class="empty-art">${icon}</span><div><strong>${escapeHTML(heading)}</strong>${text?`<p>${escapeHTML(text)}</p>`:''}${actions?`<div class="button-row">${actions}</div>`:''}</div></div>`; }
 function storageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function storageSet(key,value) { try { localStorage.setItem(key,value); return true; } catch { return false; } }
@@ -239,13 +248,17 @@ function nextOccurrence(weekday) {
   d.setUTCDate(d.getUTCDate() + ((weekday - d.getUTCDay() + 7) % 7));
   return d.toISOString().slice(0,10);
 }
+function renderHubLinks() {
+  if (has('#calendar-link')) $('#calendar-link').innerHTML = externalLink(content.eventsCalendarUrl,'See all events','text-button');
+  if (has('#directory-link')) $('#directory-link').innerHTML = externalLink(content.specialistDirectoryUrl,'Specialist Directory','button secondary');
+}
 function renderWeek() {
   const events = content.recurringEvents || [];
   $('#week-events').innerHTML = events.length ? events.map(e => {
     const weekly = Number.isInteger(e.weekday) && e.weekday >= 0 && e.weekday <= 6;
     const next = weekly ? nextOccurrence(e.weekday) : '';
     const when = weekly ? `<time datetime="${next}">${next === today() ? 'Today' : fmt(next,{weekday:'short',month:'short',day:'numeric'})}</time>` : escapeHTML(e.scheduleNote || 'Schedule to come');
-    return `<div class="event"><div class="event-head"><strong>${escapeHTML(e.title)}</strong><span class="event-when">${when}</span></div>${weekly ? `<p>Every ${WEEKDAYS[e.weekday]}${e.time ? ' · '+escapeHTML(e.time) : ''}</p>` : ''}${e.description ? `<p>${escapeHTML(e.description)}</p>` : ''}${externalLink(e.url,'Join in Disco','text-button')}</div>`;
+    return `<div class="event"><div class="event-head"><strong>${escapeHTML(e.title)}</strong><span class="event-when">${when}</span></div>${weekly ? `<p>Every ${WEEKDAYS[e.weekday]}${e.time ? ' · '+escapeHTML(e.time) : ''}</p>` : ''}${e.description ? `<p>${escapeHTML(e.description)}</p>` : ''}${externalLink(e.url,'RSVP in Events','text-button')}</div>`;
   }).join('') : '<p class="quiet">Recurring Squad events will appear here.</p>';
 }
 
@@ -271,6 +284,7 @@ function renderContent() {
   if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
   if (has('#welcome')) $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
   const sections = [['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#deadlines',renderDeadlines],['#resource-links',renderResources]];
+  renderHubLinks();
   for (const [sel,render] of sections) if (has(sel)) render();
   storageSet('totsquad-last-visit', today());
 }
