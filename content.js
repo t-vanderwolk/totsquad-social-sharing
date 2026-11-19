@@ -143,7 +143,6 @@ window.HUB_CONTENT = {
 
   // weekday: 0 Sunday … 6 Saturday, or null when the schedule isn't set. time is optional text.
   eventsCalendarUrl: 'https://tot-squad-hub.disco.co/events-calendar',
-  specialistDirectoryUrl: 'https://tot-squad-hub.disco.co/members',
   recurringEvents: [
     { id: 'mentor-huddle', title: 'Squad Cup Mentor Huddle', weekday: 3, time: '1:30–2:00 PM MST', description: '', url: 'https://tot-squad-hub.disco.co/events-calendar' },
     { id: 'pop-ins', title: 'Pop In With Us', weekday: 4, time: '1:00–1:30 PM MST', description: 'A specialist takes over Pop-Ins, answering anonymous follower questions.', url: 'https://tot-squad-hub.disco.co/events-calendar' },
@@ -187,19 +186,38 @@ window.HUB_CONTENT = {
       instagram: 'melissababyconcierge' }
   ],
 
+  /* B-roll library (b-roll.html). brollFolderUrl: the shared Drive folder for clips (blank = the submission folder).
+     brollClips: { id, title, category, url (Drive file link), thumbnail ('images/…' or https), length ('0:08'), credit (first name) }.
+     brollWanted is a starter shot list; edit it freely. */
+  brollFolderUrl: 'https://drive.google.com/drive/folders/1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS',
+  brollCategories: [
+    { id: 'aisles', label: 'In-store & aisles' }, { id: 'strollers', label: 'Strollers' }, { id: 'car-seats', label: 'Car seats' },
+    { id: 'nursery', label: 'Nursery & sleep' }, { id: 'feeding', label: 'Feeding' }, { id: 'babywearing', label: 'Babywearing' },
+    { id: 'registry', label: 'Registry moments' }, { id: 'squad', label: 'Squad life' }
+  ],
+  brollClips: [
+    { id: 'entrance', title: 'Store entrance in a Tot Squad shirt', category: 'squad', url: 'https://drive.google.com/file/d/1hrp-G2XIptrFtsP5HYzL0zurrKAe5laq/view', thumbnail: 'images/broll-entrance.jpg', length: '0:11', credit: 'Taylor' },
+    { id: 'inside-target', title: 'Inside Target', category: 'aisles', url: 'https://drive.google.com/file/d/10Vzy2zAKTHpN_iaM97bY03POKmpwjBbt/view', thumbnail: 'images/broll-inside-target.jpg', length: '0:13', credit: 'Taylor' },
+    { id: 'lost', title: 'Lost in the aisles', category: 'aisles', url: 'https://drive.google.com/file/d/1buSOy4X66ElswPvV3CstQgvRqD6rcHrT/view', thumbnail: 'images/broll-lost.jpg', length: '0:21', credit: 'Taylor' },
+    { id: 'wagons', title: 'Wagons', category: 'strollers', url: 'https://drive.google.com/file/d/1koQoJGAvew6_8ceIB8fpbafgOeQ-2UnA/view', thumbnail: 'images/broll-wagons.jpg', length: '0:11', credit: 'Taylor' },
+    { id: 'halo', title: 'Halo bassinet', category: 'nursery', url: 'https://drive.google.com/file/d/1OKKgTFABstkurTo2bguFnEkzjH_ws58p/view', thumbnail: 'images/broll-halo.jpg', length: '0:06', credit: 'Taylor' },
+    { id: 'lalo-bibs', title: 'Lalo long-sleeve bibs', category: 'feeding', url: 'https://drive.google.com/file/d/1iUiFf0PBdjTzBPsW4XmZgHabKU5MQ5lq/view', thumbnail: 'images/broll-lalo-bibs.jpg', length: '0:09', credit: 'Taylor' },
+    { id: 'live-demo', title: 'Live demo', category: 'squad', url: 'https://drive.google.com/file/d/1_3KQCSbGwbZ03SWC3ydBkwt9vuTqg1Rm/view', thumbnail: 'images/broll-live-demo.jpg', length: '1:06', credit: 'Taylor' }
+  ],
+  brollWanted: [
+    { title: 'Slow walk down the baby aisle, wide', category: 'aisles' },
+    { title: 'One-hand stroller fold, close-up', category: 'strollers' },
+    { title: 'Car seat clicking into its base', category: 'car-seats' },
+    { title: 'Scanning an item with the Target app', category: 'registry' },
+    { title: 'Bassinet or crib, wide and still', category: 'nursery' },
+    { title: 'Bottles and pumps on the shelf', category: 'feeding' },
+    { title: 'Putting on a carrier in a mirror', category: 'babywearing' },
+    { title: 'A specialist waving hello', category: 'squad' }
+  ],
+
+  // Only links that aren't already in Disco's sidebar.
   resources: [
-    { label: 'Social & Sharing chat', url: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx' },
     { label: 'Content submission folder', url: 'https://drive.google.com/drive/folders/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd' },
-    { label: 'Submission folder instructions in Disco', url: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA' },
-    { label: 'Specialist social templates', url: 'https://www.canva.com/design/DAG1czWO5Y0/j7Vm_P-c6yyRmcjj0JtB-Q/view' },
-    { label: 'Specialist resource library', url: 'https://tot-squad-hub.disco.co/collection/Q29sbGVjdGlvbjozOTA3Nw==' },
-    { label: 'Business card templates', url: 'https://www.canva.com/design/DAHDF2JeKso/hMtv0gg4VPPZD2Dzdddugg/view' },
-    { label: 'Postcard templates', url: 'https://www.canva.com/design/DAHDdusaNMk/kn_2ItHFhPICJi3D5amkaw/view' },
-    { label: 'Virtual backgrounds', url: 'https://drive.google.com/drive/folders/1NU7jNGaqDXVPe9ScjRPRAl6_mfU3K2kF' },
-    { label: 'Referral Toolkit', url: 'https://tot-squad-hub.disco.co/?u=37034d2e-42e1-44b9-9ce5-13d8a80b999b' },
-    { label: 'Squad Cup', url: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjMyOTg4' },
-    { label: 'Events calendar', url: 'https://tot-squad-hub.disco.co/events-calendar' },
-    { label: 'B-roll library', url: '', unavailableLabel: 'Link via a members-only Disco page' },
     { label: 'Reels tracker', url: 'https://docs.google.com/spreadsheets/d/1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg/edit' },
     { label: 'Content calendar', action: 'calendar' }
   ]

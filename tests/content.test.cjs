@@ -21,14 +21,14 @@ assert.match(t.html('#casting-projects'), /Led by Kristin/);
 assert.match(t.html('#casting-projects'), /Watch Part 1/);
 assert.match(t.html('#project-gallery'), /Meet the Squad/);
 assert.doesNotMatch(t.html('#project-gallery'), /Pass the Toy|Details coming/);
-assert.equal((t.html('#project-gallery').match(/Watch the Reel/g) || []).length, 4); // four verified Reels
+assert.equal((t.html('#project-gallery').match(/>Watch ↗</g) || []).length, 4); // four verified Reels
 assert.match(t.html('#project-gallery'), /src="images\/meet-the-squad\.jpg"/); // local cover images allowed
 assert.equal(t.run("imageUrl('images/../x.jpg')"), ''); // but only plain files in images/
 assert.equal(t.run("imageUrl('javascript:alert(1)')"), '');
 assert.doesNotMatch(t.html('#idea-grid'), /Pass-the-item intro|>Tot Squad Round Up<|Day in the life/); // published ideas leave the Idea Bank
 assert.match(t.html('#idea-grid'), /class="idea-art"><svg/); // series illustration
 assert.equal(t.el('#production').hidden, true); // empty production board stays hidden
-assert.match(t.html('#resource-links'), /aria-disabled="true"/);
+assert.doesNotMatch(t.html('#resource-links'), /aria-disabled="true"/); // no unconfigured placeholder links
 assert.match(t.html('#idea-grid'), /Registry NOT Roast/);
 assert.match(t.html('#idea-filters'), /aria-pressed="true"/);
 assert.match(t.html('#squad-grid'), /Kristin/);
@@ -79,7 +79,7 @@ t = boot({ completedCollaborations: [{ ...project, status: 'published' }] });
 assert.equal(t.run('publishedProjects().length'), 0);
 t = boot({ completedCollaborations: [{ ...project, status: 'published', publishedReelUrl: 'https://example.com/reel' }] });
 assert.equal(t.run('publishedProjects().length'), 1);
-assert.match(t.html('#project-gallery'), /Watch the Reel/);
+assert.match(t.html('#project-gallery'), />Watch ↗</);
 
 // Drafts: share download only lists fields that exist in the form.
 t = boot();
@@ -105,7 +105,6 @@ t = boot();
 assert.match(t.run('submissionHelp()'), /href="https:\/\/drive\.google\.com\/drive\/folders\/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd"/);
 assert.match(t.run('submissionHelp()'), /Folder instructions in Disco/);
 assert.match(t.html('#resource-links'), /Content submission folder/);
-assert.match(t.html('#resource-links'), /Specialist social templates/);
 t = boot({ submissionFolderUrl: 'javascript:alert(1)', submissionInstructionsUrl: 'javascript:alert(1)' });
 assert.equal(t.run('submissionHelp()'), '');
 
@@ -156,8 +155,34 @@ assert.ok(validate({ ...load(), contentCalendar: [{ title: 'X', status: 'someday
 // Hub links: open inside Disco when embedded (tests boot with ?embed=1), new tab otherwise.
 t = boot();
 assert.match(t.html('#week-events'), /href="https:\/\/tot-squad-hub\.disco\.co\/events-calendar" target="_top"/);
-assert.match(t.html('#resource-links'), /Squad Cup/);
-assert.match(t.html('#resource-links'), /canva\.com[^"]*" target="_blank"/);
-assert.match(t.html('#directory-link'), /\/members" target="_top"/);
+assert.doesNotMatch(t.html('#resource-links'), /Squad Cup|canva\.com|Referral/); // Disco's sidebar covers these
+assert.equal((t.html('#hero-reels').match(/class="hero-reel/g) || []).length, 3); // hero shows three real covers
+
+// Share on a published Reel: link + Copy link + caption.
+t = boot();
+assert.match(t.html('#project-gallery'), /data-action="reel-share" data-project="meet-the-squad"/);
+t.run("openPanel('reel-share',{project:'meet-the-squad'})");
+assert.match(t.html('#modal-body'), /value="https:\/\/www\.instagram\.com\/reel\/DdxH92sTWXo\/"/);
+assert.match(t.html('#modal-body'), /Copy link/);
+assert.match(t.html('#modal-body'), /Copy caption/);
+t.run("openPanel('reel-share',{project:'not-published'})"); // unknown ids do nothing
+
+// B-roll library: empty state, filters, clip cards with Copy link, validation.
+t = boot();
+assert.match(t.html('#broll-grid'), /Inside Target/); // real clips from the Drive folder
+assert.match(t.html('#broll-grid'), /images\/broll-wagons\.jpg/);
+assert.match(t.el('#broll-summary').textContent, /7 clips/);
+t = boot({ brollClips: [] });
+assert.match(t.html('#broll-grid'), /No clips yet/);
+assert.match(t.html('#broll-add'), /drive\.google\.com\/drive\/folders\/1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS/); // the b-roll folder
+assert.match(t.html('#broll-wanted'), /One-hand stroller fold/);
+t = boot({ brollClips: [{ id: 'c1', title: 'Aisle walk <b>', category: 'aisles', url: 'https://drive.google.com/file/d/x', length: '0:08', credit: 'Kristin' }, { id: 'c2', title: 'Fold', category: 'strollers', url: 'javascript:alert(1)' }] });
+assert.match(t.html('#broll-grid'), /Aisle walk &lt;b&gt;/);
+assert.match(t.html('#broll-grid'), /data-copy="https:\/\/drive\.google\.com\/file\/d\/x"/);
+assert.doesNotMatch(t.html('#broll-grid'), /javascript:/);
+assert.doesNotMatch(t.html('#broll-filters'), /Feeding/); // only categories that have clips
+t.run("brollFilter='strollers';renderBroll()");
+assert.doesNotMatch(t.html('#broll-grid'), /Aisle walk/);
+assert.ok(validate({ ...load(), brollClips: [{ title: 'X', category: 'nope' }] }).some(e => /not in brollCategories/.test(e)));
 
 console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');
