@@ -97,6 +97,15 @@ function validate(c) {
     if (x && x.date) optDate(w + ' date', x.date);
     if (x) optUrl(w + ' url', x.url);
   });
+  optUrl('brollFolderUrl', c.brollFolderUrl);
+  const brollIds = new Set(list('brollCategories').map(x => x && x.id));
+  list('brollClips').forEach((x, i) => {
+    const w = `brollClips[${i}]`;
+    if (!x || !x.title) err(w, 'needs a title');
+    if (x && !brollIds.has(x.category)) err(w, `category "${x && x.category}" is not in brollCategories`);
+    if (x) { optUrl(w + ' url', x.url); optImage(w + ' thumbnail', x.thumbnail); }
+  });
+  list('brollWanted').forEach((x, i) => { if (x && x.category && !brollIds.has(x.category)) err(`brollWanted[${i}]`, `category "${x.category}" is not in brollCategories`); });
   list('featuredSpecialists').forEach((p, i) => {
     const w = `featuredSpecialists[${i}]`;
     const n = typeof p === 'string' ? p : p && p.name;

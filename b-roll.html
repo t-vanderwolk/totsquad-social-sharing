@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>B-roll library · Creators Club · Tot Squad</title>
+<meta name="description" content="Short clips any Tot Squad specialist can use in a Reel.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a href="#main" class="skip">Skip to content</a>
+
+<header class="site-header">
+  <a href="#main" class="brand" aria-label="Tot Squad Social & Sharing home"><img class="official-logo" src="https://cdn.prod.website-files.com/5f4a9ffd91010361e130f380/68407ea76a2d0b8be6420f9e_Tot-Squad-Logo-NEW-REG.png" alt="Tot Squad"><span class="hub-label">SPECIALIST HUB</span></a>
+  <span class="pill">Social &amp; Sharing</span>
+</header>
+
+<main id="main" class="broll-page">
+  <div class="eyebrow"><a href="index.html" class="crumb">Creators Club</a> / B-roll library</div>
+
+  <section class="page-hero" aria-labelledby="title">
+    <div>
+      <h1 id="title">B-roll library</h1>
+      <p>Short clips anyone in the Squad can drop into a Reel. Shot by specialists and cleared to share. <span id="broll-summary"></span></p>
+    </div>
+    <div class="button-row"><span id="broll-add"></span><a class="button secondary" href="index.html">Back to Creators Club</a></div>
+  </section>
+
+  <noscript><p>Please enable JavaScript to view the B-roll library.</p></noscript>
+
+  <section class="section" aria-label="Clips">
+    <div class="filters" id="broll-filters" role="group" aria-label="Filter clips by category"></div>
+    <div class="clip-grid" id="broll-grid" aria-live="polite"></div>
+  </section>
+
+  <div class="broll-guide">
+    <section class="sidebox" aria-labelledby="wanted-title">
+      <h2 id="wanted-title">Most wanted shots</h2>
+      <p class="box-note">Filmed one of these? Add it to the folder and it will show up here.</p>
+      <ul class="wanted" id="broll-wanted"></ul>
+    </section>
+    <section class="sidebox" aria-labelledby="rules-title">
+      <h2 id="rules-title">Before you upload</h2>
+      <ul class="rules">
+        <li><strong>Film vertical</strong><span>9:16, steady, in good light. Reels crop everything else.</span></li>
+        <li><strong>Keep it short</strong><span>3 to 15 seconds, with no talking or music, so anyone can reuse it.</span></li>
+        <li><strong>Protect privacy</strong><span>Get permission from anyone on camera. Keep babies’ faces, client names, registries and order details out.</span></li>
+        <li><strong>Name it clearly</strong><span>category_what_yourname, for example <code>strollers_one-hand-fold_kristin.mov</code>.</span></li>
+      </ul>
+    </section>
+  </div>
+
+  <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
+
+  <footer><span>Tot Squad Creators Club</span><span>Clips stay in the Squad’s Drive. Share only inside Tot Squad content.</span></footer>
+</main>
+
+<dialog id="modal" aria-labelledby="modal-title">
+  <button class="close" type="button" aria-label="Close dialog">×</button>
+  <div class="eyebrow">Tot Squad Creators Club</div>
+  <h2 id="modal-title"></h2>
+  <div id="modal-body"></div>
+  <p id="status" role="status" aria-live="polite"></p>
+</dialog>
+
+<script src="content.js" defer></script>
+<script src="script.js" defer></script>
+</body>
+</html>

@@ -3,7 +3,8 @@
 A public, buildless GitHub Pages hub for Tot Squad Baby Specialists: one home for the Squad's ideas, collaborations and content, instead of spreading them across the Instagram chat, a Google Drive and the Hub. No backend, database, upload service or automatic submissions are used.
 
 ## Files
-- `index.html`: home page: hero, getting-started steps, action cards, Currently casting, a row of schedule/toolkit/links boxes, then full-width bands for Made by the Squad and Meet the Squad. Ideas live only on `ideas.html`.
+- `index.html`: Creators Club home: hero with the newest published Reel covers, the four-step “How a Reel comes together” path, Casting now, This week + Toolkit, Made by the Squad, Meet the Squad and a closing call to action. Ideas live only on `ideas.html`.
+- `b-roll.html`: the B-roll library: clips by category with Open in Drive and Copy link, most-wanted shots and upload rules. Configure `brollFolderUrl`, `brollClips` and `brollWanted` in `content.js`.
 - `ideas.html`: the full Idea Bank with series filters, idea details and How we work. Links between the two pages keep `?embed=1`.
 - `styles.css`: one token-based stylesheet (brand tokens, series tints, components, embed mode, responsive rules).
 - `content.js`: all ideas, projects, events, people, deadlines and resources. **Edit this file for content changes.**
@@ -82,7 +83,7 @@ For the cover, save a 4:5 image (e.g. 448×560 JPG) in `images/` and set `thumbn
 - **Recurring events:** `weekday` is 0 (Sunday) to 6 (Saturday); the next date is calculated automatically. Use `weekday: null` with a `scheduleNote` when there's no fixed day. `time` is free text, e.g. `'12 pm MST'`.
 - **Featured specialists:** first names only, as approved. Optional `expertise`, `location`, `photo` (https), `spotlight`, `link` and `instagram` (`'handle'`, `'@handle'` or an instagram.com profile link; shown as an @handle link on the squad card). Add a handle only with that specialist's OK. Matching is by name against idea and `waysOfWorking` credits.
 - **Deadlines:** for approved public events, add `{ id, title, date: 'YYYY-MM-DD', url: '' }` to `upcomingDeadlines`.
-- **Resources:** empty URLs stay labeled unavailable. Never add a confidential Drive folder, tracker or planning doc to this public repo; link through a members-only Disco page instead.
+- **Resources:** list only links that aren't already in Disco's sidebar (today: submission folder, Reels tracker, content calendar). Empty URLs stay labeled unavailable. Never add a confidential Drive folder, tracker or planning doc to this public repo; link through a members-only Disco page instead.
 - **Reels tracker & content calendar:** `reelsTrackerUrl` links the Reels – Status Report sheet. `contentCalendar` is a copy of its rows (title, lead, date, status, Reel link) shown in the Content calendar panel; update it when the sheet changes.
 - **Submissions:** `submissionFolderUrl` is the Google Drive folder the Submit form and the resources list link to.
 - **Disco:** `discoUrl` is the Social & Sharing chat channel; `appUrl` keeps the embedded-app URL; `submissionInstructionsUrl` is the Disco message with upload-folder instructions. Review screens route to the project's or idea's `discussionUrl` when one is set. Nothing is ever submitted automatically.
@@ -118,7 +119,7 @@ Embed URL: https://t-vanderwolk.github.io/totsquad-social-sharing/?embed=1
 ></iframe>
 ```
 
-Embed mode switches to Disco's white background, hides the header, breadcrumb and footer Disco already shows, and uses the full column width. Links to tot-squad-hub.disco.co open inside Disco (`target="_top"`); other links open a new tab. In Disco's 703px column the home page is about 6,400px tall and the Idea Bank about 5,400px, so set the iframe height to match to avoid an inner scrollbar.
+Embed mode switches to Disco's white background, hides the header, breadcrumb and footer Disco already shows, and uses the full column width. Links to tot-squad-hub.disco.co open inside Disco (`target="_top"`); other links open a new tab. The page lives in Disco as the Creators Club Custom Page (sidebar stays open). In its 723px column the home page is about 4,300px tall and the Idea Bank about 5,300px; set the embed height to fit the home page.
 
 ## Preview and verify
 Run `python3 -m http.server 4173` from this directory, then open http://127.0.0.1:4173/ and http://127.0.0.1:4173/?embed=1. Check 1440px, 768px and 375px widths, the four flows, Idea Bank filters, idea dialogs, Build on this, save/reload, copy/download, Escape/focus return and a real iframe. Use test-only fixtures locally; never commit fictional campaigns into `content.js`.

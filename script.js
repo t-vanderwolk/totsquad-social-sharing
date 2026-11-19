@@ -101,7 +101,7 @@ function externalLink(url,label,cls='button') {
   const safe = publicUrl(url); if (!safe) return '';
   const embedded = new URLSearchParams(location.search).get('embed') === '1';
   return embedded && inHub(safe)
-    ? `<a class="${cls}" href="${escapeHTML(safe)}" target="_top">${escapeHTML(label)} →</a>`
+    ? `<a class="${cls}" href="${escapeHTML(safe)}" target="_top">${escapeHTML(label)}</a>`
     : `<a class="${cls}" href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)} ↗</a>`;
 }
 function emptyState(heading,text,actions='',icon=ICON.spark) { return `<div class="empty-state"><span class="empty-art">${icon}</span><div><strong>${escapeHTML(heading)}</strong>${text?`<p>${escapeHTML(text)}</p>`:''}${actions?`<div class="button-row">${actions}</div>`:''}</div></div>`; }
@@ -128,7 +128,7 @@ function renderCasting() {
   const casting = openProjects();
   $('#casting-projects').innerHTML = casting.length ? casting.map(p => `<article class="casting">
     <div class="casting-art">${imageUrl(p.thumbnail) ? `<img src="${escapeHTML(imageUrl(p.thumbnail))}" alt="">` : ICON.people}</div>
-    <div class="casting-copy"><span class="chip">Accepting participants</span><h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
+    <div class="casting-copy"><span class="chip casting-chip">Casting now</span><h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
     <div class="button-row"><button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
@@ -139,6 +139,8 @@ function renderCasting() {
 const SVG = (inner) => `<svg viewBox="0 0 240 120" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 const SPARKS = '<g stroke-width="2.5"><path d="M30 28v10M25 33h10"/><path d="M208 84v8M204 88h8"/><circle cx="206" cy="30" r="2.5" fill="currentColor"/><circle cx="40" cy="92" r="2" fill="currentColor"/></g>';
 const ART = {
+  carseat: '<path d="M88 30c18-4 34 6 38 24l8 34H92c-8 0-14-6-14-14V44c0-7 4-12 10-14z"/><path d="M78 92h84M92 92l-8 14M148 92l8 14M126 54h20c8 0 14 6 14 14v6"/>',
+  bottle: '<path d="M108 20h24v10h-24zM104 30h32l4 12H100z"/><rect x="98" y="42" width="44" height="62" rx="10"/><path d="M110 60h10M110 74h10M110 88h10"/>',
   buzzer: '<path d="M92 92h56M100 92l6-26h28l6 26"/><path d="M104 66c0-18 32-18 32 0"/><circle cx="120" cy="50" r="5" fill="currentColor"/><path d="M70 40l-12-10M170 40l12-10M66 60H50M174 60h16"/>',
   mic: '<rect x="106" y="18" width="28" height="48" rx="14"/><path d="M94 58c0 18 12 28 26 28s26-10 26-28M120 86v16M104 102h32"/><path d="M112 34h16M112 44h16"/>',
   trophy: '<path d="M96 22h48v22c0 16-10 28-24 28s-24-12-24-28z"/><path d="M96 30H82c0 14 6 20 16 20M144 30h14c0 14-6 20-16 20M120 72v14M102 100h36l-4-14h-28z"/>',
@@ -172,7 +174,7 @@ function ideaCard(i) {
     <h3>${escapeHTML(i.title)}</h3>${i.titleNote ? `<p class="idea-note">${escapeHTML(i.titleNote)}</p>` : ''}
     <p>${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</p>
     <div class="idea-meta"><span class="stage stage-${stage}">${STAGES[stage]}</span>${byline(i) ? `<span>${escapeHTML(byline(i))}</span>` : ''}</div>
-    <button class="text-button" data-action="idea" data-id="${escapeHTML(i.id)}">Open idea <span aria-hidden="true">→</span></button>
+    <button class="text-button" data-action="idea" data-id="${escapeHTML(i.id)}">Open idea</button>
   </article>`;
 }
 function renderIdeas() {
@@ -217,7 +219,7 @@ function renderGallery() {
     const tint = linked ? tintFor(linked) : TINTS[i % TINTS.length];
     const label = isPublished(p) ? 'Published' : (p.status && p.status !== 'published' ? STAGES[stageKey(p.status)] : 'Details coming');
     const who = credits(p.participatingSpecialists);
-    return `<article class="project-card tint-${tint}">${poster(p,label)}<h3>${escapeHTML(p.title)}</h3><p>${escapeHTML(p.description || 'Project description to come.')}</p><p class="quiet">${who.length ? 'Featuring '+escapeHTML(who.join(', ')) : 'Contributor credits to come.'}</p><div class="button-row">${isPublished(p) ? externalLink(p.publishedReelUrl,'Watch the Reel')+`<button class="button secondary" data-action="share" data-project="${escapeHTML(p.id)}">Share</button>` : ''}${linked ? `<button class="text-button" data-action="idea" data-id="${escapeHTML(linked.id)}">See the format</button>` : ''}</div></article>`;
+    return `<article class="project-card tint-${tint}">${poster(p,label)}<h3>${escapeHTML(p.title)}</h3><p>${escapeHTML(p.description || 'Project description to come.')}</p><p class="quiet">${who.length ? 'Featuring '+escapeHTML(who.join(', ')) : 'Contributor credits to come.'}</p><div class="button-row">${isPublished(p) ? externalLink(p.publishedReelUrl,'Watch')+`<button class="button secondary" data-action="reel-share" data-project="${escapeHTML(p.id)}">Share</button>` : ''}${linked ? `<button class="text-button" data-action="idea" data-id="${escapeHTML(linked.id)}">See the format</button>` : ''}</div></article>`;
   }).join('') : emptyState('Squad projects will appear here.','Finished collaborations show up once their details are ready.');
 }
 
@@ -248,9 +250,41 @@ function nextOccurrence(weekday) {
   d.setUTCDate(d.getUTCDate() + ((weekday - d.getUTCDay() + 7) % 7));
   return d.toISOString().slice(0,10);
 }
-function renderHubLinks() {
-  if (has('#calendar-link')) $('#calendar-link').innerHTML = externalLink(content.eventsCalendarUrl,'See all events','text-button');
-  if (has('#directory-link')) $('#directory-link').innerHTML = externalLink(content.specialistDirectoryUrl,'Specialist Directory','button secondary');
+/* ---------- B-roll library (b-roll.html) ---------- */
+let brollFilter = 'all';
+const BROLL_ART = {aisles:'store',strollers:'stroller','car-seats':'carseat',nursery:'moon',feeding:'bottle',babywearing:'heart',registry:'checklist',squad:'people'};
+const brollCats = () => content.brollCategories || [];
+const brollLabel = id => (brollCats().find(c => c.id === id) || {}).label || 'Clip';
+const brollTint = id => TINTS[Math.max(0, brollCats().findIndex(c => c.id === id)) % TINTS.length];
+function brollFolder() { return publicUrl(content.brollFolderUrl) || publicUrl(content.submissionFolderUrl); }
+function clipCard(x) {
+  const thumb = imageUrl(x.thumbnail); const url = publicUrl(x.url);
+  return `<article class="clip-card tint-${brollTint(x.category)}"><div class="clip-thumb">${thumb ? `<img src="${escapeHTML(thumb)}" alt="" loading="lazy">` : SVG(ART[BROLL_ART[x.category]] || ART.phone)}${x.length ? `<span class="clip-length">${escapeHTML(x.length)}</span>` : ''}</div>
+    <h3>${escapeHTML(x.title)}</h3><p>${escapeHTML(brollLabel(x.category))}${x.credit ? ' · shot by '+escapeHTML(x.credit) : ''}</p>
+    <div class="button-row">${externalLink(url,'Open in Drive','button secondary')}${url ? `<button class="text-button" type="button" data-copy="${escapeHTML(url)}" data-done="Clip link copied.">Copy link</button>` : ''}</div></article>`;
+}
+function renderBroll() {
+  const clips = (content.brollClips || []).filter(x => x && x.title);
+  const count = id => id === 'all' ? clips.length : clips.filter(x => x.category === id).length;
+  const folder = brollFolder();
+  if (has('#broll-add')) $('#broll-add').innerHTML = externalLink(folder,'Add your clips','button');
+  if (has('#broll-summary')) $('#broll-summary').textContent = clips.length ? `${clips.length} clips so far.` : '';
+  const usedCats = brollCats().filter(c => count(c.id));
+  if (brollFilter !== 'all' && !count(brollFilter)) brollFilter = 'all';
+  $('#broll-filters').innerHTML = !usedCats.length ? '' : [{id:'all',label:'All'}, ...usedCats].map(f => `<button type="button" class="filter" data-broll="${escapeHTML(f.id)}" aria-pressed="${brollFilter === f.id}">${escapeHTML(f.label)} <span class="count">${count(f.id)}</span></button>`).join('');
+  const shown = brollFilter === 'all' ? clips : clips.filter(x => x.category === brollFilter);
+  $('#broll-grid').innerHTML = shown.length ? shown.map(clipCard).join('')
+    : emptyState(clips.length ? 'No clips in this category yet.' : 'No clips yet.', 'Add yours to the shared folder and they’ll show up here for the whole Squad to use.', externalLink(folder,'Add your clips'), ICON.play);
+  if (has('#broll-wanted')) $('#broll-wanted').innerHTML = (content.brollWanted || []).map(w => `<li><span class="wanted-mark" aria-hidden="true"></span><div><strong>${escapeHTML(w.title)}</strong><span>${escapeHTML(brollLabel(w.category))}</span></div></li>`).join('');
+}
+function toast(msg) { const t = document.getElementById ? document.getElementById('toast') : null; if (!t || !msg) return; t.textContent = msg; t.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 2600); }
+
+/* Hero: the three newest published Reel covers, fanned like phones. */
+function renderHero() {
+  const covers = publishedProjects().filter(p => imageUrl(p.thumbnail)).slice(0,3);
+  $('#hero-reels').innerHTML = covers.map((p,i) => `<a class="hero-reel r${i}" href="${escapeHTML(publicUrl(p.publishedReelUrl))}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHTML('Watch '+p.title+' on Instagram')}"><img src="${escapeHTML(imageUrl(p.thumbnail))}" alt=""></a>`).join('');
+  const second = $('#hero-secondary');
+  if (second && openProjects().length) { second.textContent = 'See what’s casting'; second.href = '#casting'; }
 }
 function renderWeek() {
   const events = content.recurringEvents || [];
@@ -274,17 +308,16 @@ function renderDeadlines() {
 
 function renderResources() {
   $('#resource-links').innerHTML = content.resources.map(r => r.action
-    ? `<button class="linkrow" data-action="${escapeHTML(r.action)}">${escapeHTML(r.label)} <span aria-hidden="true">→</span></button>`
+    ? `<button class="linkrow" data-action="${escapeHTML(r.action)}">${escapeHTML(r.label)}</button>`
     : publicUrl(r.url) ? externalLink(r.url,r.label,'linkrow')
     : `<div class="linkrow" aria-disabled="true"><span>${escapeHTML(r.label)}</span><small>${escapeHTML(r.unavailableLabel || 'Not configured')}</small></div>`).join('');
 }
 
 function renderContent() {
   document.body.classList.toggle('embed', EMBED);
-  if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
+  if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"], a[href="b-roll.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
   if (has('#welcome')) $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
-  const sections = [['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#deadlines',renderDeadlines],['#resource-links',renderResources]];
-  renderHubLinks();
+  const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#deadlines',renderDeadlines],['#resource-links',renderResources]];
   for (const [sel,render] of sections) if (has(sel)) render();
   storageSet('totsquad-last-visit', today());
 }
@@ -496,10 +529,30 @@ function openFlow(action,data) {
   showModal();
 }
 
+/* Quick share for a published Reel: the link with Copy link, a ready caption, and the phone share sheet when available. */
+function openReelShare(id) {
+  const p = publishedProjects().find(x => x.id === id); if (!p) return;
+  const url = publicUrl(p.publishedReelUrl);
+  const who = credits(p.participatingSpecialists);
+  const caption = `${p.title} from the Tot Squad Baby Specialists 💜\n\n${p.description ? p.description+'\n\n' : ''}${who.length ? 'Featuring '+who.join(', ')+'\n\n' : ''}${url}`;
+  title.textContent = 'Share this Reel';
+  body.innerHTML = `<div class="share-reel">${imageUrl(p.thumbnail) ? `<img src="${escapeHTML(imageUrl(p.thumbnail))}" alt="">` : ''}<div><strong>${escapeHTML(p.title)}</strong><span>${who.length ? 'Featuring '+escapeHTML(who.join(', ')) : 'Made by the Squad'}</span></div></div>
+    <label for="share-link">Reel link</label>
+    <div class="copy-field"><input id="share-link" type="text" value="${escapeHTML(url)}" readonly><button class="button" type="button" id="copy-link">Copy link</button></div>
+    <label for="share-caption">Caption to post with it</label>
+    <textarea id="share-caption" readonly>${escapeHTML(caption)}</textarea>
+    <div class="button-row"><button class="button secondary" type="button" id="copy-caption">Copy caption</button><button class="button secondary" type="button" id="native-share" hidden>Share…</button>${externalLink(url,'Open on Instagram','button secondary')}</div>`;
+  $('#copy-link').onclick = () => copyText(url, $('#share-link'), 'Link copied. Paste it anywhere you share.');
+  $('#copy-caption').onclick = () => copyText(caption, $('#share-caption'), 'Caption copied with the link.');
+  const nav = typeof navigator !== 'undefined' ? navigator : null;
+  if (nav && nav.share) { const b = $('#native-share'); b.hidden = false; b.onclick = () => nav.share({title:p.title, text:p.title+' from the Tot Squad', url}).catch(() => {}); }
+  showModal();
+}
 function openPanel(action,data={}) {
   stash(); activeFlow = null; status.textContent = ''; body.replaceChildren();
   if (action === 'drafts') return openDrafts();
   if (action === 'calendar') return openCalendar();
+  if (action === 'reel-share') return openReelShare(data.project);
   if (action === 'idea') return openIdea(data.id);
   if (flows[action]) return openFlow(action,data);
   const item = info[action]; if (!item) return;
@@ -514,7 +567,9 @@ document.addEventListener('click', e => {
   const dismiss = t.closest('[data-dismiss]');
   if (dismiss) { const el = document.getElementById(dismiss.dataset.dismiss); if (el) el.hidden = true; storageSet('totsquad-welcome-dismissed','1'); return; }
   const copy = t.closest('[data-copy]');
-  if (copy) { copyText(copy.dataset.copy); return; }
+  if (copy) { copyText(copy.dataset.copy, null, copy.dataset.done || 'Copied.').then(() => { if (!modal.open) toast(status.textContent); }); return; }
+  const bf = t.closest('[data-broll]');
+  if (bf) { brollFilter = bf.dataset.broll; renderBroll(); document.querySelector(`[data-broll="${CSS.escape(brollFilter)}"]`)?.focus(); return; }
   const action = t.closest('[data-action]');
   if (action) { if (!modal.open) opener = action; openPanel(action.dataset.action, {...action.dataset}); return; }
   if (modal.open && t.closest('a[href^="#"]')) modal.close();
