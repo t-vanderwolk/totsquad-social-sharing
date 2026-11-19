@@ -6,6 +6,8 @@ window.HUB_CONTENT = {
   appUrl: 'https://tot-squad-hub.disco.co/page-app/UHJvZHVjdEFwcDozODQzNTg=?u=8d8e2732-9268-481e-9d53-1363df5e83ca&drawerTab=analytics',
   discoUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx',
   submissionFolderUrl: 'https://drive.google.com/drive/folders/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd',
+  // Upload form (apps-script/upload.gs). Leave blank to send people to the Drive folders instead.
+  uploadEndpoint: 'https://script.google.com/macros/s/AKfycbyJrEWbDp0vWGU__88IlgRf7HXfGXYt6Em1lWOcjFgQhOVY5NGBjjYriE12qVsmXbxMBw/exec',
   submissionInstructionsUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA',
 
   // Idea Bank groups. color: plum, teal, peach or linen.
@@ -125,18 +127,19 @@ window.HUB_CONTENT = {
   ],
   upcomingDeadlines: [],
 
-  /* Content calendar, copied from the Reels – Status Report (updated Nov 18, 2026).
-     status: posted, editing, filming, casting, scheduled, idea. date: YYYY-MM-DD or '' when unknown. */
+  /* Content calendar + Reels tracker, copied from the Reels – Status Report (updated Nov 18, 2026).
+     status: posted, editing, filming, casting, scheduled, idea. date: YYYY-MM-DD or '' when unknown.
+     prompt: the sheet's prompt text. briefUrl: the prompt doc, if there is one. Uploads go to submissionFolderUrl. */
   reelsTrackerUrl: 'https://docs.google.com/spreadsheets/d/1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg/edit',
   contentCalendar: [
-    { title: 'Meet the Squad (Pass the Toy)', lead: 'Kristin', date: '2026-09-26', status: 'posted', url: 'https://www.instagram.com/reel/DdxH92sTWXo/' },
-    { title: 'Tot Squad Round Up #1: Strollers', lead: 'Kristin', date: '', status: 'posted', url: 'https://www.instagram.com/reel/DeIYf50zTwr/' },
-    { title: 'Day in the Life', lead: 'Sarah', date: '', status: 'posted', url: 'https://www.instagram.com/reel/DeUnaELy3Er/' },
-    { title: 'Tot Squad Round Up #2: Registry Favorites', lead: 'Kristin', date: '2026-10-18', status: 'posted', url: 'https://www.instagram.com/reel/DeuxzYWTQhv/' },
-    { title: 'Daddy’s Home', lead: 'Sarah', date: '2026-10-25', status: 'editing', url: '' },
-    { title: 'Tot Squad Round Up #3', lead: 'Kristin', date: '2026-11-08', status: 'scheduled', url: '' },
-    { title: 'Meet the Squad, Part 2: Pass the Toy (Fall Recruits)', lead: 'Kristin', date: '2026-11-13', status: 'casting', url: '' },
-    { title: 'My “Why” carousel', lead: 'Kristin', date: '', status: 'idea', url: '' },
+    { title: 'Meet the Squad (Pass the Toy)', lead: 'Kristin', date: '2026-09-26', status: 'posted', prompt: 'Intros passing the sunshine toy', url: 'https://www.instagram.com/reel/DdxH92sTWXo/' },
+    { title: 'Tot Squad Round Up #1: Strollers', lead: 'Kristin', date: '', status: 'posted', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeIYf50zTwr/' },
+    { title: 'Day in the Life', lead: 'Sarah', date: '', status: 'posted', prompt: 'Send photos throughout your day', url: 'https://www.instagram.com/reel/DeUnaELy3Er/' },
+    { title: 'Tot Squad Round Up #2: Registry Favorites', lead: 'Kristin', date: '2026-10-18', status: 'posted', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeuxzYWTQhv/' },
+    { title: 'Daddy’s Home', lead: 'Sarah', date: '2026-10-25', status: 'editing', briefUrl: 'https://docs.google.com/document/d/1-EXu39nUOtxi7YvTaoneQRu6n4L-LgeGpCxvcWUAYAM/edit?usp=sharing', url: '' },
+    { title: 'Tot Squad Round Up #3', lead: 'Kristin', date: '2026-11-08', status: 'scheduled', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: '' },
+    { title: 'Meet the Squad, Part 2: Pass the Toy (Fall Recruits)', lead: 'Kristin', date: '2026-11-13', status: 'casting', prompt: 'Intros passing the sunshine toy', url: '' },
+    { title: 'My “Why” carousel', lead: 'Kristin', date: '', status: 'idea', briefUrl: 'https://docs.google.com/document/d/1ZN9aw2mrgF4l_hVMWMszxsyGcyyb7peBQWL2RS9tMGg/edit?usp=sharing', url: '' },
     { title: 'Registry Roast on Google Meet', lead: 'Taylor', date: '', status: 'idea', url: '' },
     { title: 'Trick or Treat', lead: 'Taylor', date: '', status: 'idea', url: '' }
   ],
@@ -190,6 +193,10 @@ window.HUB_CONTENT = {
      brollClips: { id, title, category, url (Drive file link), thumbnail ('images/…' or https), length ('0:08'), credit (first name) }.
      brollWanted is a starter shot list; edit it freely. */
   brollFolderUrl: 'https://drive.google.com/drive/folders/1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS',
+  // One Drive folder per specialist who has sent clips. Clips show in a folder when their credit matches its name.
+  brollFolders: [
+    { name: 'Taylor', url: 'https://drive.google.com/drive/folders/1BebMeyvEhZp7e0XBVur5nPPwpho_SOwQ' }
+  ],
   brollCategories: [
     { id: 'aisles', label: 'In-store & aisles' }, { id: 'strollers', label: 'Strollers' }, { id: 'car-seats', label: 'Car seats' },
     { id: 'nursery', label: 'Nursery & sleep' }, { id: 'feeding', label: 'Feeding' }, { id: 'babywearing', label: 'Babywearing' },

@@ -98,6 +98,8 @@ function validate(c) {
     if (x) optUrl(w + ' url', x.url);
   });
   optUrl('brollFolderUrl', c.brollFolderUrl);
+  optUrl('uploadEndpoint', c.uploadEndpoint);
+  if (c.uploadEndpoint && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(c.uploadEndpoint)) err('uploadEndpoint', 'should be the Apps Script web app URL ending in /exec');
   const brollIds = new Set(list('brollCategories').map(x => x && x.id));
   list('brollClips').forEach((x, i) => {
     const w = `brollClips[${i}]`;
@@ -105,6 +107,7 @@ function validate(c) {
     if (x && !brollIds.has(x.category)) err(w, `category "${x && x.category}" is not in brollCategories`);
     if (x) { optUrl(w + ' url', x.url); optImage(w + ' thumbnail', x.thumbnail); }
   });
+  list('brollFolders').forEach((f, i) => { const w = `brollFolders[${i}]`; if (!f || !f.name) err(w, 'needs a name'); else optUrl(w + ' url', f.url); });
   list('brollWanted').forEach((x, i) => { if (x && x.category && !brollIds.has(x.category)) err(`brollWanted[${i}]`, `category "${x.category}" is not in brollCategories`); });
   list('featuredSpecialists').forEach((p, i) => {
     const w = `featuredSpecialists[${i}]`;

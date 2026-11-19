@@ -102,10 +102,10 @@ console.log('PASS: empty states, Idea Bank + filters, squad credits, weekly even
 
 // Upload guidance, safe Disco fallback and autosave (ported from the Nov 18 GitHub updates).
 t = boot();
-assert.match(t.run('submissionHelp()'), /href="https:\/\/drive\.google\.com\/drive\/folders\/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd"/);
+assert.match(t.run('submissionHelp()'), /data-action="upload" data-dest="collab"/); // upload form is on
 assert.match(t.run('submissionHelp()'), /Folder instructions in Disco/);
 assert.match(t.html('#resource-links'), /Content submission folder/);
-t = boot({ submissionFolderUrl: 'javascript:alert(1)', submissionInstructionsUrl: 'javascript:alert(1)' });
+t = boot({ uploadEndpoint: '', submissionFolderUrl: 'javascript:alert(1)', submissionInstructionsUrl: 'javascript:alert(1)' });
 assert.equal(t.run('submissionHelp()'), '');
 
 const stored = new Map();
@@ -148,11 +148,8 @@ assert.match(t.html('#resource-links'), /data-action="calendar"/);
 assert.match(t.html('#resource-links'), /data-action="tracker"/); // tracker opens in the app
 t.run("openPanel('tracker')");
 const trk = t.html('#modal-body');
-assert.match(trk, /In progress/); assert.match(trk, /Daddy’s Home/);
-assert.match(trk, /Upload your clips/);
-const briefRow = t.run("trackerRow({title:'Fixture',status:'casting',prompt:'Fixture filming instructions',briefUrl:'https://example.com/brief'})");
-assert.match(briefRow, /Read the brief/); assert.match(briefRow, /Fixture filming instructions/);
-assert.doesNotMatch(t.run("trackerRow({title:'Fixture',status:'idea',briefUrl:'javascript:alert(1)'})"), /Read the brief|Upload your clips/);
+assert.match(trk, /In progress/); assert.match(trk, /Daddy’s Home/); assert.match(trk, /Read the brief/);
+assert.match(trk, /Intros passing the sunshine toy/); assert.match(trk, /Upload your clips/);
 assert.match(trk, /data-action="calendar"/); assert.match(trk, /Edit in Google Sheets/);
 t.run("openPanel('calendar')");
 const cal = t.html('#modal-body');
@@ -175,22 +172,56 @@ assert.match(t.html('#modal-body'), /Copy link/);
 assert.match(t.html('#modal-body'), /Copy caption/);
 t.run("openPanel('reel-share',{project:'not-published'})"); // unknown ids do nothing
 
-// B-roll library: empty state, filters, clip cards with Copy link, validation.
+// B-roll library: folders only; a folder's clips show when it's opened.
 t = boot();
-assert.match(t.html('#broll-grid'), /Inside Target/); // real clips from the Drive folder
-assert.match(t.html('#broll-grid'), /images\/broll-wagons\.jpg/);
+assert.match(t.html('#broll-folders'), /data-broll-folder="Taylor"/); assert.match(t.html('#broll-folders'), /7 clips/);
+assert.equal(t.html('#broll-grid'), ''); assert.equal(t.html('#broll-filters'), ''); // previews hidden until a folder is opened
 assert.match(t.el('#broll-summary').textContent, /7 clips/);
-t = boot({ brollClips: [] });
-assert.match(t.html('#broll-grid'), /No clips yet/);
-assert.match(t.html('#broll-add'), /drive\.google\.com\/drive\/folders\/1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS/); // the b-roll folder
+assert.match(t.html('#broll-add'), /data-action="upload" data-dest="broll"/); // uploads straight to the B-roll folder
 assert.match(t.html('#broll-wanted'), /One-hand stroller fold/);
-t = boot({ brollClips: [{ id: 'c1', title: 'Aisle walk <b>', category: 'aisles', url: 'https://drive.google.com/file/d/x', length: '0:08', credit: 'Kristin' }, { id: 'c2', title: 'Fold', category: 'strollers', url: 'javascript:alert(1)' }] });
+t.run("brollPerson='Taylor';renderBroll()");
+assert.match(t.html('#broll-folders'), /Taylor’s folder/); assert.match(t.html('#broll-folders'), /1BebMeyvEhZp7e0XBVur5nPPwpho_SOwQ/);
+assert.match(t.html('#broll-folders'), /All folders/);
+assert.match(t.html('#broll-grid'), /Inside Target/); assert.match(t.html('#broll-grid'), /images\/broll-wagons\.jpg/);
+assert.doesNotMatch(t.html('#broll-grid'), /shot by/);
+t.run("brollPerson='';renderBroll()"); assert.equal(t.html('#broll-grid'), ''); // closing hides them again
+t.run("brollPerson='Nobody';renderBroll()"); assert.match(t.html('#broll-folders'), /Folders/); assert.equal(t.html('#broll-grid'), '');
+t = boot({ brollFolders: [] });
+assert.match(t.html('#broll-folders'), /No folders yet/);
+t = boot({ brollFolders: [{ name: 'Kristin', url: 'https://drive.google.com/drive/folders/k' }], brollClips: [{ id: 'c1', title: 'Aisle walk <b>', category: 'aisles', url: 'https://drive.google.com/file/d/x', length: '0:08', credit: 'Kristin' }, { id: 'c2', title: 'Fold', category: 'strollers', url: 'javascript:alert(1)', credit: 'Kristin' }] });
+t.run("brollPerson='Kristin';renderBroll()");
 assert.match(t.html('#broll-grid'), /Aisle walk &lt;b&gt;/);
 assert.match(t.html('#broll-grid'), /data-copy="https:\/\/drive\.google\.com\/file\/d\/x"/);
 assert.doesNotMatch(t.html('#broll-grid'), /javascript:/);
 assert.doesNotMatch(t.html('#broll-filters'), /Feeding/); // only categories that have clips
 t.run("brollFilter='strollers';renderBroll()");
 assert.doesNotMatch(t.html('#broll-grid'), /Aisle walk/);
+t = boot({ brollFolders: [{ name: 'Kristin', url: 'https://drive.google.com/drive/folders/k' }], brollClips: [] });
+t.run("brollPerson='Kristin';renderBroll()"); assert.match(t.html('#broll-grid'), /No clips here yet/);
+assert.ok(validate({ ...load(), brollFolders: [{ name: '' }] }).some(e => /needs a name/.test(e)));
+// Upload form: falls back to Drive links when uploadEndpoint is blank.
+t = boot({ uploadEndpoint: '' });
+assert.match(t.run('submissionHelp()'), /href="https:\/\/drive\.google\.com\/drive\/folders\/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd"/);
+assert.match(t.html('#broll-add'), /href="https:\/\/drive\.google\.com\/drive\/folders\/1Nl5OG/);
+assert.doesNotMatch(t.html('#casting-projects'), /data-action="upload"/);
+const EP = 'https://script.google.com/macros/s/AKfyc-test_123/exec';
+t = boot({ uploadEndpoint: EP });
+assert.match(t.html('#broll-add'), /data-action="upload" data-dest="broll"/);
+assert.match(t.html('#casting-projects'), /data-action="upload" data-dest="collab" data-project="meet-the-squad-part-2"/);
+t.run("openPanel('upload',{dest:'collab',project:'meet-the-squad-part-2'})");
+const up = t.html('#modal-body');
+assert.match(up, /<option value="Meet the Squad, Part 2: Pass the Toy" selected>/); assert.match(up, /Daddy’s Home/);
+assert.match(up, /<option>Taylor<\/option>/); assert.match(up, /type="file" accept="video\/\*,image\/\*" multiple/); assert.match(up, /Squad passcode/);
+t.run("openPanel('upload',{dest:'broll'})"); assert.match(t.html('#modal-body'), /<option value="broll" selected>B-roll library/);
+t.run("openPanel('tracker')"); assert.match(t.html('#modal-body'), /data-action="upload" data-dest="collab" data-project="Daddy’s Home"/);
+assert.ok(validate({ ...load(), uploadEndpoint: 'https://example.com/x' }).some(e => /Apps Script/.test(e)));
+assert.ok(!validate({ ...load(), uploadEndpoint: EP }).length);
+// Pitches: Send pitch when the endpoint is set; Disco copy-and-paste otherwise.
+t = boot({ uploadEndpoint: EP });
+assert.equal(t.run("sendsPitch('pitch')"), true); assert.equal(t.run("sendsPitch('collab')"), false);
+assert.match(t.run('pitchSendBox()'), /id="send-pitch"/); assert.doesNotMatch(t.run('pitchSendBox()'), /passcode/i); assert.match(t.run('pitchSendBox()'), /<option>Kristin<\/option>/);
+t = boot({ uploadEndpoint: '' });
+assert.equal(t.run("sendsPitch('pitch')"), false);
 assert.ok(validate({ ...load(), brollClips: [{ title: 'X', category: 'nope' }] }).some(e => /not in brollCategories/.test(e)));
 
 console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');

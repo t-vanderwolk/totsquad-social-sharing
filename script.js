@@ -108,9 +108,9 @@ function emptyState(heading,text,actions='',icon=ICON.spark) { return `<div clas
 function storageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function storageSet(key,value) { try { localStorage.setItem(key,value); return true; } catch { return false; } }
 function submissionHelp() {
-  const folder = externalLink(content.submissionFolderUrl,'Open the submission folder','button');
+  const folder = UPLOAD_ON() ? uploadButton('Upload your clips','collab') : externalLink(content.submissionFolderUrl,'Open the submission folder','button');
   const steps = externalLink(content.submissionInstructionsUrl,'Folder instructions in Disco','button secondary');
-  return folder || steps ? `<div class="flow-note"><strong>Have footage to upload?</strong><p>Upload your content to the submission folder, then paste its shareable link below. Check that the reviewer can open it.</p><div class="button-row">${folder}${steps}</div></div>` : '';
+  return folder || steps ? `<div class="flow-note"><strong>Have footage to upload?</strong><p>${UPLOAD_ON() ? 'Upload your clips here. They go straight into the Squad’s Drive, so there’s no link to paste.' : 'Upload your content to the submission folder, then paste its shareable link below. Check that the reviewer can open it.'}</p><div class="button-row">${folder}${steps}</div></div>` : '';
 }
 
 /* "New" badges: ideas dated after this browser's previous visit. */
@@ -131,7 +131,7 @@ function renderCasting() {
     <div class="casting-copy"><span class="chip casting-chip">Casting now</span><h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
-    <div class="button-row"><button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
+    <div class="button-row"><button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
     : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
 }
 
@@ -251,30 +251,52 @@ function nextOccurrence(weekday) {
   return d.toISOString().slice(0,10);
 }
 /* ---------- B-roll library (b-roll.html) ---------- */
-let brollFilter = 'all';
+let brollFilter = 'all'; let brollPerson = '';
 const BROLL_ART = {aisles:'store',strollers:'stroller','car-seats':'carseat',nursery:'moon',feeding:'bottle',babywearing:'heart',registry:'checklist',squad:'people'};
 const brollCats = () => content.brollCategories || [];
 const brollLabel = id => (brollCats().find(c => c.id === id) || {}).label || 'Clip';
 const brollTint = id => TINTS[Math.max(0, brollCats().findIndex(c => c.id === id)) % TINTS.length];
 function brollFolder() { return publicUrl(content.brollFolderUrl) || publicUrl(content.submissionFolderUrl); }
-function clipCard(x) {
+function clipCard(x, inFolder) {
   const thumb = imageUrl(x.thumbnail); const url = publicUrl(x.url);
   return `<article class="clip-card tint-${brollTint(x.category)}"><div class="clip-thumb">${thumb ? `<img src="${escapeHTML(thumb)}" alt="" loading="lazy">` : SVG(ART[BROLL_ART[x.category]] || ART.phone)}${x.length ? `<span class="clip-length">${escapeHTML(x.length)}</span>` : ''}</div>
-    <h3>${escapeHTML(x.title)}</h3><p>${escapeHTML(brollLabel(x.category))}${x.credit ? ' · shot by '+escapeHTML(x.credit) : ''}</p>
+    <h3>${escapeHTML(x.title)}</h3><p>${escapeHTML(brollLabel(x.category))}${x.credit && !inFolder ? ' · shot by '+escapeHTML(x.credit) : ''}</p>
     <div class="button-row">${externalLink(url,'Open in Drive','button secondary')}${url ? `<button class="text-button" type="button" data-copy="${escapeHTML(url)}" data-done="Clip link copied.">Copy link</button>` : ''}</div></article>`;
 }
+const brollFolders = () => (content.brollFolders || []).filter(f => f && f.name);
+function personPhoto(name) { const p = [content.leader, ...(content.featuredSpecialists || [])].find(x => x && x.name === name); return p ? imageUrl(p.photo) : ''; }
+function folderAvatar(name) { const photo = personPhoto(name); return photo ? `<img class="folder-avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="folder-avatar" aria-hidden="true">${escapeHTML(name.charAt(0))}</span>`; }
+const clipCount = n => n === 1 ? '1 clip' : `${n} clips`;
+function folderTile(f, clips) {
+  const mine = clips.filter(x => x.credit === f.name);
+  const peek = mine.map(x => imageUrl(x.thumbnail)).filter(Boolean).slice(0,3);
+  return `<button type="button" class="folder-tile" data-broll-folder="${escapeHTML(f.name)}" aria-label="${escapeHTML(`Open ${f.name}’s folder, ${clipCount(mine.length)}`)}">
+    <span class="folder-back"><span class="folder-peek">${peek.map(src => `<img src="${escapeHTML(src)}" alt="" loading="lazy">`).join('')}</span></span>
+    <span class="folder-front">${folderAvatar(f.name)}<span><strong>${escapeHTML(f.name)}</strong><small>${clipCount(mine.length)}</small></span></span></button>`;
+}
 function renderBroll() {
-  const clips = (content.brollClips || []).filter(x => x && x.title);
+  const allClips = (content.brollClips || []).filter(x => x && x.title);
+  const folders = brollFolders();
+  const open = folders.find(f => f.name === brollPerson); if (!open) brollPerson = '';
+  const clips = open ? allClips.filter(x => x.credit === open.name) : allClips;
   const count = id => id === 'all' ? clips.length : clips.filter(x => x.category === id).length;
-  const folder = brollFolder();
-  if (has('#broll-add')) $('#broll-add').innerHTML = externalLink(folder,'Add your clips','button');
-  if (has('#broll-summary')) $('#broll-summary').textContent = clips.length ? `${clips.length} clips so far.` : '';
-  const usedCats = brollCats().filter(c => count(c.id));
-  if (brollFilter !== 'all' && !count(brollFilter)) brollFilter = 'all';
-  $('#broll-filters').innerHTML = !usedCats.length ? '' : [{id:'all',label:'All'}, ...usedCats].map(f => `<button type="button" class="filter" data-broll="${escapeHTML(f.id)}" aria-pressed="${brollFilter === f.id}">${escapeHTML(f.label)} <span class="count">${count(f.id)}</span></button>`).join('');
-  const shown = brollFilter === 'all' ? clips : clips.filter(x => x.category === brollFilter);
-  $('#broll-grid').innerHTML = shown.length ? shown.map(clipCard).join('')
-    : emptyState(clips.length ? 'No clips in this category yet.' : 'No clips yet.', 'Add yours to the shared folder and they’ll show up here for the whole Squad to use.', externalLink(folder,'Add your clips'), ICON.play);
+  const folder = (open && publicUrl(open.url)) || brollFolder();
+  if (has('#broll-add')) $('#broll-add').innerHTML = uploadButton('Add your clips','broll');
+  if (has('#broll-summary')) $('#broll-summary').textContent = allClips.length ? `${clipCount(allClips.length)} so far.` : '';
+  if (has('#broll-folders')) $('#broll-folders').innerHTML = open
+    ? `<div class="folder-open"><button type="button" class="text-button folder-back-link" data-broll-folder="">← All folders</button>
+        <div class="folder-open-head">${folderAvatar(open.name)}<div><h2>${escapeHTML(open.name)}’s folder</h2><p>${clipCount(clips.length)}</p></div>${externalLink(open.url,'Open folder in Drive','button secondary')}</div></div>`
+    : folders.length ? `<h2 class="broll-head">Folders</h2><p class="folder-note">Open a folder to preview its clips.</p><div class="folder-grid">${folders.map(f => folderTile(f, allClips)).join('')}</div>`
+    : emptyState('No folders yet.', 'When a specialist sends clips, their folder shows up here.', externalLink(brollFolder(),'Add your clips'), ICON.play);
+  if (!open) { $('#broll-filters').innerHTML = ''; $('#broll-grid').innerHTML = ''; } // previews stay hidden until a folder is opened
+  else {
+    const usedCats = brollCats().filter(c => count(c.id));
+    if (brollFilter !== 'all' && !count(brollFilter)) brollFilter = 'all';
+    $('#broll-filters').innerHTML = !usedCats.length ? '' : [{id:'all',label:'All'}, ...usedCats].map(f => `<button type="button" class="filter" data-broll="${escapeHTML(f.id)}" aria-pressed="${brollFilter === f.id}">${escapeHTML(f.label)} <span class="count">${count(f.id)}</span></button>`).join('');
+    const shown = brollFilter === 'all' ? clips : clips.filter(x => x.category === brollFilter);
+    $('#broll-grid').innerHTML = shown.length ? shown.map(x => clipCard(x, !!open)).join('')
+      : emptyState(clips.length ? 'No clips in this category yet.' : 'No clips here yet.', `Clips ${open.name} adds to the Drive folder show up here.`, externalLink(folder,'Open folder in Drive'), ICON.play);
+  }
   if (has('#broll-wanted')) $('#broll-wanted').innerHTML = (content.brollWanted || []).map(w => `<li><span class="wanted-mark" aria-hidden="true"></span><div><strong>${escapeHTML(w.title)}</strong><span>${escapeHTML(brollLabel(w.category))}</span></div></li>`).join('');
 }
 function toast(msg) { const t = document.getElementById ? document.getElementById('toast') : null; if (!t || !msg) return; t.textContent = msg; t.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 2600); }
@@ -428,7 +450,7 @@ function trackerRow(x) {
   const meta = [x.lead ? 'Led by '+x.lead : '', due].filter(Boolean).join(' · ');
   const brief = publicUrl(x.briefUrl);
   const links = [brief ? externalLink(brief,'Read the brief','text-button') : '',
-    x.status === 'posted' ? externalLink(x.url,'Watch','text-button') : x.status !== 'idea' ? externalLink(content.submissionFolderUrl,'Upload your clips','text-button') : ''].filter(Boolean).join('');
+    x.status === 'posted' ? externalLink(x.url,'Watch','text-button') : x.status !== 'idea' ? (UPLOAD_ON() ? `<button type="button" class="text-button" data-action="upload" data-dest="collab" data-project="${escapeHTML(x.title)}">Upload your clips</button>` : externalLink(content.submissionFolderUrl,'Upload your clips','text-button')) : ''].filter(Boolean).join('');
   return `<li class="trk-row"><div class="trk-top"><strong>${escapeHTML(x.title)}</strong><span class="stage stage-${cls}">${label}</span></div>${meta ? `<span class="trk-meta">${escapeHTML(meta)}</span>` : ''}${x.prompt ? `<p class="trk-prompt">${escapeHTML(x.prompt)}</p>` : ''}${links ? `<div class="trk-links">${links}</div>` : ''}</li>`;
 }
 function openTracker() {
@@ -493,10 +515,11 @@ function openFlow(action,data) {
       <div class="form-actions"><button class="button" type="submit">${action === 'share' ? 'Build my message' : 'Review my draft'}</button><button class="button secondary" type="button" id="save-draft">Save draft</button><button class="button secondary" type="button" id="download-draft">Download</button><button class="button secondary" type="button" id="clear-draft">Clear</button></div>
       <p class="quiet">Drafts stay in this browser. Nothing is sent automatically.</p>
     </form>
-    <section id="review" hidden><p>${action === 'share' ? 'Here’s your message. Copy it and share it wherever you like.' : 'Check your draft, copy it, then paste it into the right Disco discussion.'}</p>
+    <section id="review" hidden><p>${action === 'share' ? 'Here’s your message. Copy it and share it wherever you like.' : sendsPitch(action) ? 'Check your pitch, then send it. It goes straight to Taylor’s pitch list.' : 'Check your draft, copy it, then paste it into the right Disco discussion.'}</p>
       <textarea id="review-output" aria-label="${action === 'share' ? 'Shareable message' : 'Draft preview'}" readonly></textarea>
-      <div class="form-actions"><button class="button" type="button" id="copy-review">Copy ${label}</button><button class="button secondary" type="button" id="edit-draft">← Edit</button><button class="button secondary" type="button" id="download-review">Download</button><span id="disco-handoff"></span></div>
-      ${action === 'share' ? '<p class="quiet">Copy your message, then paste it wherever you want to share the Reel. Nothing is posted automatically.</p>' : '<ol class="handoff-steps"><li>Review and copy your draft.</li><li>Open the Disco discussion.</li><li>Paste your draft, check it, and send it in Disco.</li></ol><p class="quiet">Opening Disco does not submit your draft. Your text stays here until you copy and post it.</p>'}
+      ${sendsPitch(action) ? pitchSendBox() : ''}
+      <div class="form-actions"><button class="button${sendsPitch(action) ? ' secondary' : ''}" type="button" id="copy-review">Copy ${label}</button><button class="button secondary" type="button" id="edit-draft">← Edit</button><button class="button secondary" type="button" id="download-review">Download</button><span id="disco-handoff"></span></div>
+      ${action === 'share' ? '<p class="quiet">Copy your message, then paste it wherever you want to share the Reel. Nothing is posted automatically.</p>' : sendsPitch(action) ? '' : '<ol class="handoff-steps"><li>Review and copy your draft.</li><li>Open the Disco discussion.</li><li>Paste your draft, check it, and send it in Disco.</li></ol><p class="quiet">Opening Disco does not submit your draft. Your text stays here until you copy and post it.</p>'}
     </section>`;
 
   const form = $('#flow-form'); const review = $('#review'); const output = $('#review-output');
@@ -535,7 +558,7 @@ function openFlow(action,data) {
     output.value = action === 'share' ? shareText(d) : draftText(action,d);
     const base = ideas().find(i => i.id === d.basedOn);
     const discussion = publicUrl(p?.discussionUrl) || publicUrl(base?.discussionUrl);
-    $('#disco-handoff').innerHTML = action === 'share' ? '' : externalLink(discussion || content.discoUrl, discussion ? 'Open the discussion' : 'Open Social & Sharing chat');
+    $('#disco-handoff').innerHTML = action === 'share' || sendsPitch(action) ? '' : externalLink(discussion || content.discoUrl, discussion ? 'Open the discussion' : 'Open Social & Sharing chat');
     setStep(true);
     status.textContent = 'Ready for your review. Nothing has been sent.';
   };
@@ -544,6 +567,10 @@ function openFlow(action,data) {
   $('#download-draft').onclick = () => downloadText(draftText(action,values()),'tot-squad-'+action+'-draft.txt');
   $('#copy-review').onclick = () => copyText(output.value, output, action === 'share' ? 'Message copied. Paste it where you want to share the Reel.' : 'Draft copied. Open the Disco discussion, paste it, and send it there.');
   $('#download-review').onclick = () => downloadText(output.value,'tot-squad-'+action+'.txt');
+  if (sendsPitch(action)) $('#send-pitch').onclick = () => sendPitch(values(), () => {
+    memoryDrafts.delete(action); try { localStorage.removeItem('totsquad-'+action+'-v2'); } catch {}
+    draftDirty = false;
+  });
   $('#clear-draft').onclick = () => {
     memoryDrafts.delete(action);
     try { localStorage.removeItem('totsquad-'+action+'-v2'); status.textContent = 'Draft cleared from this device.'; } catch { status.textContent = 'Current form cleared; browser storage could not be cleared.'; }
@@ -553,6 +580,118 @@ function openFlow(action,data) {
 }
 
 /* Quick share for a published Reel: the link with Copy link, a ready caption, and the phone share sheet when available. */
+/* ---------- Send a pitch to the pitch sheet (apps-script/upload.gs) ---------- */
+const sendsPitch = action => action === 'pitch' && UPLOAD_ON();
+function pitchSendBox() {
+  const savedName = storageGet(UPLOAD_NAME_KEY) || '';
+  return `<div class="send-box" id="send-box">
+    <label for="send-name">Your name</label><select id="send-name"><option value="">Choose your name</option>${squadNames().map(n => `<option${n === savedName ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
+    <input class="hp" id="send-website" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <div class="form-actions"><button class="button" type="button" id="send-pitch">Send pitch</button></div></div>`;
+}
+async function sendPitch(d, onSent) {
+  const name = $('#send-name').value, btn = $('#send-pitch');
+  if (!name) { status.textContent = 'Choose your name first.'; $('#send-name').focus(); return; }
+  const base = ideas().find(i => i.id === d.basedOn);
+  const pitch = { title:d.title, series:d.series, audience:d.audience, idea:d.idea, hook:d.hook, takeaway:d.takeaway, shots:d.shots, format:d.format, lead:d.lead, support:d.support, basedOn: base ? base.title : '' };
+  btn.disabled = true; btn.textContent = 'Sending…'; status.textContent = '';
+  try {
+    const res = await uploadRequest({ action:'pitch', name, pitch, website: $('#send-website').value });
+    if (!res.ok) { status.textContent = res.error || 'That didn’t send. Try again in a minute.'; btn.disabled = false; btn.textContent = 'Send pitch'; return; }
+    storageSet(UPLOAD_NAME_KEY, name);
+    btn.textContent = 'Sent'; status.textContent = 'Pitch sent! It’s on Taylor’s pitch list now.';
+    onSent && onSent();
+  } catch { status.textContent = 'That didn’t send. Check your connection and try again.'; btn.disabled = false; btn.textContent = 'Send pitch'; }
+}
+
+/* ---------- Upload clips straight to Drive (apps-script/upload.gs) ---------- */
+const UPLOAD_ON = () => !!publicUrl(content.uploadEndpoint);
+const UPLOAD_PASS_KEY = 'totsquad-upload-passcode';
+const UPLOAD_NAME_KEY = 'totsquad-upload-name';
+function uploadTargets() {
+  const live = ['casting','filming','editing','scheduled'];
+  const titles = [...content.activeCollaborations.filter(p => p.status !== 'published').map(p => p.title),
+    ...(content.contentCalendar || []).filter(x => x && live.includes(x.status) && x.status !== 'casting').map(x => x.title)];
+  return [...new Set(titles.filter(Boolean))];
+}
+function squadNames() { return [...new Set([...(content.featuredSpecialists || []).map(p => p && p.name), content.leader && content.leader.name].filter(Boolean))].sort(); }
+// Upload button when the form is set up, otherwise a link to the Drive folder.
+function uploadButton(label, dest, project, cls='button', fallbackUrl) {
+  if (!UPLOAD_ON()) return externalLink(fallbackUrl || (dest === 'broll' ? brollFolder() : content.submissionFolderUrl), label, cls);
+  return `<button type="button" class="${escapeHTML(cls)}" data-action="upload" data-dest="${escapeHTML(dest)}"${project ? ` data-project="${escapeHTML(project)}"` : ''}>${escapeHTML(label)}</button>`;
+}
+const sizeLabel = n => n >= 1e9 ? (n/1e9).toFixed(1)+' GB' : n >= 1e6 ? Math.round(n/1e6)+' MB' : Math.max(1, Math.round(n/1e3))+' KB';
+function openUpload(d={}) {
+  title.textContent = 'Upload your clips';
+  const targets = uploadTargets();
+  const project = d.project ? (allProjects.find(p => p.id === d.project) || {}).title || d.project : '';
+  const dest = d.dest === 'collab' ? (project || targets[0] || '') : 'broll';
+  const savedName = storageGet(UPLOAD_NAME_KEY) || '';
+  const savedPass = storageGet(UPLOAD_PASS_KEY) || '';
+  body.innerHTML = `<p>Your clips go straight into the Squad’s Google Drive, in a folder with your name. No Drive link needed.</p>
+    <form id="upload-form" novalidate>
+      <label for="up-name">Who’s uploading?</label>
+      <select id="up-name" required><option value="">Choose your name</option>${squadNames().map(n => `<option${n === savedName ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
+      <label for="up-dest">What are these for?</label>
+      <select id="up-dest"><option value="broll"${dest === 'broll' ? ' selected' : ''}>B-roll library</option>${targets.map(t => `<option value="${escapeHTML(t)}"${t === dest ? ' selected' : ''}>${escapeHTML(t)}</option>`).join('')}</select>
+      <label for="up-files">Videos or photos</label>
+      <input id="up-files" type="file" accept="video/*,image/*" multiple required>
+      <p class="quiet">Vertical (9:16) is best. Up to 2 GB per file.</p>
+      <label for="up-pass">Squad passcode</label>
+      <input id="up-pass" type="password" autocomplete="off" value="${escapeHTML(savedPass)}" required>
+      <p class="quiet">Ask Taylor if you don’t have it. This device remembers it after your first upload.</p>
+      <ul class="upload-list" id="upload-list" aria-live="polite"></ul>
+      <div class="form-actions"><button class="button" type="submit" id="up-go">Upload</button></div>
+    </form>`;
+  $('#upload-form').onsubmit = ev => { ev.preventDefault(); runUpload(); };
+  showModal();
+}
+async function uploadRequest(payload) {
+  const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
+  return res.json();
+}
+function putFile(url, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('status '+xhr.status));
+    xhr.onerror = () => reject(new Error('network'));
+    xhr.send(file);
+  });
+}
+async function runUpload() {
+  const name = $('#up-name').value, destVal = $('#up-dest').value, pass = $('#up-pass').value.trim();
+  const files = [...($('#up-files').files || [])];
+  const list = $('#upload-list'), go = $('#up-go');
+  status.textContent = '';
+  if (!name) { status.textContent = 'Choose your name first.'; $('#up-name').focus(); return; }
+  if (!files.length) { status.textContent = 'Choose at least one video or photo.'; $('#up-files').focus(); return; }
+  if (!pass) { status.textContent = 'Enter the Squad passcode.'; $('#up-pass').focus(); return; }
+  const bad = files.find(f => !/^(video|image)\//.test(f.type) || f.size > 2*1024**3);
+  if (bad) { status.textContent = `${bad.name} can’t be uploaded. Use videos or photos up to 2 GB.`; return; }
+  go.disabled = true; go.textContent = 'Uploading…';
+  list.innerHTML = files.map((f,i) => `<li id="up-${i}"><span>${escapeHTML(f.name)} <small>${sizeLabel(f.size)}</small></span><progress max="1" value="0"></progress><small class="up-state">Waiting</small></li>`).join('');
+  let done = 0, folderUrl = '';
+  for (const [i,f] of files.entries()) {
+    const row = $('#up-'+i), bar = row.querySelector('progress'), state = row.querySelector('.up-state');
+    try {
+      state.textContent = 'Starting';
+      const start = await uploadRequest({ action:'start', passcode:pass, name, dest: destVal === 'broll' ? 'broll' : 'collab', project: destVal === 'broll' ? '' : destVal, fileName:f.name, type:f.type, size:f.size, origin: location.origin });
+      if (!start.ok) { state.textContent = start.error || 'Couldn’t start'; row.classList.add('failed'); if (/passcode/i.test(start.error || '')) break; continue; }
+      storageSet(UPLOAD_PASS_KEY, pass); storageSet(UPLOAD_NAME_KEY, name); folderUrl = start.folderUrl || folderUrl;
+      await putFile(start.uploadUrl, f, p => { bar.value = p; state.textContent = Math.round(p*100)+'%'; });
+      bar.value = 1; state.textContent = 'Uploaded'; row.classList.add('done'); done++;
+    } catch { state.textContent = 'Upload stopped. Check your connection and try again.'; row.classList.add('failed'); }
+  }
+  go.disabled = false; go.textContent = 'Upload more';
+  if (done) {
+    $('#up-files').value = '';
+    status.innerHTML = `${done === files.length ? 'All set!' : `${done} of ${files.length} uploaded.`} ${done === 1 ? 'Your file is' : 'Your files are'} in the Squad’s Drive.${destVal === 'broll' ? ' New B-roll shows in the library once Taylor adds it.' : ''} ${folderUrl ? externalLink(folderUrl,'Open the folder','text-button') : ''}`;
+  }
+}
+
 function openReelShare(id) {
   const p = publishedProjects().find(x => x.id === id); if (!p) return;
   const url = publicUrl(p.publishedReelUrl);
@@ -577,6 +716,7 @@ function openPanel(action,data={}) {
   if (action === 'calendar') return openCalendar();
   if (action === 'tracker') return openTracker();
   if (action === 'reel-share') return openReelShare(data.project);
+  if (action === 'upload') return openUpload(data);
   if (action === 'idea') return openIdea(data.id);
   if (flows[action]) return openFlow(action,data);
   const item = info[action]; if (!item) return;
@@ -592,6 +732,8 @@ document.addEventListener('click', e => {
   if (dismiss) { const el = document.getElementById(dismiss.dataset.dismiss); if (el) el.hidden = true; storageSet('totsquad-welcome-dismissed','1'); return; }
   const copy = t.closest('[data-copy]');
   if (copy) { copyText(copy.dataset.copy, null, copy.dataset.done || 'Copied.').then(() => { if (!modal.open) toast(status.textContent); }); return; }
+  const bp = t.closest('[data-broll-folder]');
+  if (bp) { brollPerson = bp.dataset.brollFolder; brollFilter = 'all'; renderBroll(); const lib = document.getElementById('broll-library'); if (lib && lib.scrollIntoView) lib.scrollIntoView({block:'start'}); const f = document.querySelector(brollPerson ? '.folder-back-link' : `[data-broll-folder="${CSS.escape(bp.dataset.brollFolder || '')}"]`) || document.querySelector('.folder-tile'); if (f) f.focus({preventScroll:true}); return; }
   const bf = t.closest('[data-broll]');
   if (bf) { brollFilter = bf.dataset.broll; renderBroll(); document.querySelector(`[data-broll="${CSS.escape(brollFilter)}"]`)?.focus(); return; }
   const action = t.closest('[data-action]');
