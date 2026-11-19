@@ -218,7 +218,7 @@ window.HUB_CONTENT = {
   // Only links that aren't already in Disco's sidebar.
   resources: [
     { label: 'Content submission folder', url: 'https://drive.google.com/drive/folders/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd' },
-    { label: 'Reels tracker', url: 'https://docs.google.com/spreadsheets/d/1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg/edit' },
+    { label: 'Reels tracker', action: 'tracker' },
     { label: 'Content calendar', action: 'calendar' }
   ]
 };

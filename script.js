@@ -418,7 +418,30 @@ function openCalendar() {
   ].filter(([,list]) => list.length);
   title.textContent = 'Content calendar';
   body.innerHTML = (groups.length ? groups.map(([h,list]) => `<h3 class="cal-head">${h}</h3><ul class="cal-list">${list.map(calendarRow).join('')}</ul>`).join('') : '<p>No content is scheduled yet.</p>')
-    + `<p class="quiet">From the Reels tracker. Dates are deadlines.</p><div class="button-row">${externalLink(content.reelsTrackerUrl,'Open the Reels tracker','button secondary')}</div>`;
+    + `<p class="quiet">From the Reels tracker. Dates are deadlines.</p><div class="button-row"><button class="button secondary" type="button" data-action="tracker">Open the Reels tracker</button></div>`;
+  showModal();
+}
+
+function trackerRow(x) {
+  const [cls,label] = CAL_STATUS[x.status] || CAL_STATUS.idea;
+  const due = dateValid(x.date) ? (x.status === 'posted' ? '' : 'Due ')+fmt(x.date,{month:'short',day:'numeric'}) : (['idea','posted'].includes(x.status) ? '' : 'Date TBD');
+  const meta = [x.lead ? 'Led by '+x.lead : '', due].filter(Boolean).join(' · ');
+  const brief = publicUrl(x.briefUrl);
+  const links = [brief ? externalLink(brief,'Read the brief','text-button') : '',
+    x.status === 'posted' ? externalLink(x.url,'Watch','text-button') : x.status !== 'idea' ? externalLink(content.submissionFolderUrl,'Upload your clips','text-button') : ''].filter(Boolean).join('');
+  return `<li class="trk-row"><div class="trk-top"><strong>${escapeHTML(x.title)}</strong><span class="stage stage-${cls}">${label}</span></div>${meta ? `<span class="trk-meta">${escapeHTML(meta)}</span>` : ''}${x.prompt ? `<p class="trk-prompt">${escapeHTML(x.prompt)}</p>` : ''}${links ? `<div class="trk-links">${links}</div>` : ''}</li>`;
+}
+function openTracker() {
+  const all = (content.contentCalendar || []).filter(x => x && x.title);
+  const byDate = (a,b) => (a.date || '9999').localeCompare(b.date || '9999');
+  const groups = [
+    ['In progress', all.filter(x => !['posted','idea'].includes(x.status)).sort(byDate)],
+    ['Posted', all.filter(x => x.status === 'posted').sort((a,b) => (b.date || '').localeCompare(a.date || ''))],
+    ['Future ideas', all.filter(x => x.status === 'idea')]
+  ].filter(([,list]) => list.length);
+  title.textContent = 'Reels tracker';
+  body.innerHTML = (groups.length ? groups.map(([h,list]) => `<h3 class="cal-head">${h} <span class="quiet">${list.length}</span></h3><ul class="trk-list">${list.map(trackerRow).join('')}</ul>`).join('') : '<p>No Reels are on the tracker yet.</p>')
+    + `<p class="quiet">Every Reel’s clips go in the shared content folder. Dates are deadlines.</p><div class="button-row"><button class="button secondary" type="button" data-action="calendar">See it as a calendar</button>${externalLink(content.reelsTrackerUrl,'Edit in Google Sheets','text-button')}</div>`;
   showModal();
 }
 
@@ -552,6 +575,7 @@ function openPanel(action,data={}) {
   stash(); activeFlow = null; status.textContent = ''; body.replaceChildren();
   if (action === 'drafts') return openDrafts();
   if (action === 'calendar') return openCalendar();
+  if (action === 'tracker') return openTracker();
   if (action === 'reel-share') return openReelShare(data.project);
   if (action === 'idea') return openIdea(data.id);
   if (flows[action]) return openFlow(action,data);

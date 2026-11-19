@@ -144,12 +144,20 @@ assert.doesNotMatch(t.html('#squad-grid'), /Leader spotlight/);
 
 // Reels tracker link and content calendar.
 t = boot();
-assert.match(t.html('#resource-links'), /href="https:\/\/docs\.google\.com\/spreadsheets\/d\/1onXGs/);
 assert.match(t.html('#resource-links'), /data-action="calendar"/);
+assert.match(t.html('#resource-links'), /data-action="tracker"/); // tracker opens in the app
+t.run("openPanel('tracker')");
+const trk = t.html('#modal-body');
+assert.match(trk, /In progress/); assert.match(trk, /Daddy’s Home/);
+assert.match(trk, /Upload your clips/);
+const briefRow = t.run("trackerRow({title:'Fixture',status:'casting',prompt:'Fixture filming instructions',briefUrl:'https://example.com/brief'})");
+assert.match(briefRow, /Read the brief/); assert.match(briefRow, /Fixture filming instructions/);
+assert.doesNotMatch(t.run("trackerRow({title:'Fixture',status:'idea',briefUrl:'javascript:alert(1)'})"), /Read the brief|Upload your clips/);
+assert.match(trk, /data-action="calendar"/); assert.match(trk, /Edit in Google Sheets/);
 t.run("openPanel('calendar')");
 const cal = t.html('#modal-body');
 assert.ok(cal.indexOf('Up next') < cal.indexOf('Posted') && cal.indexOf('Posted') < cal.indexOf('Future ideas'));
-assert.match(cal, /Daddy’s Home/); assert.match(cal, /In edit/); assert.match(cal, /Open the Reels tracker/);
+assert.match(cal, /Daddy’s Home/); assert.match(cal, /In edit/); assert.match(cal, /data-action="tracker">Open the Reels tracker/);
 assert.ok(validate({ ...load(), contentCalendar: [{ title: 'X', status: 'someday' }] }).some(e => /must be posted/.test(e)));
 
 // Hub links: open inside Disco when embedded (tests boot with ?embed=1), new tab otherwise.
