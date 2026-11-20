@@ -119,7 +119,7 @@ const isNew = d => !!lastVisit && dateValid(d) && d > lastVisit;
 
 /* Two pages share this script: index.html and ideas.html. Links between them keep ?embed=1. */
 const EMBED = new URLSearchParams(location.search).get('embed') === '1';
-const pageUrl = file => file + (EMBED ? '?embed=1' : '');
+const pageUrl = file => file + (EMBED ? (file.includes('?') ? '&' : '?') + 'embed=1' : '');
 const IDEAS_URL = pageUrl('ideas.html');
 const has = sel => !!document.querySelector(sel);
 
@@ -329,7 +329,9 @@ function renderDeadlines() {
 }
 
 function renderResources() {
-  $('#resource-links').innerHTML = content.resources.map(r => r.action
+  $('#resource-links').innerHTML = content.resources.map(r => r.page
+    ? `<a class="linkrow" href="${escapeHTML(pageUrl(r.page))}">${escapeHTML(r.label)}</a>`
+    : r.action
     ? `<button class="linkrow" data-action="${escapeHTML(r.action)}">${escapeHTML(r.label)}</button>`
     : publicUrl(r.url) ? externalLink(r.url,r.label,'linkrow')
     : `<div class="linkrow" aria-disabled="true"><span>${escapeHTML(r.label)}</span><small>${escapeHTML(r.unavailableLabel || 'Not configured')}</small></div>`).join('');
@@ -337,9 +339,9 @@ function renderResources() {
 
 function renderContent() {
   document.body.classList.toggle('embed', EMBED);
-  if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"], a[href="b-roll.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
+  if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"], a[href="b-roll.html"], a[href="reels.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
   if (has('#welcome')) $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
-  const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#deadlines',renderDeadlines],['#resource-links',renderResources]];
+  const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources]];
   for (const [sel,render] of sections) if (has(sel)) render();
   storageSet('totsquad-last-visit', today());
 }
@@ -580,6 +582,141 @@ function openFlow(action,data) {
 }
 
 /* Quick share for a published Reel: the link with Copy link, a ready caption, and the phone share sheet when available. */
+/* ---------- Reels page (reels.html): calendar, board and list, live from the Reels – Status Report sheet ---------- */
+const REEL_STAGES = [
+  ['casting','Casting'], ['filming','Filming'], ['editing','In edit'], ['upcoming','Up next'], ['posted','Posted'], ['idea','Ideas']
+];
+const REEL_STAGE_CLASS = { casting:'casting', filming:'filming', editing:'editing', upcoming:'idea', posted:'published', idea:'idea' };
+const reelStageLabel = k => k === 'idea' ? 'Idea' : (REEL_STAGES.find(s => s[0] === k) || REEL_STAGES[3])[1];
+let reelsData = null, reelsLive = false, reelsUpdated = '', reelsView = 'board', reelsMonth = null;
+const normTitle = t => String(t || '').toLowerCase().replace(/[’']/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+function reelStatus(raw) {
+  const t = String(raw || '').trim().toLowerCase();
+  if (!t) return '';
+  if (/post|publish|live/.test(t)) return 'posted';
+  if (/edit/.test(t)) return 'editing';
+  if (/film|shoot/.test(t)) return 'filming';
+  if (/cast/.test(t)) return 'casting';
+  if (/idea/.test(t)) return 'idea';
+  if (/sched|next|soon/.test(t)) return 'upcoming';
+  return 'upcoming';
+}
+// "Sunday 10/18", "11/13", "2026-11-13" → YYYY-MM-DD; the year is whichever puts it closest to today.
+function sheetDate(raw, today = new Date()) {
+  const t = String(raw || '').trim();
+  const iso = t.match(/(\d{4})-(\d{2})-(\d{2})/); if (iso) return iso[0];
+  const md = t.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/); if (!md) return '';
+  const m = +md[1], d = +md[2]; if (m < 1 || m > 12 || d < 1 || d > 31) return '';
+  const pad = n => String(n).padStart(2,'0');
+  if (md[3]) { const y = md[3].length === 2 ? 2000 + +md[3] : +md[3]; return `${y}-${pad(m)}-${pad(d)}`; }
+  const y0 = today.getFullYear();
+  const best = [y0 - 1, y0, y0 + 1].map(y => [y, Math.abs(new Date(y, m - 1, d) - today)]).sort((a,b) => a[1] - b[1])[0][0];
+  return `${best}-${pad(m)}-${pad(d)}`;
+}
+function hubReel(sheetTitle) {
+  const key = normTitle(sheetTitle);
+  return (content.contentCalendar || []).find(x => x && (normTitle(x.sheetTitle) === key || normTitle(x.title) === key));
+}
+// One shape for both sources: live sheet rows, or the copy in content.js.
+function buildReels(rows, live) {
+  return rows.map((r, i) => {
+    const hub = live ? hubReel(r.title) : r;
+    const project = hub && hub.project ? allProjects.find(p => p.id === hub.project) : null;
+    const status = (live ? reelStatus(r.status) : reelStatus(r.status === 'scheduled' ? 'upcoming' : r.status)) || (hub && reelStatus(hub.status === 'scheduled' ? 'upcoming' : hub.status)) || 'upcoming';
+    const date = (live ? sheetDate(r.deadline) : '') || (hub && dateValid(hub.date) ? hub.date : '');
+    return {
+      id: 'r'+i, title: (hub && hub.title) || r.title, lead: r.lead || (hub && hub.lead) || '',
+      status, date, pastDue: live && status !== 'posted' && /past due/i.test(r.deadline || ''),
+      prompt: r.prompt || (hub && hub.prompt) || '', briefUrl: publicUrl(r.briefUrl) || publicUrl(hub && hub.briefUrl),
+      folderUrl: publicUrl(r.folderUrl) || (status !== 'idea' ? publicUrl(content.submissionFolderUrl) : ''),
+      url: publicUrl(hub && hub.url) || publicUrl(project && project.publishedReelUrl),
+      image: imageUrl(project && project.thumbnail), people: (project && project.participatingSpecialists) || [],
+      projectId: project && isPublished(project) ? project.id : ''
+    };
+  });
+}
+function reelsUrl() { const ep = publicUrl(content.uploadEndpoint); return ep ? ep + (ep.includes('?') ? '&' : '?') + 'action=reels' : ''; }
+async function loadReels() {
+  reelsData = buildReels((content.contentCalendar || []).filter(x => x && x.title), false);
+  renderReels();
+  const url = reelsUrl(); if (!url || typeof fetch !== 'function') return;
+  try {
+    const res = await fetch(url); const data = await res.json();
+    if (!data.ok || !Array.isArray(data.reels) || !data.reels.length) throw new Error('empty');
+    reelsData = buildReels(data.reels, true); reelsLive = true; reelsUpdated = data.updated || '';
+  } catch { reelsLive = false; }
+  renderReels();
+}
+const dueLabel = r => r.date ? fmt(r.date,{month:'short',day:'numeric'}) : r.pastDue ? 'Past due' : '';
+const overdue = r => r.date && !['posted','idea'].includes(r.status) && !upcoming(r.date);
+function reelChip(r, cls='reel-chip') {
+  return `<button type="button" class="${cls} stage-${REEL_STAGE_CLASS[r.status]}" data-reel="${r.id}"><span class="reel-chip-title">${escapeHTML(r.title)}</span></button>`;
+}
+function reelCard(r) {
+  const due = dueLabel(r);
+  return `<button type="button" class="reel-card" data-reel="${r.id}">${r.image ? `<img src="${escapeHTML(r.image)}" alt="" loading="lazy">` : ''}
+    <strong>${escapeHTML(r.title)}</strong>
+    <span class="reel-card-meta">${r.lead ? escapeHTML(r.lead) : ''}${r.lead && due ? ' · ' : ''}${due ? `<span class="${overdue(r) ? 'late' : ''}">${escapeHTML(overdue(r) ? 'Was due '+due : (r.status === 'posted' ? due : 'Due '+due))}</span>` : ''}</span></button>`;
+}
+function reelsCalendar(list) {
+  const today = new Date(); const base = reelsMonth || new Date(today.getFullYear(), today.getMonth(), 1);
+  reelsMonth = base;
+  const y = base.getFullYear(), m = base.getMonth();
+  const first = new Date(y, m, 1), days = new Date(y, m + 1, 0).getDate();
+  const iso = d => `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const todayIso = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const cells = [];
+  for (let i = 0; i < first.getDay(); i++) cells.push('<div class="cal-cell empty" aria-hidden="true"></div>');
+  for (let d = 1; d <= days; d++) {
+    const due = list.filter(r => r.date === iso(d));
+    cells.push(`<div class="cal-cell${iso(d) === todayIso ? ' today' : ''}${due.length ? ' has' : ''}"><span class="cal-day">${d}</span>${due.map(r => reelChip(r)).join('')}</div>`);
+  }
+  const monthName = first.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const inMonth = list.filter(r => r.date && r.date.startsWith(iso(1).slice(0,7))).sort((a,b) => a.date.localeCompare(b.date));
+  const undated = list.filter(r => !r.date && !['posted','idea'].includes(r.status));
+  return `<div class="cal-head-row"><button type="button" class="icon-button" data-month="-1" aria-label="Previous month">‹</button><h2>${monthName}</h2><button type="button" class="icon-button" data-month="1" aria-label="Next month">›</button><button type="button" class="text-button" data-month="0">Today</button></div>
+    <div class="cal-grid" role="grid" aria-label="${monthName}">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(w => `<div class="cal-dow" aria-hidden="true">${w}</div>`).join('')}${cells.join('')}</div>
+    <div class="cal-agenda"><h3>Due in ${first.toLocaleDateString('en-US',{month:'long'})}</h3>${inMonth.length ? `<ul>${inMonth.map(r => `<li>${reelChip(r,'reel-chip reel-row')}<span>${fmt(r.date,{month:'short',day:'numeric'})}</span></li>`).join('')}</ul>` : '<p class="quiet">Nothing due this month.</p>'}</div>
+    ${undated.length ? `<div class="cal-undated"><h3>No date yet</h3><div class="chip-row">${undated.map(r => reelChip(r)).join('')}</div></div>` : ''}`;
+}
+function reelsBoard(list) {
+  const byDate = (a,b) => (a.date || '9999').localeCompare(b.date || '9999');
+  return `<div class="reel-board">${REEL_STAGES.map(([k,label]) => {
+    const items = list.filter(r => r.status === k).sort(k === 'posted' ? (a,b) => (b.date || '').localeCompare(a.date || '') : byDate);
+    return `<section class="reel-col col-${REEL_STAGE_CLASS[k]}" aria-label="${label}"><h2><span class="stage stage-${REEL_STAGE_CLASS[k]}">${label}</span><span class="count">${items.length}</span></h2>${items.length ? items.map(reelCard).join('') : '<p class="quiet">Nothing here right now.</p>'}</section>`;
+  }).join('')}</div>`;
+}
+function reelsList(list) {
+  const byDate = (a,b) => (a.date || '9999').localeCompare(b.date || '9999');
+  const groups = [['In progress', list.filter(r => !['posted','idea'].includes(r.status)).sort(byDate)], ['Posted', list.filter(r => r.status === 'posted').sort((a,b) => (b.date || '').localeCompare(a.date || ''))], ['Ideas', list.filter(r => r.status === 'idea')]].filter(([,l]) => l.length);
+  return groups.map(([h,l]) => `<h2 class="list-head">${h} <span class="quiet">${l.length}</span></h2><ul class="reel-list">${l.map(r => `<li><button type="button" class="reel-line" data-reel="${r.id}">${r.date ? `<time datetime="${r.date}"><b>${fmt(r.date,{month:'short'})}</b>${fmt(r.date,{day:'numeric'})}</time>` : `<time class="tbd"><b>Date</b>TBD</time>`}<span class="reel-line-text"><strong>${escapeHTML(r.title)}</strong><span>${r.lead ? 'Led by '+escapeHTML(r.lead) : ''}</span></span><span class="stage stage-${REEL_STAGE_CLASS[r.status]}">${reelStageLabel(r.status)}</span></button></li>`).join('')}</ul>`).join('');
+}
+function renderReels() {
+  if (!has('#reels-view')) return;
+  const list = reelsData || [];
+  const q = new URLSearchParams(location.search).get('view');
+  if (!renderReels.started) { renderReels.started = true; if (['calendar','board','list'].includes(q)) reelsView = q; }
+  ['calendar','board','list'].forEach(v => { const t = document.getElementById ? document.getElementById('tab-'+v) : null; if (t) { t.setAttribute('aria-selected', String(v === reelsView)); t.tabIndex = v === reelsView ? 0 : -1; } });
+  const live = list.filter(r => !['posted','idea'].includes(r.status)).length;
+  if (has('#reels-summary')) $('#reels-summary').textContent = list.length ? `${live} in progress, ${list.filter(r => r.status === 'posted').length} posted.` : '';
+  if (has('#reels-sheet')) $('#reels-sheet').innerHTML = externalLink(content.reelsTrackerUrl,'Edit in Google Sheets','button');
+  if (has('#reels-source')) $('#reels-source').textContent = reelsLive ? `Live from the sheet${reelsUpdated ? ' · checked '+new Date(reelsUpdated).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : ''}` : (reelsData ? 'Showing the last saved copy.' : 'Loading…');
+  $('#reels-view').innerHTML = !list.length ? emptyState('No Reels yet.','Add a Reel to the Status Report sheet and it shows up here.', externalLink(content.reelsTrackerUrl,'Open the sheet'), ICON.play)
+    : reelsView === 'calendar' ? reelsCalendar(list) : reelsView === 'list' ? reelsList(list) : reelsBoard(list);
+}
+function openReel(id) {
+  const r = (reelsData || []).find(x => x.id === id); if (!r) return;
+  title.textContent = r.title;
+  const due = r.date ? (r.status === 'posted' ? 'Posted '+fmt(r.date,{month:'long',day:'numeric'}) : (overdue(r) ? 'Was due ' : 'Due ')+fmt(r.date,{weekday:'long',month:'long',day:'numeric'})) : r.pastDue ? 'Past due' : r.status === 'idea' ? '' : 'Deadline not set';
+  const live = !['posted','idea'].includes(r.status);
+  body.innerHTML = `${r.image ? `<img class="reel-detail-art" src="${escapeHTML(r.image)}" alt="">` : ''}
+    <p class="reel-detail-meta"><span class="stage stage-${REEL_STAGE_CLASS[r.status]}">${reelStageLabel(r.status)}</span>${r.lead ? `<span>Led by ${escapeHTML(r.lead)}</span>` : ''}${due ? `<span>${escapeHTML(due)}</span>` : ''}</p>
+    ${r.prompt ? `<h3 class="cal-head">The prompt</h3><p>${escapeHTML(r.prompt)}</p>` : ''}
+    ${r.people.length ? `<h3 class="cal-head">Featuring</h3><p>${escapeHTML(r.people.join(', '))}</p>` : ''}
+    <div class="button-row">${r.status === 'posted' && r.url ? externalLink(r.url,'Watch','button') : ''}${r.projectId ? `<button type="button" class="button secondary" data-action="reel-share" data-project="${escapeHTML(r.projectId)}">Share</button>` : ''}${live ? uploadButton('Upload your clips','collab',r.title) : ''}${r.briefUrl ? externalLink(r.briefUrl,'Read the brief','button secondary') : ''}${live && r.folderUrl ? externalLink(r.folderUrl,'Open the folder','button secondary') : ''}</div>`;
+  showModal();
+}
+
 /* ---------- Send a pitch to the pitch sheet (apps-script/upload.gs) ---------- */
 const sendsPitch = action => action === 'pitch' && UPLOAD_ON();
 function pitchSendBox() {
@@ -715,6 +852,7 @@ function openPanel(action,data={}) {
   if (action === 'drafts') return openDrafts();
   if (action === 'calendar') return openCalendar();
   if (action === 'tracker') return openTracker();
+  if (action === 'reel') return openReel(data.reel);
   if (action === 'reel-share') return openReelShare(data.project);
   if (action === 'upload') return openUpload(data);
   if (action === 'idea') return openIdea(data.id);
@@ -734,6 +872,12 @@ document.addEventListener('click', e => {
   if (copy) { copyText(copy.dataset.copy, null, copy.dataset.done || 'Copied.').then(() => { if (!modal.open) toast(status.textContent); }); return; }
   const bp = t.closest('[data-broll-folder]');
   if (bp) { brollPerson = bp.dataset.brollFolder; brollFilter = 'all'; renderBroll(); const lib = document.getElementById('broll-library'); if (lib && lib.scrollIntoView) lib.scrollIntoView({block:'start'}); const f = document.querySelector(brollPerson ? '.folder-back-link' : `[data-broll-folder="${CSS.escape(bp.dataset.brollFolder || '')}"]`) || document.querySelector('.folder-tile'); if (f) f.focus({preventScroll:true}); return; }
+  const rv = t.closest('[data-view]');
+  if (rv && has('#reels-view')) { reelsView = rv.dataset.view; renderReels(); document.getElementById('tab-'+reelsView)?.focus(); if (history.replaceState) { const u = new URL(location.href); u.searchParams.set('view', reelsView); history.replaceState(null,'',u); } return; }
+  const rm = t.closest('[data-month]');
+  if (rm) { const step = +rm.dataset.month; const now = new Date(); reelsMonth = step ? new Date(reelsMonth.getFullYear(), reelsMonth.getMonth() + step, 1) : new Date(now.getFullYear(), now.getMonth(), 1); renderReels(); return; }
+  const rr = t.closest('[data-reel]');
+  if (rr) { if (!modal.open) opener = rr; openPanel('reel', { reel: rr.dataset.reel }); return; }
   const bf = t.closest('[data-broll]');
   if (bf) { brollFilter = bf.dataset.broll; renderBroll(); document.querySelector(`[data-broll="${CSS.escape(brollFilter)}"]`)?.focus(); return; }
   const action = t.closest('[data-action]');

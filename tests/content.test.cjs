@@ -144,8 +144,7 @@ assert.doesNotMatch(t.html('#squad-grid'), /Leader spotlight/);
 
 // Reels tracker link and content calendar.
 t = boot();
-assert.match(t.html('#resource-links'), /data-action="calendar"/);
-assert.match(t.html('#resource-links'), /data-action="tracker"/); // tracker opens in the app
+assert.match(t.html('#resource-links'), /reels\.html\?view=calendar/); // calendar and tracker live on the Reels page
 t.run("openPanel('tracker')");
 const trk = t.html('#modal-body');
 assert.match(trk, /In progress/); assert.match(trk, /Daddy’s Home/); assert.match(trk, /Read the brief/);
@@ -223,5 +222,34 @@ assert.match(t.run('pitchSendBox()'), /id="send-pitch"/); assert.doesNotMatch(t.
 t = boot({ uploadEndpoint: '' });
 assert.equal(t.run("sendsPitch('pitch')"), false);
 assert.ok(validate({ ...load(), brollClips: [{ title: 'X', category: 'nope' }] }).some(e => /not in brollCategories/.test(e)));
+
+// Reels page: one shape for live sheet rows and the saved copy; three views; details panel.
+t = boot();
+assert.equal(t.run("sheetDate('Sunday 10/18', new Date(2026,10,20))"), '2026-10-18');
+assert.equal(t.run("sheetDate('1/5', new Date(2026,11,20))"), '2027-01-05'); // closest year wins
+assert.equal(t.run("sheetDate('PAST DUE')"), '');
+assert.equal(t.run("reelStatus('IN EDIT')"), 'editing'); assert.equal(t.run("reelStatus('POSTED')"), 'posted'); assert.equal(t.run("reelStatus('')"), '');
+t.run(`reelsData = buildReels([
+  {title:'Pass the Toy', lead:'Kristin', prompt:'Intros passing the sunshine toy', deadline:'PAST DUE', status:'POSTED', folderUrl:'https://drive.google.com/drive/folders/x'},
+  {title:"Daddy's Home", lead:'Sarah', prompt:'', briefUrl:'https://docs.google.com/document/d/abc/edit', deadline:'Sunday 10/25', status:'IN EDIT', folderUrl:''},
+  {title:'Pass the Toy - Fall Recruits', lead:'Kristin', prompt:'Intros', deadline:'Friday 11/13', status:'', folderUrl:''},
+  {title:'Brand new <Reel>', lead:'Lora', prompt:'', deadline:'', status:'FILMING', folderUrl:''},
+  {title:'Trick or Treat', lead:'Taylor', prompt:'', deadline:'', status:'IDEA', folderUrl:''}], true); reelsLive = true;`);
+const rd = JSON.parse(t.run('JSON.stringify(reelsData)'));
+assert.equal(rd[0].title, 'Meet the Squad (Pass the Toy)'); assert.match(rd[0].url, /instagram\.com\/reel\/DdxH92sTWXo/); assert.equal(rd[0].status, 'posted');
+assert.equal(rd[1].status, 'editing'); assert.equal(rd[1].date, '2026-10-25');
+assert.equal(rd[2].status, 'casting'); // blank in the sheet, casting in the hub
+assert.equal(rd[3].title, 'Brand new <Reel>'); assert.equal(rd[3].status, 'filming');
+t.run("reelsView='board'; renderReels()");
+assert.match(t.html('#reels-view'), /reel-board/); assert.match(t.html('#reels-view'), /Brand new &lt;Reel&gt;/); assert.match(t.html('#reels-view'), /Ideas/);
+t.run("reelsView='list'; renderReels()"); assert.match(t.html('#reels-view'), /In progress/);
+t.run("reelsView='calendar'; reelsMonth = new Date(2026,9,1); renderReels()");
+assert.match(t.html('#reels-view'), /October 2026/); assert.match(t.html('#reels-view'), /data-reel="r1"/);
+assert.match(t.html('#reels-view'), /No date yet/); // Brand new Reel has no deadline
+t.run("openPanel('reel',{reel:'r1'})");
+assert.match(t.html('#modal-body'), /In edit/); assert.match(t.html('#modal-body'), /Read the brief/); assert.match(t.html('#modal-body'), /Upload your clips/);
+t.run("openPanel('reel',{reel:'r0'})"); assert.match(t.html('#modal-body'), /Watch/); assert.match(t.html('#modal-body'), /data-action="reel-share"/);
+t = boot(); assert.match(t.html('#resource-links'), /href="reels\.html\?view=board&amp;embed=1"/); assert.match(t.html('#resource-links'), /reels\.html\?view=calendar/);
+assert.ok(validate({ ...load(), resources: [{ label: 'X', page: 'https://evil.com' }] }).some(e => /page in this site/.test(e)));
 
 console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');

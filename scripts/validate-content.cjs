@@ -123,7 +123,7 @@ function validate(c) {
     }
   });
 
-  list('resources').forEach((r, i) => { if (!r.label) err(`resources[${i}]`, 'needs a label'); optUrl(`resources[${i}] url`, r.url); });
+  list('resources').forEach((r, i) => { if (!r.label) err(`resources[${i}]`, 'needs a label'); optUrl(`resources[${i}] url`, r.url); if (r.page && !/^[\w-]+\.html(\?[\w=&-]*)?$/.test(r.page)) err(`resources[${i}] page`, 'should be a page in this site, like reels.html'); });
   return errors;
 }
 

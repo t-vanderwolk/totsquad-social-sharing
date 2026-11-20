@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reels · Creators Club · Tot Squad</title>
+<meta name="description" content="Every Tot Squad Reel, from casting to posted.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a href="#main" class="skip">Skip to content</a>
+
+<header class="site-header">
+  <a href="#main" class="brand" aria-label="Tot Squad Social & Sharing home"><img class="official-logo" src="https://cdn.prod.website-files.com/5f4a9ffd91010361e130f380/68407ea76a2d0b8be6420f9e_Tot-Squad-Logo-NEW-REG.png" alt="Tot Squad"><span class="hub-label">SPECIALIST HUB</span></a>
+  <span class="pill">Social &amp; Sharing</span>
+</header>
+
+<main id="main" class="reels-page">
+  <div class="eyebrow"><a href="index.html" class="crumb">Creators Club</a> / Reels</div>
+
+  <section class="page-hero" aria-labelledby="title">
+    <div>
+      <h1 id="title">Reels</h1>
+      <p>Every Squad Reel, from casting to posted. Open one for its prompt, deadline and upload folder. <span id="reels-summary"></span></p>
+    </div>
+    <div class="button-row"><span id="reels-sheet"></span><a class="button secondary" href="index.html">Back to Creators Club</a></div>
+  </section>
+
+  <noscript><p>Please enable JavaScript to view the Reels tracker.</p></noscript>
+
+  <section class="section" aria-label="Reels">
+    <div class="reels-bar">
+      <div class="view-switch" role="tablist" aria-label="View">
+        <button type="button" role="tab" data-view="calendar" id="tab-calendar">Calendar</button>
+        <button type="button" role="tab" data-view="board" id="tab-board">Board</button>
+        <button type="button" role="tab" data-view="list" id="tab-list">List</button>
+      </div>
+      <p class="reels-source" id="reels-source" aria-live="polite"></p>
+    </div>
+    <div id="reels-view" role="tabpanel" aria-live="polite"></div>
+  </section>
+
+  <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
+
+  <footer><span>Tot Squad Creators Club</span><span>Live from the Reels – Status Report sheet.</span></footer>
+</main>
+
+<dialog id="modal" aria-labelledby="modal-title">
+  <button class="close" type="button" aria-label="Close dialog">×</button>
+  <div class="eyebrow">Tot Squad Creators Club</div>
+  <h2 id="modal-title"></h2>
+  <div id="modal-body"></div>
+  <p id="status" role="status" aria-live="polite"></p>
+</dialog>
+
+<script src="content.js" defer></script>
+<script src="script.js" defer></script>
+</body>
+</html>

@@ -12,6 +12,7 @@
  *   3. Put the web app URL in content.js as uploadEndpoint.
  * Uploads are owned by, and use the storage of, the account that deploys this script.
  *
+ * The Reels page reads the Reels – Status Report sheet through doGet (?action=reels).
  * Pitches ("Pitch an idea") are added as rows to the "Creators Club pitches" sheet.
  * The sheet is created next to the B-Roll Library the first time someone sends a pitch.
  */
@@ -101,7 +102,47 @@ function pitchSheet() {
 // Plain text only, and never a formula.
 function text(s) { const t = String(s == null ? '' : s).replace(/[\u0000-\u0008\u000b-\u001f]/g, '').trim().slice(0, 3000); return /^[=+\-@]/.test(t) ? "'" + t : t; }
 
-function doGet() { return reply({ ok: true, service: 'Tot Squad Creators Club uploads' }); }
+/* GET ?action=reels: the Reels – Status Report sheet as JSON for the Reels page (cached for 2 minutes). */
+const REELS_SHEET_ID = '1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg';
+function doGet(e) {
+  const action = e && e.parameter && e.parameter.action;
+  if (action !== 'reels') return reply({ ok: true, service: 'Tot Squad Creators Club uploads' });
+  try {
+    const cache = CacheService.getScriptCache();
+    const hit = cache.get('reels');
+    if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
+    const out = JSON.stringify({ ok: true, updated: new Date().toISOString(), reels: readReels() });
+    cache.put('reels', out, 120);
+    return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    console.error(err);
+    return reply({ ok: false, error: 'Couldn’t read the Reels sheet.' });
+  }
+}
+function readReels() {
+  const sheet = SpreadsheetApp.openById(REELS_SHEET_ID).getSheets()[0];
+  const values = sheet.getDataRange().getDisplayValues();
+  const links = sheet.getDataRange().getRichTextValues();
+  const reels = []; let ideas = false;
+  for (let r = 1; r < values.length; r++) {
+    const row = values[r];
+    const title = String(row[0] || '').trim();
+    if (!title) continue;
+    if (/^future ideas/i.test(title)) { ideas = true; continue; }
+    const link = c => { const v = String(row[c] || '').trim(); if (/^https?:\/\//.test(v)) return v; const rt = links[r][c]; return (rt && rt.getLinkUrl()) || ''; };
+    const promptCell = String(row[2] || '').trim();
+    reels.push({
+      title: title, lead: String(row[1] || '').trim(),
+      prompt: /^https?:\/\//.test(promptCell) ? '' : promptCell,
+      briefUrl: /^https?:\/\//.test(promptCell) ? promptCell : link(2),
+      deadline: String(row[3] || '').trim(), status: ideas ? 'IDEA' : String(row[4] || '').trim(),
+      folderUrl: link(5), row: r + 1
+    });
+  }
+  return reels;
+}
+
+
 
 function childFolder(parent, name) {
   const found = parent.getFoldersByName(name);

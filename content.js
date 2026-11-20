@@ -129,19 +129,21 @@ window.HUB_CONTENT = {
 
   /* Content calendar + Reels tracker, copied from the Reels – Status Report (updated Nov 18, 2026).
      status: posted, editing, filming, casting, scheduled, idea. date: YYYY-MM-DD or '' when unknown.
-     prompt: the sheet's prompt text. briefUrl: the prompt doc, if there is one. Uploads go to submissionFolderUrl. */
+     prompt: the sheet's prompt text. briefUrl: the prompt doc, if there is one. Uploads go to submissionFolderUrl.
+     The Reels page (reels.html) reads the sheet live and falls back to this copy. sheetTitle: the row's title in the sheet,
+     so live rows pick up this entry's nicer title, Watch link and project (cover and featured specialists). */
   reelsTrackerUrl: 'https://docs.google.com/spreadsheets/d/1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg/edit',
   contentCalendar: [
-    { title: 'Meet the Squad (Pass the Toy)', lead: 'Kristin', date: '2026-09-26', status: 'posted', prompt: 'Intros passing the sunshine toy', url: 'https://www.instagram.com/reel/DdxH92sTWXo/' },
-    { title: 'Tot Squad Round Up #1: Strollers', lead: 'Kristin', date: '', status: 'posted', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeIYf50zTwr/' },
-    { title: 'Day in the Life', lead: 'Sarah', date: '', status: 'posted', prompt: 'Send photos throughout your day', url: 'https://www.instagram.com/reel/DeUnaELy3Er/' },
-    { title: 'Tot Squad Round Up #2: Registry Favorites', lead: 'Kristin', date: '2026-10-18', status: 'posted', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeuxzYWTQhv/' },
-    { title: 'Daddy’s Home', lead: 'Sarah', date: '2026-10-25', status: 'editing', briefUrl: 'https://docs.google.com/document/d/1-EXu39nUOtxi7YvTaoneQRu6n4L-LgeGpCxvcWUAYAM/edit?usp=sharing', url: '' },
-    { title: 'Tot Squad Round Up #3', lead: 'Kristin', date: '2026-11-08', status: 'scheduled', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: '' },
-    { title: 'Meet the Squad, Part 2: Pass the Toy (Fall Recruits)', lead: 'Kristin', date: '2026-11-13', status: 'casting', prompt: 'Intros passing the sunshine toy', url: '' },
-    { title: 'My “Why” carousel', lead: 'Kristin', date: '', status: 'idea', briefUrl: 'https://docs.google.com/document/d/1ZN9aw2mrgF4l_hVMWMszxsyGcyyb7peBQWL2RS9tMGg/edit?usp=sharing', url: '' },
-    { title: 'Registry Roast on Google Meet', lead: 'Taylor', date: '', status: 'idea', url: '' },
-    { title: 'Trick or Treat', lead: 'Taylor', date: '', status: 'idea', url: '' }
+    { title: 'Meet the Squad (Pass the Toy)', sheetTitle: 'Pass the Toy', project: 'meet-the-squad', lead: 'Kristin', date: '2026-09-26', status: 'posted', prompt: 'Intros passing the sunshine toy', url: 'https://www.instagram.com/reel/DdxH92sTWXo/' },
+    { title: 'Tot Squad Round Up #1: Strollers', sheetTitle: 'Tot Squad Round Up #1', project: 'tot-squad-round-up', lead: 'Kristin', date: '', status: 'posted', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeIYf50zTwr/' },
+    { title: 'Day in the Life', sheetTitle: 'Day in the Life', project: 'day-in-the-life', lead: 'Sarah', date: '', status: 'posted', prompt: 'Send photos throughout your day', url: 'https://www.instagram.com/reel/DeUnaELy3Er/' },
+    { title: 'Tot Squad Round Up #2: Registry Favorites', sheetTitle: 'Tot Squad Round Up #2', project: 'tot-squad-round-up-favorites', lead: 'Kristin', date: '2026-10-18', status: 'posted', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeuxzYWTQhv/' },
+    { title: 'Daddy’s Home', sheetTitle: "Daddy's Home", lead: 'Sarah', date: '2026-10-25', status: 'editing', briefUrl: 'https://docs.google.com/document/d/1-EXu39nUOtxi7YvTaoneQRu6n4L-LgeGpCxvcWUAYAM/edit?usp=sharing', url: '' },
+    { title: 'Tot Squad Round Up #3', sheetTitle: 'Tot Squad Round Up #3', lead: 'Kristin', date: '2026-11-08', status: 'scheduled', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: '' },
+    { title: 'Meet the Squad, Part 2: Pass the Toy (Fall Recruits)', sheetTitle: 'Pass the Toy - Fall Recruits', project: 'meet-the-squad-part-2', lead: 'Kristin', date: '2026-11-13', status: 'casting', prompt: 'Intros passing the sunshine toy', url: '' },
+    { title: 'My “Why” carousel', sheetTitle: 'My "Why" - Carousel', lead: 'Kristin', date: '', status: 'idea', briefUrl: 'https://docs.google.com/document/d/1ZN9aw2mrgF4l_hVMWMszxsyGcyyb7peBQWL2RS9tMGg/edit?usp=sharing', url: '' },
+    { title: 'Registry Roast on Google Meet', sheetTitle: 'Registry Roast Google Meet', lead: 'Taylor', date: '', status: 'idea', url: '' },
+    { title: 'Trick or Treat', sheetTitle: 'Trick or Treat', lead: 'Taylor', date: '', status: 'idea', url: '' }
   ],
 
   // weekday: 0 Sunday … 6 Saturday, or null when the schedule isn't set. time is optional text.
@@ -225,7 +227,7 @@ window.HUB_CONTENT = {
   // Only links that aren't already in Disco's sidebar.
   resources: [
     { label: 'Content submission folder', url: 'https://drive.google.com/drive/folders/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd' },
-    { label: 'Reels tracker', action: 'tracker' },
-    { label: 'Content calendar', action: 'calendar' }
+    { label: 'Reels tracker', page: 'reels.html?view=board' },
+    { label: 'Content calendar', page: 'reels.html?view=calendar' }
   ]
 };
