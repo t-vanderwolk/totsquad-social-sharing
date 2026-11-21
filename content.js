@@ -5,7 +5,7 @@ window.HUB_CONTENT = {
   timeZone: 'America/Phoenix',
   appUrl: 'https://tot-squad-hub.disco.co/page-app/UHJvZHVjdEFwcDozODQzNTg=?u=8d8e2732-9268-481e-9d53-1363df5e83ca&drawerTab=analytics',
   discoUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx',
-  submissionFolderUrl: 'https://drive.google.com/drive/folders/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd',
+  submissionFolderUrl: 'https://drive.google.com/drive/folders/1vDAjuYxPu2mreRracyxlm7Phbp0VKXka',
   // Mentor password screen: SHA-256 of the lowercase password (see README). Leave blank to turn the screen off.
   // Keep it in step with MENTOR_PASSCODE in the Creators Club script, which pitches still check.
   mentorPasswordHash: 'e9bb17bbee033d2cee200d8e50793aa350a04a68367bda9a334fedaa4f7cc0a1',
@@ -135,16 +135,16 @@ window.HUB_CONTENT = {
      prompt: the sheet's prompt text. briefUrl: the prompt doc, if there is one. Uploads go to submissionFolderUrl.
      The Reels page (reels.html) reads the sheet live and falls back to this copy. sheetTitle: the row's title in the sheet,
      so live rows pick up this entry's nicer title, Watch link and project (cover and featured specialists). */
-  reelsTrackerUrl: 'https://docs.google.com/spreadsheets/d/1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg/edit',
+  reelsTrackerUrl: 'https://docs.google.com/spreadsheets/d/1jg1-socr0cbV6Gt9LdaNtJ1hNLq9pfN_vBVAPVBYMus/edit',
   contentCalendar: [
     { title: 'Meet the Squad (Pass the Toy)', sheetTitle: 'Pass the Toy', project: 'meet-the-squad', lead: 'Kristin', date: '2026-09-26', status: 'posted', prompt: 'Intros passing the sunshine toy', url: 'https://www.instagram.com/reel/DdxH92sTWXo/' },
-    { title: 'Tot Squad Round Up #1: Strollers', sheetTitle: 'Tot Squad Round Up #1', project: 'tot-squad-round-up', lead: 'Kristin', date: '', status: 'posted', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeIYf50zTwr/' },
+    { title: 'Tot Squad Round Up #1: Strollers', sheetTitle: 'Tot Squad Round Up #1', project: 'tot-squad-round-up', lead: 'Kristin', date: '', status: 'posted', briefUrl: 'https://docs.google.com/document/d/1eiYurPKEKicMuBICFw52AjagtawhmNP_JL6sGaPT41Q/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeIYf50zTwr/' },
     { title: 'Day in the Life', sheetTitle: 'Day in the Life', project: 'day-in-the-life', lead: 'Sarah', date: '', status: 'posted', prompt: 'Send photos throughout your day', url: 'https://www.instagram.com/reel/DeUnaELy3Er/' },
-    { title: 'Tot Squad Round Up #2: Registry Favorites', sheetTitle: 'Tot Squad Round Up #2', project: 'tot-squad-round-up-favorites', lead: 'Kristin', date: '2026-10-18', status: 'posted', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeuxzYWTQhv/' },
-    { title: 'Daddy’s Home', sheetTitle: "Daddy's Home", lead: 'Sarah', date: '2026-10-25', status: 'editing', briefUrl: 'https://docs.google.com/document/d/1-EXu39nUOtxi7YvTaoneQRu6n4L-LgeGpCxvcWUAYAM/edit?usp=sharing', url: '' },
-    { title: 'Tot Squad Round Up #3', sheetTitle: 'Tot Squad Round Up #3', lead: 'Kristin', date: '2026-11-08', status: 'scheduled', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing', url: '' },
+    { title: 'Tot Squad Round Up #2: Registry Favorites', sheetTitle: 'Tot Squad Round Up #2', project: 'tot-squad-round-up-favorites', lead: 'Kristin', date: '2026-10-18', status: 'posted', briefUrl: 'https://docs.google.com/document/d/1eiYurPKEKicMuBICFw52AjagtawhmNP_JL6sGaPT41Q/edit?usp=sharing', url: 'https://www.instagram.com/reel/DeuxzYWTQhv/' },
+    { title: 'Daddy’s Home', sheetTitle: "Daddy's Home", lead: 'Sarah', date: '2026-10-25', status: 'editing', briefUrl: 'https://docs.google.com/document/d/1abzRnKbHdlLk1Himey9XHMZgq-7YdRcRVhVWYo3PF4I/edit?usp=sharing', url: '' },
+    { title: 'Tot Squad Round Up #3', sheetTitle: 'Tot Squad Round Up #3', lead: 'Kristin', date: '2026-11-08', status: 'scheduled', briefUrl: 'https://docs.google.com/document/d/1eiYurPKEKicMuBICFw52AjagtawhmNP_JL6sGaPT41Q/edit?usp=sharing', url: '' },
     { title: 'Meet the Squad, Part 2: Pass the Toy (Fall Recruits)', sheetTitle: 'Pass the Toy - Fall Recruits', project: 'meet-the-squad-part-2', lead: 'Kristin', date: '2026-11-13', status: 'casting', prompt: 'Intros passing the sunshine toy', url: '' },
-    { title: 'My “Why” carousel', sheetTitle: 'My "Why" - Carousel', lead: 'Kristin', date: '', status: 'idea', briefUrl: 'https://docs.google.com/document/d/1ZN9aw2mrgF4l_hVMWMszxsyGcyyb7peBQWL2RS9tMGg/edit?usp=sharing', url: '' },
+    { title: 'My “Why” carousel', sheetTitle: 'My "Why" - Carousel', lead: 'Kristin', date: '', status: 'idea', briefUrl: 'https://docs.google.com/document/d/1fgHTbjhL1w2xZuPffDQRrm0-FWhuxVFYkfuE3gr79KM/edit?usp=sharing', url: '' },
     { title: 'Registry Roast on Google Meet', sheetTitle: 'Registry Roast Google Meet', lead: 'Taylor', date: '', status: 'idea', url: '' },
     { title: 'Trick or Treat', sheetTitle: 'Trick or Treat', lead: 'Taylor', date: '', status: 'idea', url: '' }
   ],
@@ -208,10 +208,10 @@ window.HUB_CONTENT = {
   /* B-roll library (b-roll.html). brollFolderUrl: the shared Drive folder for clips (blank = the submission folder).
      brollClips: { id, title, category, url (Drive file link), thumbnail ('images/…' or https), length ('0:08'), credit (first name) }.
      brollWanted is a starter shot list; edit it freely. */
-  brollFolderUrl: 'https://drive.google.com/drive/folders/1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS',
+  brollFolderUrl: 'https://drive.google.com/drive/folders/1Q6fuKOaiTbkB2vTT7koOgHbDQcNTSx5c',
   // One Drive folder per specialist who has sent clips. Clips show in a folder when their credit matches its name.
   brollFolders: [
-    { name: 'Taylor', url: 'https://drive.google.com/drive/folders/1BebMeyvEhZp7e0XBVur5nPPwpho_SOwQ' }
+    { name: 'Taylor', url: 'https://drive.google.com/drive/folders/1SCiEs_VRfE0UbxVWFoMmftbynu2iUo0O' }
   ],
   brollCategories: [
     { id: 'aisles', label: 'In-store & aisles' }, { id: 'strollers', label: 'Strollers' }, { id: 'car-seats', label: 'Car seats' },
@@ -219,13 +219,13 @@ window.HUB_CONTENT = {
     { id: 'registry', label: 'Registry moments' }, { id: 'squad', label: 'Squad life' }
   ],
   brollClips: [
-    { id: 'entrance', title: 'Store entrance in a Tot Squad shirt', category: 'squad', url: 'https://drive.google.com/file/d/1hrp-G2XIptrFtsP5HYzL0zurrKAe5laq/view', thumbnail: 'images/broll-entrance.jpg', length: '0:11', credit: 'Taylor' },
-    { id: 'inside-target', title: 'Inside Target', category: 'aisles', url: 'https://drive.google.com/file/d/10Vzy2zAKTHpN_iaM97bY03POKmpwjBbt/view', thumbnail: 'images/broll-inside-target.jpg', length: '0:13', credit: 'Taylor' },
-    { id: 'lost', title: 'Lost in the aisles', category: 'aisles', url: 'https://drive.google.com/file/d/1buSOy4X66ElswPvV3CstQgvRqD6rcHrT/view', thumbnail: 'images/broll-lost.jpg', length: '0:21', credit: 'Taylor' },
-    { id: 'wagons', title: 'Wagons', category: 'strollers', url: 'https://drive.google.com/file/d/1koQoJGAvew6_8ceIB8fpbafgOeQ-2UnA/view', thumbnail: 'images/broll-wagons.jpg', length: '0:11', credit: 'Taylor' },
-    { id: 'halo', title: 'Halo bassinet', category: 'nursery', url: 'https://drive.google.com/file/d/1OKKgTFABstkurTo2bguFnEkzjH_ws58p/view', thumbnail: 'images/broll-halo.jpg', length: '0:06', credit: 'Taylor' },
-    { id: 'lalo-bibs', title: 'Lalo long-sleeve bibs', category: 'feeding', url: 'https://drive.google.com/file/d/1iUiFf0PBdjTzBPsW4XmZgHabKU5MQ5lq/view', thumbnail: 'images/broll-lalo-bibs.jpg', length: '0:09', credit: 'Taylor' },
-    { id: 'live-demo', title: 'Live demo', category: 'squad', url: 'https://drive.google.com/file/d/1_3KQCSbGwbZ03SWC3ydBkwt9vuTqg1Rm/view', thumbnail: 'images/broll-live-demo.jpg', length: '1:06', credit: 'Taylor' }
+    { id: 'entrance', title: 'Store entrance in a Tot Squad shirt', category: 'squad', url: 'https://drive.google.com/file/d/1zbObm8ndEbcXwoTNOD_CVLRyvkfVqM53/view', thumbnail: 'images/broll-entrance.jpg', length: '0:11', credit: 'Taylor' },
+    { id: 'inside-target', title: 'Inside Target', category: 'aisles', url: 'https://drive.google.com/file/d/1gXyDBhfwkddNP9Tsp1-aCku1RJOKGYrS/view', thumbnail: 'images/broll-inside-target.jpg', length: '0:13', credit: 'Taylor' },
+    { id: 'lost', title: 'Lost in the aisles', category: 'aisles', url: 'https://drive.google.com/file/d/1IunScZssJOyYg9IhdMldf6EMJXveSu1j/view', thumbnail: 'images/broll-lost.jpg', length: '0:21', credit: 'Taylor' },
+    { id: 'wagons', title: 'Wagons', category: 'strollers', url: 'https://drive.google.com/file/d/1Nb8Zx3XdhOICtMyGzFwa2nKFnNEdNYvR/view', thumbnail: 'images/broll-wagons.jpg', length: '0:11', credit: 'Taylor' },
+    { id: 'halo', title: 'Halo bassinet', category: 'nursery', url: 'https://drive.google.com/file/d/1DQjM1YkaqhQmph-arTAFOKo2QGOb_blj/view', thumbnail: 'images/broll-halo.jpg', length: '0:06', credit: 'Taylor' },
+    { id: 'lalo-bibs', title: 'Lalo long-sleeve bibs', category: 'feeding', url: 'https://drive.google.com/file/d/1vJbjstmLvluY3I8qpZmRfbDvodwsE4Zp/view', thumbnail: 'images/broll-lalo-bibs.jpg', length: '0:09', credit: 'Taylor' },
+    { id: 'live-demo', title: 'Live demo', category: 'squad', url: 'https://drive.google.com/file/d/1cGZpmq45VzpuwDM5RDcdK-LbnWxIGVaW/view', thumbnail: 'images/broll-live-demo.jpg', length: '1:06', credit: 'Taylor' }
   ],
   brollWanted: [
     { title: 'Slow walk down the baby aisle, wide', category: 'aisles' },
@@ -240,7 +240,7 @@ window.HUB_CONTENT = {
 
   // Only links that aren't already in Disco's sidebar.
   resources: [
-    { label: 'Content submission folder', url: 'https://drive.google.com/drive/folders/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd' },
+    { label: 'Content submission folder', url: 'https://drive.google.com/drive/folders/1vDAjuYxPu2mreRracyxlm7Phbp0VKXka' },
     { label: 'Reels tracker', page: 'reels.html?view=board' },
     { label: 'Content calendar', page: 'reels.html?view=calendar' }
   ]

@@ -19,9 +19,12 @@
  * The sheet is created next to the B-Roll Library the first time someone sends a pitch.
  * Applications ("Apply to join", no password) go to the "Creators Club applications" sheet, created the same way.
  */
+// Everything was copied into Creators Club (For Baby Specialists) on Nov 21, 2026. moved() swaps an original ID for its copy.
+function moved(id) { return PropertiesService.getScriptProperties().getProperty('C_' + id) || id; }
+function movedUrl(u) { return String(u || '').replace(/[-\w]{25,}/g, id => moved(id)); }
 const ROOTS = {
-  broll: '1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS',  // B-Roll Library
-  collab: '1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd'   // Content submission folder
+  broll: moved('1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS'),  // B-Roll Library
+  collab: moved('1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd')   // Content submission folder (now Creators Club (For Baby Specialists))
 };
 const ORIGINS = ['https://t-vanderwolk.github.io', 'http://localhost:4174'];
 const MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB per file
@@ -139,11 +142,12 @@ function applySheet() {
 function text(s) { const t = String(s == null ? '' : s).replace(/[\u0000-\u0008\u000b-\u001f]/g, '').trim().slice(0, 3000); return /^[=+\-@]/.test(t) ? "'" + t : t; }
 
 /* GET ?action=reels: the Reels – Status Report sheet as JSON for the Reels page (cached for 2 minutes). */
-const REELS_SHEET_ID = '1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg';
+const REELS_SHEET_ID = moved('1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg');
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
   if (action && !isMentor(e.parameter.key)) return locked();
   if (action === 'gate') return reply({ ok: true });
+  if (action === 'drivemap') { const all = PropertiesService.getScriptProperties().getProperties(), map = {}; Object.keys(all).filter(k => k.indexOf('C_') === 0).forEach(k => { map[k.slice(2)] = all[k]; }); return reply({ ok: true, map: map }); } // old Drive ID -> copy, for scripts/relink-drive.cjs
   if (action === 'brief') return briefReply(String(e.parameter.id || ''));
   if (action !== 'reels') return reply({ ok: true, service: 'Tot Squad Creators Club uploads' });
   try {
@@ -194,9 +198,9 @@ function readReels() {
     reels.push({
       title: title, lead: String(row[1] || '').trim(),
       prompt: /^https?:\/\//.test(promptCell) ? '' : promptCell,
-      briefUrl: /^https?:\/\//.test(promptCell) ? promptCell : link(2),
+      briefUrl: movedUrl(/^https?:\/\//.test(promptCell) ? promptCell : link(2)),
       deadline: String(row[3] || '').trim(), status: ideas ? 'IDEA' : String(row[4] || '').trim(),
-      folderUrl: link(5), row: r + 1
+      folderUrl: movedUrl(link(5)), row: r + 1
     });
   }
   return reels;
