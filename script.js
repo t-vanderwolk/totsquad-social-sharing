@@ -381,12 +381,32 @@ function toolTile(r) {
 const PUBLIC_GUIDES = ['brand','guide','checklist'];
 function renderGuides() { $('#public-guides').innerHTML = toolkitItems().filter(r => PUBLIC_GUIDES.includes(r.action)).map(toolTile).join(''); }
 function renderResources() { $('#resource-links').innerHTML = toolkitItems().map(toolTile).join(''); }
+// Hamburger menu: every section plus every tool, in one dropdown.
+function menuItem(r) {
+  const inner = `<span aria-hidden="true">${TOOL_ICON[r.icon] || '📌'}</span>${escapeHTML(r.label)}`;
+  return r.page ? `<a href="${escapeHTML(pageUrl(r.page))}">${inner}</a>`
+    : `<button type="button" data-action="${escapeHTML(r.action)}"${r.dest ? ` data-dest="${escapeHTML(r.dest)}"` : ''}>${inner}</button>`;
+}
+function renderMenu() {
+  const items = toolkitItems();
+  if (has('#menu-tools')) $('#menu-tools').innerHTML = items.map(menuItem).join('');
+  if (has('#menu-guides')) $('#menu-guides').innerHTML = items.filter(r => PUBLIC_GUIDES.includes(r.action)).map(menuItem).join('');
+}
+function setupMenu() {
+  const btn = document.getElementById && document.getElementById('menu-btn'), menu = document.getElementById && document.getElementById('nav-menu');
+  if (!btn || !menu || btn.dataset.ready) return; btn.dataset.ready = '1';
+  const setOpen = open => { menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); btn.classList.toggle('open', open); };
+  btn.addEventListener('click', e => { e.stopPropagation(); const open = menu.hidden; setOpen(open); if (open) menu.querySelector('a:not([hidden]),button')?.focus({preventScroll:true}); });
+  menu.addEventListener('click', e => { if (e.target.closest('a,button')) setOpen(false); });
+  document.addEventListener('click', e => { if (!menu.hidden && !e.target.closest('.menu-wrap')) setOpen(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { setOpen(false); btn.focus(); } });
+}
 
 function renderContent() {
   document.body.classList.toggle('embed', EMBED);
   if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"], a[href="b-roll.html"], a[href="reels.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
   if (has('#welcome')) $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
-  const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources],['#public-guides',renderGuides]];
+  const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources],['#public-guides',renderGuides],['#nav-menu',renderMenu]];
   for (const [sel,render] of sections) if (has(sel)) render();
   storageSet('totsquad-last-visit', today());
 }
@@ -1217,6 +1237,14 @@ modal.addEventListener('click', e => { if (e.target === modal) { const r = modal
 const MENTOR_KEY = 'totsquad-mentor-key';
 let mentorMemory = '';
 function mentorKey() { return mentorMemory || storageGet(MENTOR_KEY) || ''; }
+// Sign out: forget the password on this device and go back to the public landing page.
+function signOut() {
+  mentorMemory = '';
+  try { localStorage.removeItem(MENTOR_KEY); } catch (e) {}
+  document.documentElement.classList.remove('unlocked');
+  location.href = pageUrl('index.html');
+}
+document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-signout]')) { e.preventDefault(); signOut(); } });
 const GATE_ON = () => /^[a-f0-9]{64}$/.test(content.mentorPasswordHash || '');
 const LANDING = () => !!(document.getElementById && document.getElementById('mentor-signin'));
 const LOCKED = () => GATE_ON() && !mentorKey();
@@ -1267,6 +1295,7 @@ document.addEventListener('click', e => {
   const a = e.target.closest && e.target.closest('[data-action],[data-reel]');
   if (a && !['reel-share','apply','cast',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
 }, true);
+setupMenu();
 if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); }
 else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
 else showGate();

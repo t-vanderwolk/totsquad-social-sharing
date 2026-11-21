@@ -39,10 +39,37 @@
       <li data-mentor><a href="#toolkit">Toolkit</a></li>
       <li data-mentor><a href="ideas.html">Idea Bank</a></li>
       <li data-public><a href="#guides">Guides</a></li>
-      <li><a href="#squad">Squad</a></li>
+      <li class="nav-squad"><a href="#squad">Squad</a></li>
       <li data-public><a href="#squad-pitch">Pitch an idea</a></li>
       <li data-public><a href="#mentor-signin">Sign in</a></li>
     </ul>
+    <div class="menu-wrap">
+      <button class="menu-btn" id="menu-btn" type="button" aria-expanded="false" aria-controls="nav-menu"><span class="menu-burger" aria-hidden="true"><i></i><i></i><i></i></span><span class="menu-label">Menu</span></button>
+      <div class="nav-menu" id="nav-menu" hidden>
+        <p class="menu-head">On this page</p>
+        <div class="menu-list">
+          <a data-mentor href="#whats-new"><span aria-hidden="true">🔔</span>What’s new</a>
+          <a href="#casting"><span aria-hidden="true">📣</span>Casting now</a>
+          <a data-mentor href="#toolkit"><span aria-hidden="true">🧰</span>Toolkit</a>
+          <a data-mentor href="#week"><span aria-hidden="true">🗓️</span>This week</a>
+          <a data-public href="#guides"><span aria-hidden="true">📖</span>Guides</a>
+          <a href="#made"><span aria-hidden="true">🌟</span>Made by the Squad</a>
+          <a href="#squad"><span aria-hidden="true">👯</span>Meet the Squad</a>
+          <a data-public href="#squad-pitch"><span aria-hidden="true">💬</span>Pitch an idea</a>
+        </div>
+        <p class="menu-head" data-mentor>Tools</p>
+        <div class="menu-list" id="menu-tools" data-mentor></div>
+        <p class="menu-head" data-public>Guides</p>
+        <div class="menu-list" id="menu-guides" data-public></div>
+        <div class="menu-list menu-foot" data-public>
+          <a href="#mentor-signin"><span aria-hidden="true">🔑</span>Creator sign in</a>
+          <button type="button" data-action="apply"><span aria-hidden="true">👋</span>Apply to join</button>
+        </div>
+        <div class="menu-list menu-foot" data-mentor>
+          <button type="button" data-signout><span aria-hidden="true">🚪</span>Sign out</button>
+        </div>
+      </div>
+    </div>
   </nav>
 
   <section class="mentor-signin" id="mentor-signin" aria-labelledby="signin-title" data-public>
