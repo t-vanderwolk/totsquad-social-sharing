@@ -98,11 +98,11 @@ main{max-width:1320px;margin:0 auto;padding:var(--s6) var(--gutter) var(--s8)}
 .path ol{position:relative;list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s5);counter-reset:step}
 .path li{position:relative;counter-increment:step;min-width:0}
 .path li:not(:last-child)::after{content:'';position:absolute;top:17px;left:44px;right:calc(var(--s5) * -1 + 8px);height:2px;background:var(--line)}
-.path button{display:flex;flex-direction:column;gap:4px;width:100%;padding:0;background:none;border:0;text-align:left;color:var(--plum-ink)}
-.path button::before{content:counter(step);position:relative;z-index:1;display:grid;place-items:center;width:36px;height:36px;margin-bottom:var(--s3);border:2px solid var(--plum);border-radius:50%;background:var(--white);color:var(--plum);font-size:14px;font-weight:700}
-.path button:hover::before{background:var(--plum);color:var(--white)}
+.path :is(button,a){display:flex;flex-direction:column;gap:4px;width:100%;padding:0;background:none;border:0;text-align:left;color:var(--plum-ink)}
+.path :is(button,a)::before{content:counter(step);position:relative;z-index:1;display:grid;place-items:center;width:36px;height:36px;margin-bottom:var(--s3);border:2px solid var(--plum);border-radius:50%;background:var(--white);color:var(--plum);font-size:14px;font-weight:700}
+.path :is(button,a):hover::before{background:var(--plum);color:var(--white)}
 .path strong{font-size:16px;font-weight:700}
-.path button:hover strong{text-decoration:underline;text-underline-offset:3px}
+.path :is(button,a):hover strong{text-decoration:underline;text-underline-offset:3px}
 .path span{font-size:13px;line-height:1.5;color:var(--muted)}
 
 /* ---------- Layout & sections ---------- */
@@ -397,7 +397,7 @@ body.embed .page-hero{margin-top:0}
   .hero{grid-template-columns:1fr;padding:var(--s6)}
   .hero-reels{height:230px}
 }
-@media (max-width:420px){.path ol{grid-template-columns:1fr;row-gap:var(--s4)}.path button{display:grid;grid-template-columns:36px 1fr;column-gap:var(--s3);row-gap:2px}.path button::before{grid-row:span 2;margin:0}}
+@media (max-width:420px){.path ol{grid-template-columns:1fr;row-gap:var(--s4)}.path :is(button,a){display:grid;grid-template-columns:36px 1fr;column-gap:var(--s3);row-gap:2px}.path :is(button,a)::before{grid-row:span 2;margin:0}}
 @media (max-width:1080px){
   .hub-label{display:none}
 }
@@ -708,3 +708,5 @@ label .quiet{font-weight:500;font-size:12px}
   .menu-btn{padding:9px 10px}
   .nav-menu{left:0;right:0;width:auto;top:calc(100% + 6px)}
 }
+
+.path a{text-decoration:none;cursor:pointer}
