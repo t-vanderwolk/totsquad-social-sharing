@@ -102,7 +102,7 @@ window.HUB_CONTENT = {
   activeCollaborations: [
     { id: 'meet-the-squad-part-2', title: 'Meet the Squad, Part 2: Pass the Toy', status: 'casting', lead: 'Kristin',
       description: 'Welcome to our newest specialists! Introduce yourself by passing the sunshine toy, just like the original Meet the Squad.',
-      instructions: 'A short intro clip: catch the sunshine toy, say hi, and pass it on.',
+      instructions: 'A short clip: catch the sunshine toy, smile for a second, and pass it the other way. No talking needed.',
       thumbnail: 'images/meet-the-squad.jpg', exampleReelUrl: 'https://www.instagram.com/reel/DdxH92sTWXo/',
       submissionDeadline: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA',
       publishedReelUrl: '', participatingSpecialists: [],
@@ -113,9 +113,9 @@ window.HUB_CONTENT = {
         steps: [
           'Prop your phone up vertically (9:16) at chest height, in good light. The baby aisle makes a great backdrop.',
           'Start with your hands empty, then catch the sun as it comes in from one side of the frame, like someone just passed it to you.',
-          'Smile and say hi: your first name and the Target you work at.',
-          'Pass it out the other side of the frame.',
-          'Keep it to about 5–10 seconds. Film two or three takes and send your favorite.'
+          'Hold it and smile at the camera for a second. No talking needed.',
+          'Pass it the other way, out the opposite side of the frame.',
+          'Keep it to about 5 seconds. Film two or three takes and send your favorite.'
         ],
         dont: 'No music or text on the video, and keep shoppers’ and babies’ faces out of the shot.'
       } }

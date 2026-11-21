@@ -621,3 +621,8 @@ label .quiet{font-weight:500;font-size:12px}
 .cast-done{padding:var(--s5);border-radius:var(--r-md);background:var(--linen)}
 .cast-done h3{font:800 24px/1.2 var(--serif);color:var(--plum-ink);margin:0 0 var(--s2)}.cast-done p{margin:0}
 @media (max-width:520px){.cast-toy{grid-template-columns:1fr}.cast-toy img{width:120px}}
+
+/* Landing: what the Creators Club is for */
+.club-note{margin:0 0 var(--s5);padding:var(--s4) var(--s5);border-radius:var(--r-md);background:var(--white);border:1px solid var(--line-soft);border-left:4px solid var(--plum)}
+.club-note p{margin:0;font-size:15px;line-height:1.55;color:var(--body);max-width:none}
+.club-note strong{color:var(--plum-ink)}
