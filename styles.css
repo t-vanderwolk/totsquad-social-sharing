@@ -544,3 +544,25 @@ html.unlocked [data-public]{display:none!important}
 @media (prefers-reduced-motion:reduce){.mentor-signin.nudge{animation:none}}
 @media (max-width:720px){.mentor-signin{grid-template-columns:1fr;padding:var(--s6)}.signin-row{flex-direction:column}.signin-row .button{align-self:start}}
 .gate-back{font-size:14px;font-weight:700;color:var(--plum);justify-self:start}
+
+/* Phones: shorter page and a menu that fits */
+.bio-more{display:none;align-self:flex-start}
+@media (max-width:640px){
+  .person .bio{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .person.open .bio{display:block}
+  .bio-more{display:inline-block}
+  .section-nav{position:static;overflow:visible}
+  .section-nav ul{flex-wrap:wrap;white-space:normal}
+}
+@media (max-width:700px){
+  .gallery{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:var(--s4);padding-bottom:var(--s2);margin-right:calc(-1 * var(--s4))}
+  .gallery>*{flex:0 0 78%;scroll-snap-align:start}
+}
+
+/* Apply to join */
+.choices{border:0;padding:0;margin:var(--s5) 0 0;display:grid;gap:var(--s2)}
+.choices legend{font-size:13px;font-weight:700;color:var(--plum-ink);margin-bottom:var(--s2);padding:0}
+.choices .check{margin:0;font-weight:500;font-size:15px;color:var(--body)}
+.check.agree{margin-top:var(--s5);font-weight:500}
+.signin-apply{margin:var(--s3) 0 0;font-size:14px;color:var(--body)}
+.signin-apply .text-button{font-size:14px}

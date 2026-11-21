@@ -101,7 +101,7 @@ function externalLink(url,label,cls='button') {
   const safe = publicUrl(url); if (!safe) return '';
   const embedded = new URLSearchParams(location.search).get('embed') === '1';
   return embedded && inHub(safe)
-    ? `<a class="${cls}" href="${escapeHTML(safe)}" target="_top">${escapeHTML(label)}</a>`
+    ? `<a class="${cls}" href="${escapeHTML(safe)}" target="_top" data-mentor>${escapeHTML(label)}</a>`
     : `<a class="${cls}" href="${escapeHTML(safe)}" target="_blank" rel="noopener noreferrer">${escapeHTML(label)} ↗</a>`;
 }
 function emptyState(heading,text,actions='',icon=ICON.spark) { return `<div class="empty-state"><span class="empty-art">${icon}</span><div><strong>${escapeHTML(heading)}</strong>${text?`<p>${escapeHTML(text)}</p>`:''}${actions?`<div class="button-row">${actions}</div>`:''}</div></div>`; }
@@ -248,7 +248,7 @@ function leaderCard() {
   const photo = imageUrl(p.photo);
   return `<article class="leader">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
     <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(p.name)}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.bio ? `<p>${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-    <div class="person-links">${externalLink(discoProfile(p),'Disco profile','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
+    <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
 }
 function renderSquad() {
   const leader = leaderCard();
@@ -256,8 +256,8 @@ function renderSquad() {
   $('#squad-grid').innerHTML = people.length || leader ? leader + people.map((p,i) => {
     const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
     return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
-      <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio">${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-      <div class="person-links">${externalLink(discoProfile(p),'Disco profile','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></article>`;
+      <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio" id="bio-${i}">${escapeHTML(p.bio)}</p>${p.bio.length > 110 ? `<button type="button" class="text-button bio-more" data-bio="bio-${i}" aria-expanded="false" aria-controls="bio-${i}">Read more</button>` : ''}` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
+      <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
 }
 
@@ -796,7 +796,7 @@ async function sendPitch(d, onSent) {
 
 /* ---------- Upload clips straight to Drive (apps-script/upload.gs) ---------- */
 const UPLOAD_ON = () => !!publicUrl(content.uploadEndpoint);
-const UPLOAD_PASS_KEY = 'totsquad-upload-passcode';
+try { localStorage.removeItem('totsquad-upload-passcode'); } catch {} // the old Squad passcode is no longer used
 const UPLOAD_NAME_KEY = 'totsquad-upload-name';
 function uploadTargets() {
   const live = ['casting','filming','editing','scheduled'];
@@ -817,19 +817,15 @@ function openUpload(d={}) {
   const project = d.project ? (allProjects.find(p => p.id === d.project) || {}).title || d.project : '';
   const dest = d.dest === 'collab' ? (project || targets[0] || '') : 'broll';
   const savedName = storageGet(UPLOAD_NAME_KEY) || '';
-  const savedPass = storageGet(UPLOAD_PASS_KEY) || '';
   body.innerHTML = `<p>Your clips go straight into the Squad’s Google Drive, in a folder with your name. No Drive link needed.</p>
     <form id="upload-form" novalidate>
       <label for="up-name">Who’s uploading?</label>
       <select id="up-name" required><option value="">Choose your name</option>${squadNames().map(n => `<option${n === savedName ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
       <label for="up-dest">What are these for?</label>
-      <select id="up-dest"><option value="broll"${dest === 'broll' ? ' selected' : ''}>B-roll library</option>${targets.map(t => `<option value="${escapeHTML(t)}"${t === dest ? ' selected' : ''}>${escapeHTML(t)}</option>`).join('')}</select>
+      <select id="up-dest"><option value="broll"${dest === 'broll' ? ' selected' : ''}>B-roll library (extra footage for Reels)</option>${targets.map(t => `<option value="${escapeHTML(t)}"${t === dest ? ' selected' : ''}>${escapeHTML(t)}</option>`).join('')}</select>
       <label for="up-files">Videos or photos</label>
       <input id="up-files" type="file" accept="video/*,image/*" multiple required>
       <p class="quiet">Vertical (9:16) is best. Up to 2 GB per file.</p>
-      <label for="up-pass">Squad passcode</label>
-      <input id="up-pass" type="password" autocomplete="off" value="${escapeHTML(savedPass)}" required>
-      <p class="quiet">Ask Taylor if you don’t have it. This device remembers it after your first upload.</p>
       <ul class="upload-list" id="upload-list" aria-live="polite"></ul>
       <div class="form-actions"><button class="button" type="submit" id="up-go">Upload</button></div>
     </form>`;
@@ -853,13 +849,12 @@ function putFile(url, file, onProgress) {
   });
 }
 async function runUpload() {
-  const name = $('#up-name').value, destVal = $('#up-dest').value, pass = $('#up-pass').value.trim();
+  const name = $('#up-name').value, destVal = $('#up-dest').value;
   const files = [...($('#up-files').files || [])];
   const list = $('#upload-list'), go = $('#up-go');
   status.textContent = '';
   if (!name) { status.textContent = 'Choose your name first.'; $('#up-name').focus(); return; }
   if (!files.length) { status.textContent = 'Choose at least one video or photo.'; $('#up-files').focus(); return; }
-  if (!pass) { status.textContent = 'Enter the Squad passcode.'; $('#up-pass').focus(); return; }
   const bad = files.find(f => !/^(video|image)\//.test(f.type) || f.size > 2*1024**3);
   if (bad) { status.textContent = `${bad.name} can’t be uploaded. Use videos or photos up to 2 GB.`; return; }
   go.disabled = true; go.textContent = 'Uploading…';
@@ -870,9 +865,9 @@ async function runUpload() {
     const row = $('#up-'+i), bar = row.querySelector('progress'), state = row.querySelector('.up-state');
     try {
       state.textContent = 'Starting';
-      const start = await uploadRequest({ action:'start', passcode:pass, name, dest: destVal === 'broll' ? 'broll' : 'collab', project: destVal === 'broll' ? '' : destVal, fileName:f.name, type:f.type, size:f.size, origin: location.origin });
-      if (!start.ok) { state.textContent = start.error || 'Couldn’t start'; row.classList.add('failed'); if (/passcode/i.test(start.error || '')) break; continue; }
-      storageSet(UPLOAD_PASS_KEY, pass); storageSet(UPLOAD_NAME_KEY, name); folderUrl = start.folderUrl || folderUrl;
+      const start = await uploadRequest({ action:'start', name, dest: destVal === 'broll' ? 'broll' : 'collab', project: destVal === 'broll' ? '' : destVal, fileName:f.name, type:f.type, size:f.size, origin: location.origin });
+      if (!start.ok) { state.textContent = start.error || 'Couldn’t start'; row.classList.add('failed'); if (start.locked) break; continue; }
+      storageSet(UPLOAD_NAME_KEY, name); folderUrl = start.folderUrl || folderUrl;
       await putFile(start.uploadUrl, f, p => { bar.value = p; state.textContent = Math.round(p*100)+'%'; });
       bar.value = 1; state.textContent = 'Uploaded'; row.classList.add('done'); done++;
     } catch { state.textContent = 'Upload stopped. Check your connection and try again.'; row.classList.add('failed'); }
@@ -910,15 +905,66 @@ function openPanel(action,data={}) {
   if (action === 'reel') return openReel(data.reel);
   if (action === 'reel-share') return openReelShare(data.project);
   if (action === 'upload') return openUpload(data);
+  if (action === 'apply') return openApply();
   if (action === 'idea') return openIdea(data.id);
   if (flows[action]) return openFlow(action,data);
   const item = info[action]; if (!item) return;
   title.textContent = item[0]; body.innerHTML = item[1]; showModal();
 }
 
+/* "Apply to join": open to everyone. Sends to the "Creators Club applications" sheet (apps-script/upload.gs). */
+function openApply() {
+  title.textContent = 'Apply to join the Creators Club';
+  if (!UPLOAD_ON()) { body.innerHTML = `<p>Applications open soon. In the meantime, say hi in ${externalLink(content.discoUrl,'Social & Sharing','text-button')}.</p>`; return showModal(); }
+  const roles = ['Be on camera','Film B-roll','Pitch ideas','Edit Reels'];
+  body.innerHTML = `<p>Tell us a little about you. It takes about two minutes. Taylor reads every application and will reach out in Disco.</p>
+    <form id="apply-form" novalidate>
+      <label for="ap-name">Your name, as it appears in Disco</label>
+      <input id="ap-name" type="text" autocomplete="name" maxlength="80" required>
+      <label for="ap-region">Your region</label>
+      <select id="ap-region"><option value="">Choose one</option><option>East</option><option>Central</option><option>West</option></select>
+      <label for="ap-ig">Instagram handle (optional)</label>
+      <input id="ap-ig" type="text" autocomplete="off" maxlength="40" placeholder="@yourhandle">
+      <fieldset class="choices"><legend>How would you like to help? Pick any.</legend>
+        ${roles.map((r,i) => `<label class="check"><input type="checkbox" name="ap-role" value="${escapeHTML(r)}" id="ap-role-${i}">${escapeHTML(r)}</label>`).join('')}
+      </fieldset>
+      <fieldset class="choices"><legend>How comfortable are you on camera?</legend>
+        ${['Not yet, I’d rather stay behind the camera','Getting there','Love it'].map((r,i) => `<label class="check"><input type="radio" name="ap-camera" value="${escapeHTML(r)}" id="ap-cam-${i}">${escapeHTML(r)}</label>`).join('')}
+      </fieldset>
+      <label for="ap-why">Why would you like to join?</label>
+      <textarea id="ap-why" maxlength="800" placeholder="A sentence or two is perfect." required></textarea>
+      <label for="ap-example">Link to something you’ve made (optional)</label>
+      <input id="ap-example" type="url" inputmode="url" maxlength="300" placeholder="https://">
+      <input class="hp" id="ap-website" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <label class="check agree"><input type="checkbox" id="ap-agree">I’ll follow the Tot Squad brand guidelines and only share content with the family’s consent.</label>
+      <div class="form-actions"><button class="button" type="submit" id="ap-go">Send application</button></div>
+    </form>`;
+  $('#apply-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const val = id => document.getElementById(id).value.trim();
+    const application = { name: val('ap-name'), region: val('ap-region'), instagram: val('ap-ig').replace(/^@/, ''),
+      roles: [...document.querySelectorAll('input[name="ap-role"]:checked')].map(i => i.value).join(', '),
+      camera: (document.querySelector('input[name="ap-camera"]:checked') || {}).value || '',
+      why: val('ap-why'), example: val('ap-example'), agreed: document.getElementById('ap-agree').checked };
+    if (!application.name) { status.textContent = 'Add your name first.'; return document.getElementById('ap-name').focus(); }
+    if (!application.why) { status.textContent = 'Add a sentence about why you’d like to join.'; return document.getElementById('ap-why').focus(); }
+    if (!application.agreed) { status.textContent = 'Check the box about the brand guidelines first.'; return document.getElementById('ap-agree').focus(); }
+    const go = document.getElementById('ap-go'); go.disabled = true; go.textContent = 'Sending…'; status.textContent = '';
+    try {
+      const res = await uploadRequest({ action:'apply', application, website: val('ap-website') });
+      if (!res.ok) throw new Error(res.error || '');
+      body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. Taylor will reach out in Disco. Once you’re in, you’ll get the creator password to sign in here.</p>`;
+      status.textContent = '';
+    } catch (err) { status.textContent = err.message || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send application'; }
+  };
+  showModal();
+}
+
 /* ---------- Events ---------- */
 document.addEventListener('click', e => {
   const t = e.target;
+  const more = t.closest('[data-bio]');
+  if (more) { const open = more.getAttribute('aria-expanded') !== 'true'; more.setAttribute('aria-expanded', String(open)); more.textContent = open ? 'Show less' : 'Read more'; more.closest('.person')?.classList.toggle('open', open); return; }
   const filter = t.closest('[data-filter]');
   if (filter) { ideaFilter = filter.dataset.filter; renderIdeas(); document.querySelector(`[data-filter="${CSS.escape(ideaFilter)}"]`)?.focus(); return; }
   const dismiss = t.closest('[data-dismiss]');
@@ -998,7 +1044,7 @@ function showGate(note = '') {
 document.addEventListener('click', e => {
   if (!LANDING() || !LOCKED()) return;
   const a = e.target.closest && e.target.closest('[data-action],[data-reel]');
-  if (a && a.dataset.action !== 'reel-share') { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
+  if (a && !['reel-share','apply'].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
 }, true);
 if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); }
 else if (LANDING()) { renderContent(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }

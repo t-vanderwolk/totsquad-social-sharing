@@ -7,8 +7,8 @@
  *   Collaborations: Content submission folder / <Collaboration> / <Name>
  *
  * Setup (once per Google account):
- *   1. Project Settings > Script properties: add PASSCODE (Squad upload passcode) and MENTOR_PASSCODE
- *      (the password on the Creators Club's front screen). Neither is case-sensitive.
+ *   1. Project Settings > Script properties: add MENTOR_PASSCODE (the creator password the Creators Club
+ *      signs in with; not case-sensitive). Uploads, pitches and the Reels data all use it.
  *   2. Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone.
  *   3. Put the web app URL in content.js as uploadEndpoint.
  * Uploads are owned by, and use the storage of, the account that deploys this script.
@@ -17,6 +17,7 @@
  * and each Reel's brief doc through doGet (?action=brief&id=…), limited to docs linked in that sheet.
  * Pitches ("Pitch an idea") are added as rows to the "Creators Club pitches" sheet.
  * The sheet is created next to the B-Roll Library the first time someone sends a pitch.
+ * Applications ("Apply to join", no password) go to the "Creators Club applications" sheet, created the same way.
  */
 const ROOTS = {
   broll: '1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS',  // B-Roll Library
@@ -29,8 +30,8 @@ function doPost(e) {
   try {
     const req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     if (req.action === 'pitch') return isMentor(req.key) ? savePitch(req) : locked(); // pitches need the mentor password, not the upload passcode
-    const passcode = PropertiesService.getScriptProperties().getProperty('PASSCODE');
-    if (!passcode || String(req.passcode || '').trim().toLowerCase() !== passcode.toLowerCase()) return reply({ ok: false, error: 'That Squad passcode doesn’t match. Check it with Taylor.' });
+    if (req.action === 'apply') return saveApplication(req); // open to anyone: it's how people ask to join
+    if (!isMentor(req.key)) return locked(); // everything else needs the creator password
     if (req.action === 'check') return reply({ ok: true });
     if (req.action !== 'start') return reply({ ok: false, error: 'Unknown request.' });
 
@@ -99,6 +100,39 @@ function pitchSheet() {
   const parents = DriveApp.getFolderById(ROOTS.broll).getParents();
   if (parents.hasNext()) DriveApp.getFileById(ss.getId()).moveTo(parents.next());
   props.setProperty('PITCH_SHEET_ID', ss.getId());
+  return sheet;
+}
+/* "Apply to join": one row per application. Taylor sets Status; approved people go in Disco's Creators group. */
+const APPLY_COLUMNS = [['submitted','Submitted'],['name','Name in Disco'],['region','Region'],['instagram','Instagram'],['roles','How they’d like to help'],['camera','On camera'],['why','Why they want to join'],['example','Example link'],['agreed','Agreed to guidelines'],['status','Status'],['notes','Notes']];
+function saveApplication(req) {
+  if (req.website) return reply({ ok: true }); // hidden field only bots fill in
+  const a = req.application || {};
+  if (!text(a.name) || !text(a.why)) return reply({ ok: false, error: 'Add your name and why you’d like to join.' });
+  if (a.agreed !== true) return reply({ ok: false, error: 'Check the box about the brand guidelines first.' });
+  const cache = CacheService.getScriptCache(), count = Number(cache.get('apply-count') || 0);
+  if (count >= 40) return reply({ ok: false, error: 'We’re getting a lot of applications right now. Try again in an hour.' });
+  cache.put('apply-count', String(count + 1), 3600);
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const row = APPLY_COLUMNS.map(([key]) => key === 'submitted' ? new Date() : key === 'status' ? 'New' : key === 'notes' ? '' : key === 'agreed' ? 'Yes' : text(a[key]).slice(0, 1000));
+    applySheet().appendRow(row);
+    return reply({ ok: true });
+  } finally { lock.releaseLock(); }
+}
+function applySheet() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('APPLY_SHEET_ID');
+  if (id) { try { return SpreadsheetApp.openById(id).getSheets()[0]; } catch (err) { console.error(err); } }
+  const ss = SpreadsheetApp.create('Creators Club applications');
+  const sheet = ss.getSheets()[0];
+  sheet.setName('Applications');
+  sheet.appendRow(APPLY_COLUMNS.map(c => c[1]));
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, APPLY_COLUMNS.length).setFontWeight('bold').setBackground('#f3eaf1');
+  sheet.getRange(2, APPLY_COLUMNS.findIndex(c => c[0] === 'status') + 1, 999, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['New', 'Approved', 'Declined'], true).build());
+  const parents = DriveApp.getFolderById(ROOTS.broll).getParents();
+  if (parents.hasNext()) DriveApp.getFileById(ss.getId()).moveTo(parents.next());
+  props.setProperty('APPLY_SHEET_ID', ss.getId());
   return sheet;
 }
 // Plain text only, and never a formula.
@@ -170,7 +204,7 @@ function readReels() {
 
 
 
-// The mentor password on the Creators Club's front screen. Every request from the page carries it.
+// The creator password on the Creators Club's sign-in. Every request from the page carries it.
 function isMentor(key) {
   const want = PropertiesService.getScriptProperties().getProperty('MENTOR_PASSCODE');
   return !!want && String(key || '').trim().toLowerCase() === want.trim().toLowerCase();

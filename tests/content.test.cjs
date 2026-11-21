@@ -32,7 +32,7 @@ assert.doesNotMatch(t.html('#resource-links'), /aria-disabled="true"/); // no un
 assert.match(t.html('#idea-grid'), /Registry NOT Roast/);
 assert.match(t.html('#idea-filters'), /aria-pressed="true"/);
 assert.match(t.html('#squad-grid'), /Kristin/);
-assert.match(t.html('#squad-grid'), /class="bio">Mom of three in Holly Springs/);
+assert.match(t.html('#squad-grid'), /class="bio"[^>]*>Mom of three in Holly Springs/);
 assert.doesNotMatch(t.html('#squad-grid'), /class="tags"/); // no idea tags on squad cards
 assert.equal((t.html('#squad-grid').match(/class="region region-/g) || []).length, 10); // every specialist has a region
 assert.match(t.html('#week-events'), /Every Thursday/);
@@ -210,7 +210,7 @@ assert.match(t.html('#casting-projects'), /data-action="upload" data-dest="colla
 t.run("openPanel('upload',{dest:'collab',project:'meet-the-squad-part-2'})");
 const up = t.html('#modal-body');
 assert.match(up, /<option value="Meet the Squad, Part 2: Pass the Toy" selected>/); assert.match(up, /Daddy’s Home/);
-assert.match(up, /<option>Taylor<\/option>/); assert.match(up, /type="file" accept="video\/\*,image\/\*" multiple/); assert.match(up, /Squad passcode/);
+assert.match(up, /<option>Taylor<\/option>/); assert.match(up, /type="file" accept="video\/\*,image\/\*" multiple/); assert.doesNotMatch(up, /Squad passcode/); // signed-in creators skip the upload passcode
 t.run("openPanel('upload',{dest:'broll'})"); assert.match(t.html('#modal-body'), /<option value="broll" selected>B-roll library/);
 t.run("openPanel('tracker')"); assert.match(t.html('#modal-body'), /data-action="upload" data-dest="collab" data-project="Daddy’s Home"/);
 assert.ok(validate({ ...load(), uploadEndpoint: 'https://example.com/x' }).some(e => /Apps Script/.test(e)));
@@ -282,7 +282,7 @@ console.log('PASS: upload guidance, connected resources, autosave, draft recover
   assert.deepEqual(validate(c), []);
   assert.ok(validate({ ...c, leader: { ...c.leader, disco: 'https://example.com/?drawerProfileId=1' } }).some(e => /Disco profile/.test(e)));
   const t2 = boot(c);
-  assert.match(t2.html('#squad-grid'), /channel\/Q2hhdENoYW5uZWw6MjAwMDUx\?drawerProfileId=abc123&amp;profileSettingsTab=profile[^>]*>Disco profile/);
+  assert.match(t2.html('#squad-grid'), /channel\/Q2hhdENoYW5uZWw6MjAwMDUx\?drawerProfileId=abc123&amp;profileSettingsTab=profile[^>]*>Message on Disco/);
   assert.doesNotMatch(t2.html('#squad-grid'), /memberGroupId/);
   assert.match(t2.html('#casting-projects'), />Message Kristin</);
   assert.doesNotMatch(t2.html('#casting-projects'), /Prepare interest message/);
@@ -290,3 +290,14 @@ console.log('PASS: upload guidance, connected resources, autosave, draft recover
 }
 console.log('PASS: Disco profiles and chat links');
 
+
+// Apply to join: open to signed-out visitors; no upload passcode anywhere.
+{
+  const t3 = boot(undefined, false, new Map());
+  t3.run("openPanel('apply')");
+  assert.match(t3.html('#modal-body'), /id="apply-form"/);
+  assert.match(t3.html('#modal-body'), /brand guidelines/);
+  const t4 = boot(); t4.run("openPanel('upload',{dest:'broll'})");
+  assert.doesNotMatch(t4.html('#modal-body'), /passcode/i);
+}
+console.log('PASS: apply to join, single password');
