@@ -34,14 +34,14 @@
 
   <nav class="section-nav" aria-label="On this page">
     <ul>
-      <li><a href="#casting">Casting</a></li>
-      <li data-mentor><a href="ideas.html">Idea Bank</a></li>
-      <li><a href="#made">Made by the Squad</a></li>
-      <li><a href="#squad">Meet the Squad</a></li>
       <li data-mentor><a href="#whats-new">What’s new <span class="nav-badge" id="nav-new" hidden></span></a></li>
-      <li data-mentor><a href="#week">This week</a></li>
+      <li><a href="#casting">Casting</a></li>
+      <li data-mentor><a href="#toolkit">Toolkit</a></li>
+      <li data-mentor><a href="ideas.html">Idea Bank</a></li>
+      <li data-public><a href="#guides">Guides</a></li>
+      <li><a href="#squad">Squad</a></li>
       <li data-public><a href="#squad-pitch">Pitch an idea</a></li>
-      <li data-public><a href="#mentor-signin">Creator sign in</a></li>
+      <li data-public><a href="#mentor-signin">Sign in</a></li>
     </ul>
   </nav>
 
@@ -60,7 +60,7 @@
     <ol>
       <li><button type="button" data-action="pitch"><strong>Pitch an idea</strong><span>Share a concept. The team adds it to the Idea Bank.</span></button></li>
       <li><button type="button" data-action="collab"><strong>Join a Reel</strong><span>Raise your hand for an open casting call.</span></button></li>
-      <li><button type="button" data-action="submit"><strong>Submit your clip</strong><span>Upload it to the folder, then send the link.</span></button></li>
+      <li><button type="button" data-action="upload" data-dest="collab"><strong>Upload your clip</strong><span>Send it right here. No links needed.</span></button></li>
       <li><button type="button" data-action="share"><strong>Share it</strong><span>Post, like and reshare once it’s live.</span></button></li>
     </ol>
   </section>
@@ -82,17 +82,19 @@
     <div id="production-board"></div>
   </section>
 
+  <section class="section toolkit" id="toolkit" aria-labelledby="toolkit-title" data-mentor>
+    <div class="section-head"><div><h2 id="toolkit-title">Toolkit</h2><p>Everything you need to make a Squad Reel, right here.</p></div></div>
+    <div class="tool-grid" id="resource-links"></div>
+  </section>
+
   <div class="info-row" data-mentor>
     <section class="sidebox" id="week" aria-labelledby="week-title">
       <h2 id="week-title">This week</h2>
       <div id="week-events"></div>
-      <h3 class="box-sub">Deadlines</h3>
-      <div id="deadlines"></div>
     </section>
-    <section class="sidebox" aria-labelledby="toolkit-title">
-      <h2 id="toolkit-title">Toolkit</h2>
-      <p class="box-note">Everything you need to make a Squad Reel, right here.</p>
-      <div class="tool-grid" id="resource-links"></div>
+    <section class="sidebox" aria-labelledby="deadlines-title">
+      <h2 id="deadlines-title">Deadlines</h2>
+      <div id="deadlines"></div>
     </section>
   </div>
 

@@ -254,6 +254,15 @@ function leaderCard() {
     <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(p.name)}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.bio ? `<p>${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
     <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
 }
+// Show "Read more" only on bios that are actually cut off (phones clamp bios to three lines).
+function fitBios() {
+  if (!document.querySelectorAll) return;
+  document.querySelectorAll('.bio-more').forEach(btn => {
+    const bio = document.getElementById(btn.dataset.bio); if (!bio || btn.getAttribute('aria-expanded') === 'true') return;
+    btn.hidden = !(bio.scrollHeight > bio.clientHeight + 2);
+  });
+}
+if (typeof window !== 'undefined' && window.addEventListener) { let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitBios, 150); }); }
 function renderSquad() {
   const leader = leaderCard();
   const people = (content.featuredSpecialists || []).map(p => typeof p === 'string' ? {name:p} : p).filter(p => p && p.name);
@@ -263,6 +272,7 @@ function renderSquad() {
       <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio" id="bio-${i}">${escapeHTML(p.bio)}</p>${p.bio.length > 110 ? `<button type="button" class="text-button bio-more" data-bio="bio-${i}" aria-expanded="false" aria-controls="bio-${i}">Read more</button>` : ''}` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
       <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitBios);
 }
 
 function nextOccurrence(weekday) {
@@ -348,16 +358,7 @@ function renderDeadlines() {
   $('#deadlines').innerHTML = unique.length ? unique.map(d => `<div class="deadline-item"><strong>${escapeHTML(d.title)}</strong><time datetime="${d.date}">${dateLabel(d.date)} · ${escapeHTML(content.timeZone)}</time>${externalLink(d.url,'View details','text-button')}</div>`).join('') : '<p class="quiet">No deadlines have been announced. New dates show up here first.</p>';
 }
 
-const TOOL_ICON = {
-  palette:'<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3" fill="currentColor"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/><circle cx="16" cy="10" r="1.3" fill="currentColor"/><path d="M12 21c-1.5 0-2-1-2-2s1-2 2-2h2a3 3 0 0 0 3-3"/>',
-  spark:'<path d="M12 3c.7 5 2.3 7.3 7 9-4.7 1.7-6.3 4-7 9-.7-5-2.3-7.3-7-9 4.7-1.7 6.3-4 7-9z"/>',
-  check:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
-  upload:'<path d="M12 16V5M7.5 9.5L12 5l4.5 4.5"/><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/>',
-  film:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/>',
-  board:'<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="10" rx="1.5"/><rect x="16" y="4" width="5" height="13" rx="1.5"/>',
-  calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
-  draft:'<path d="M14 4l6 6-10 10H4v-6z"/><path d="M12 6l6 6"/>'
-};
+const TOOL_ICON = { palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝' };
 // Toolkit: everything opens inside the Creators Club (panels or pages in this site), never an outside link.
 function toolkitItems() {
   return [
@@ -371,7 +372,7 @@ function toolkitItems() {
   ];
 }
 function toolTile(r) {
-  const inner = `<span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${TOOL_ICON[r.icon] || TOOL_ICON.spark}</svg></span><span class="tool-text"><strong>${escapeHTML(r.label)}</strong>${r.desc ? `<span>${escapeHTML(r.desc)}</span>` : ''}</span>`;
+  const inner = `<span class="tool-icon" aria-hidden="true">${TOOL_ICON[r.icon] || '📌'}</span><span class="tool-text"><strong>${escapeHTML(r.label)}</strong>${r.desc ? `<span>${escapeHTML(r.desc)}</span>` : ''}</span>`;
   return r.page ? `<a class="tool" href="${escapeHTML(pageUrl(r.page))}">${inner}</a>`
     : `<button type="button" class="tool" data-action="${escapeHTML(r.action)}"${r.dest ? ` data-dest="${escapeHTML(r.dest)}"` : ''}>${inner}</button>`;
 }
