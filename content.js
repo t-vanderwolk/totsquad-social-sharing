@@ -26,6 +26,8 @@ window.HUB_CONTENT = {
      guidance [], variations [{title, text, credit, date}], notes [], altNames [], questions [],
      stage (idea|filming|editing|published), lead, dueDate, discussionUrl,
      image (optional photo in images/; otherwise the series illustration shows). Published ideas move to completedCollaborations. */
+  // Ideas now live in the "Creators Club ideas" sheet (Creators Club folder) and are edited in the app.
+  // This list is only the fallback if the sheet can't be reached.
   ideas: [
     // Game Shows & Series — mostly from the Sep 2 founding brainstorm
     { id: 'baby-gear-game-shows', title: 'Baby Gear Game Shows', series: 'game-shows', credit: ['Taylor'], date: '2026-09-02',
@@ -103,7 +105,20 @@ window.HUB_CONTENT = {
       instructions: 'A short intro clip: catch the sunshine toy, say hi, and pass it on.',
       thumbnail: 'images/meet-the-squad.jpg', exampleReelUrl: 'https://www.instagram.com/reel/DdxH92sTWXo/',
       submissionDeadline: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA',
-      publishedReelUrl: '', participatingSpecialists: [] }
+      publishedReelUrl: '', participatingSpecialists: [],
+      // Open call: anyone can send a video from the casting card, no password (also listed in OPEN_CASTING in the script).
+      openCall: {
+        toy: { name: 'Sun Plush Stuffed Animal – Yellow – Cloud Island™', note: 'The little yellow sun with arms and legs, about 6.5" tall and about $10. Look in the Cloud Island baby toys.',
+          item: '92401823', url: 'https://www.target.com/p/sun-plush-stuffed-animal-yellow-cloud-island-8482/-/A-92401823', photo: 'images/meet-the-squad.jpg' },
+        steps: [
+          'Prop your phone up vertically (9:16) at chest height, in good light. The baby aisle makes a great backdrop.',
+          'Start with your hands empty, then catch the sun as it comes in from one side of the frame, like someone just passed it to you.',
+          'Smile and say hi: your first name and the Target you work at.',
+          'Pass it out the other side of the frame.',
+          'Keep it to about 5–10 seconds. Film two or three takes and send your favorite.'
+        ],
+        dont: 'No music or text on the video, and keep shoppers’ and babies’ faces out of the shot.'
+      } }
   ],
   // These are known project titles, not verified completion or publication claims.
   completedCollaborations: [

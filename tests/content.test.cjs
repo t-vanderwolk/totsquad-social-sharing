@@ -179,7 +179,7 @@ assert.match(t.el('#broll-summary').textContent, /7 clips/);
 assert.match(t.html('#broll-add'), /data-action="upload" data-dest="broll"/); // uploads straight to the B-roll folder
 assert.match(t.html('#broll-wanted'), /One-hand stroller fold/);
 t.run("brollPerson='Taylor';renderBroll()");
-assert.match(t.html('#broll-folders'), /Taylor’s folder/); assert.match(t.html('#broll-folders'), /1BebMeyvEhZp7e0XBVur5nPPwpho_SOwQ/);
+assert.match(t.html('#broll-folders'), /Taylor’s folder/); assert.match(t.html('#broll-folders'), /drive\.google\.com\/drive\/folders\/[\w-]{20,}/);
 assert.match(t.html('#broll-folders'), /All folders/);
 assert.match(t.html('#broll-grid'), /Inside Target/); assert.match(t.html('#broll-grid'), /images\/broll-wagons\.jpg/);
 assert.doesNotMatch(t.html('#broll-grid'), /shot by/);
@@ -200,13 +200,15 @@ t.run("brollPerson='Kristin';renderBroll()"); assert.match(t.html('#broll-grid')
 assert.ok(validate({ ...load(), brollFolders: [{ name: '' }] }).some(e => /needs a name/.test(e)));
 // Upload form: falls back to Drive links when uploadEndpoint is blank.
 t = boot({ uploadEndpoint: '' });
-assert.match(t.run('submissionHelp()'), /href="https:\/\/drive\.google\.com\/drive\/folders\/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd"/);
-assert.match(t.html('#broll-add'), /href="https:\/\/drive\.google\.com\/drive\/folders\/1Nl5OG/);
+assert.match(t.run('submissionHelp()'), /href="https:\/\/drive\.google\.com\/drive\/folders\/1vDAjuYxPu2mreRracyxlm7Phbp0VKXka"/);
+assert.match(t.html('#broll-add'), /href="https:\/\/drive\.google\.com\/drive\/folders\/[\w-]{20,}"/);
 assert.doesNotMatch(t.html('#casting-projects'), /data-action="upload"/);
 const EP = 'https://script.google.com/macros/s/AKfyc-test_123/exec';
 t = boot({ uploadEndpoint: EP });
 assert.match(t.html('#broll-add'), /data-action="upload" data-dest="broll"/);
-assert.match(t.html('#casting-projects'), /data-action="upload" data-dest="collab" data-project="meet-the-squad-part-2"/);
+assert.match(t.html('#casting-projects'), /data-action="cast" data-project="meet-the-squad-part-2">Send your video/); // open call: guided video flow
+{ const c = load(); c.activeCollaborations = c.activeCollaborations.map(p => ({ ...p, openCall: undefined }));
+  const t6 = boot(c); assert.match(t6.html('#casting-projects'), /data-action="upload" data-dest="collab" data-project="meet-the-squad-part-2"/); }
 t.run("openPanel('upload',{dest:'collab',project:'meet-the-squad-part-2'})");
 const up = t.html('#modal-body');
 assert.match(up, /<option value="Meet the Squad, Part 2: Pass the Toy" selected>/); assert.match(up, /Daddy’s Home/);
@@ -301,3 +303,26 @@ console.log('PASS: Disco profiles and chat links');
   assert.doesNotMatch(t4.html('#modal-body'), /passcode/i);
 }
 console.log('PASS: apply to join, single password');
+
+// Live ideas: sheet ideas replace content.js, pitched ideas are marked, and signed-in creators get an edit form.
+{
+  const t5 = boot();
+  t5.run(`liveIdeas = [{ id:'pitch-1', title:'Car Seat Speed Round', series:'reels', stage:'idea', summary:'Install race.', status:'Pitched', credit:['Lora'], date:'2026-11-21' }]; renderIdeas();`);
+  assert.match(t5.html('#idea-grid'), /Car Seat Speed Round/); assert.match(t5.html('#idea-grid'), /Just pitched/);
+  assert.doesNotMatch(t5.html('#idea-grid'), /Fund or No Fund/);
+  t5.run("openPanel('idea',{id:'pitch-1'})"); assert.match(t5.html('#modal-body'), /data-action="idea-edit"/);
+  t5.run("openPanel('idea-edit',{id:'pitch-1'})"); assert.match(t5.html('#modal-body'), /id="idea-edit-form"/); assert.match(t5.html('#modal-body'), /value="Car Seat Speed Round"/);
+  t5.run("upsertIdea({ id:'pitch-1', title:'Renamed', series:'reels', stage:'idea', summary:'', credit:[], date:'' })"); assert.match(t5.html('#idea-grid'), /Renamed/);
+}
+console.log('PASS: live ideas, pitched ideas, editing');
+
+// Open casting call: three steps, no password, no Drive links.
+{
+  const t7 = boot(undefined, false, new Map());
+  t7.run("openPanel('cast',{project:'meet-the-squad-part-2'})");
+  assert.match(t7.html('#modal-body'), /Find the sunshine toy/); assert.match(t7.html('#modal-body'), /92401823/);
+  t7.run("openCast('meet-the-squad-part-2', 2)"); assert.match(t7.html('#modal-body'), /Film your part/);
+  t7.run("openCast('meet-the-squad-part-2', 3)"); assert.match(t7.html('#modal-body'), /id="cast-form"/);
+  assert.doesNotMatch(t7.html('#modal-body'), /drive\.google/);
+}
+console.log('PASS: open casting call');

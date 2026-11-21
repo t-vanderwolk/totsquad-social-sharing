@@ -80,7 +80,9 @@ const shortDate = value => dateValid(value) ? fmt(value,{month:'short',day:'nume
 const isPublished = p => p.status === 'published' && !!publicUrl(p.publishedReelUrl);
 const openProjects = () => content.activeCollaborations.filter(p => p.status === 'casting' && (!p.submissionDeadline || upcoming(p.submissionDeadline)));
 const publishedProjects = () => allProjects.filter(isPublished);
-const ideas = () => content.ideas || [];
+/* Ideas come live from the Creators Club ideas sheet once a creator is signed in (loadIdeas); content.js is the fallback. */
+let liveIdeas = null;
+const ideas = () => liveIdeas || content.ideas || [];
 const seriesById = id => SERIES.find(s => s.id === id);
 const tintOf = color => TINTS.includes(color) ? color : 'linen';
 const tintFor = idea => tintOf(seriesById(idea.series)?.color);
@@ -147,7 +149,7 @@ function renderCasting() {
     <div class="casting-copy"><span class="chip casting-chip">Casting now</span><h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
-    <div class="button-row">${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
+    <div class="button-row">${p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">Send your video</button>${messageLead(p.lead)}` : `${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}`}${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
     : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
 }
 
@@ -188,7 +190,7 @@ function ideaCard(i) {
   const art = `<span class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(ART[artKey(i)])}</span>`;
   return `<button type="button" class="idea-tile tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}">${art}
     <span class="idea-body"><strong>${escapeHTML(i.title)}</strong><span class="idea-sum">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</span>
-    <span class="reel-card-meta">${[isNew(i.date) ? '<span class="new">New</span>' : '', i.lead ? `Led by ${escapeHTML(i.lead)}` : '', byline(i) ? escapeHTML(byline(i)) : ''].filter(Boolean).join(' · ')}</span></span>
+    <span class="reel-card-meta">${[i.status === 'Pitched' ? '<span class="new">Just pitched</span>' : isNew(i.date) ? '<span class="new">New</span>' : '', i.lead ? `Led by ${escapeHTML(i.lead)}` : '', byline(i) ? escapeHTML(byline(i)) : ''].filter(Boolean).join(' · ')}</span></span>
   </button>`;
 }
 function renderIdeas() {
@@ -496,7 +498,7 @@ function openIdea(id) {
   const project = allProjects.find(p => p.ideaId === i.id);
   title.textContent = i.title;
   body.innerHTML = `<div class="detail tint-${tintFor(i)}">
-    <div class="detail-meta"><span class="chip series">${escapeHTML(s ? s.label : 'Idea')}</span><span class="stage stage-${stage}">${STAGES[stage]}</span>${byline(i) ? `<span>${escapeHTML(byline(i))}</span>` : ''}</div>
+    <div class="detail-meta"><span class="chip series">${escapeHTML(s ? s.label : 'Idea')}</span><span class="stage stage-${stage}">${STAGES[stage]}</span>${i.status === 'Pitched' ? '<span class="chip new">Just pitched</span>' : ''}${byline(i) ? `<span>${escapeHTML(byline(i))}</span>` : ''}</div>
     ${i.titleNote ? `<p class="idea-note">${escapeHTML(i.titleNote)}</p>` : ''}
     <p class="lede">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</p>
     ${has(i.howItWorks) ? '<h3>How it works</h3>'+list(i.howItWorks,'ol') : ''}
@@ -507,7 +509,7 @@ function openIdea(id) {
     ${has(i.questions) ? `<h3>Question bank</h3>${i.questions.map(q => `<div class="question"><span>${escapeHTML(q)}</span><button type="button" class="text-button" data-copy="${escapeHTML(q)}">Copy</button></div>`).join('')}` : ''}
     ${project ? `<h3>On this page</h3><p>${escapeHTML(project.title)} is in Made by the Squad${isPublished(project) ? ' and has a published Reel' : '; details are coming'}.</p>` : ''}
     <p class="quiet">${i.lead ? 'Lead: '+escapeHTML(i.lead) : 'No lead yet. One lead per idea keeps things moving.'}</p>
-    <div class="button-row"><button class="button" data-action="pitch" data-idea="${escapeHTML(i.id)}">${i.lead ? 'Build on this idea' : 'Build on it or lead it'}</button>${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
+    <div class="button-row"><button class="button" data-action="pitch" data-idea="${escapeHTML(i.id)}">${i.lead ? 'Build on this idea' : 'Build on it or lead it'}</button>${liveIdeas ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
   </div>`;
   showModal();
 }
@@ -535,7 +537,7 @@ function openFlow(action,data) {
       <div class="form-actions"><button class="button" type="submit">${action === 'share' ? 'Build my message' : 'Review my draft'}</button><button class="button secondary" type="button" id="save-draft">Save draft</button><button class="button secondary" type="button" id="download-draft">Download</button><button class="button secondary" type="button" id="clear-draft">Clear</button></div>
       <p class="quiet">Drafts stay in this browser. Nothing is sent automatically.</p>
     </form>
-    <section id="review" hidden><p>${action === 'share' ? 'Here’s your message. Copy it and share it wherever you like.' : sendsPitch(action) ? 'Check your pitch, then send it. It goes straight to Taylor’s pitch list.' : 'Check your draft, copy it, then paste it into the right Disco discussion.'}</p>
+    <section id="review" hidden><p>${action === 'share' ? 'Here’s your message. Copy it and share it wherever you like.' : sendsPitch(action) ? 'Check your pitch, then send it. It goes straight into the Idea Bank, and Sarah and Taylor review new pitches.' : 'Check your draft, copy it, then paste it into the right Disco discussion.'}</p>
       <textarea id="review-output" aria-label="${action === 'share' ? 'Shareable message' : 'Draft preview'}" readonly></textarea>
       ${sendsPitch(action) ? pitchSendBox() : ''}
       <div class="form-actions"><button class="button${sendsPitch(action) ? ' secondary' : ''}" type="button" id="copy-review">Copy ${label}</button><button class="button secondary" type="button" id="edit-draft">← Edit</button><button class="button secondary" type="button" id="download-review">Download</button><span id="disco-handoff"></span></div>
@@ -791,7 +793,8 @@ async function sendPitch(d, onSent) {
     const res = await uploadRequest({ action:'pitch', name, pitch, website: $('#send-website').value });
     if (!res.ok) { status.textContent = res.error || 'That didn’t send. Try again in a minute.'; btn.disabled = false; btn.textContent = 'Send pitch'; return; }
     storageSet(UPLOAD_NAME_KEY, name);
-    btn.textContent = 'Sent'; status.innerHTML = `Pitch sent! It’s on Taylor’s pitch list now. ${chatLink(content.discoUrl)}`;
+    if (res.idea) upsertIdea(res.idea);
+    btn.textContent = 'Sent'; status.innerHTML = `Pitch sent! It’s in the Idea Bank now. ${has('#idea-grid') ? '' : `<a class="text-button" href="${escapeHTML(IDEAS_URL)}">See it in the Idea Bank</a> `}${chatLink(content.discoUrl)}`;
     onSent && onSent();
   } catch { status.textContent = 'That didn’t send. Check your connection and try again.'; btn.disabled = false; btn.textContent = 'Send pitch'; }
 }
@@ -836,7 +839,7 @@ function openUpload(d={}) {
 }
 async function uploadRequest(payload) {
   const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ ...payload, key: mentorKey() }) });
-  const data = await res.json(); if (data && data.locked) data.error = 'The creator password on this device is out of date. Ask Taylor for the new one.';
+  const data = await res.json(); if (data && data.locked) data.error = 'The creator password on this device is out of date. Ask Sarah or Taylor for the new one.';
   return data;
 }
 function putFile(url, file, onProgress) {
@@ -900,7 +903,7 @@ function openReelShare(id) {
   showModal();
 }
 function openPanel(action,data={}) {
-  stash(); activeFlow = null; status.textContent = ''; body.replaceChildren();
+  stash(); activeFlow = null; status.textContent = ''; body.replaceChildren(); castProject = '';
   if (action === 'drafts') return openDrafts();
   if (action === 'calendar') return openCalendar();
   if (action === 'tracker') return openTracker();
@@ -908,7 +911,9 @@ function openPanel(action,data={}) {
   if (action === 'reel-share') return openReelShare(data.project);
   if (action === 'upload') return openUpload(data);
   if (action === 'apply') return openApply();
+  if (action === 'cast') return openCast(data.project);
   if (action === 'idea') return openIdea(data.id);
+  if (action === 'idea-edit') return openIdeaEdit(data.id);
   if (flows[action]) return openFlow(action,data);
   const item = info[action]; if (!item) return;
   title.textContent = item[0]; body.innerHTML = item[1]; showModal();
@@ -919,7 +924,7 @@ function openApply() {
   title.textContent = 'Apply to join the Creators Club';
   if (!UPLOAD_ON()) { body.innerHTML = `<p>Applications open soon. In the meantime, say hi in ${externalLink(content.discoUrl,'Social & Sharing','text-button')}.</p>`; return showModal(); }
   const roles = ['Be on camera','Film B-roll','Pitch ideas','Edit Reels'];
-  body.innerHTML = `<p>Tell us a little about you. It takes about two minutes. Taylor reads every application and will reach out in Disco.</p>
+  body.innerHTML = `<p>Tell us a little about you. It takes about two minutes. Sarah and Taylor read every application, and one of them will reach out in Disco.</p>
     <form id="apply-form" novalidate>
       <label for="ap-name">Your name, as it appears in Disco</label>
       <input id="ap-name" type="text" autocomplete="name" maxlength="80" required>
@@ -955,16 +960,167 @@ function openApply() {
     try {
       const res = await uploadRequest({ action:'apply', application, website: val('ap-website') });
       if (!res.ok) throw new Error(res.error || '');
-      body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. Taylor will reach out in Disco. Once you’re in, you’ll get the creator password to sign in here.</p>`;
+      body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. Sarah or Taylor will reach out in Disco. Once you’re in, you’ll get the creator password to sign in here.</p>`;
       status.textContent = '';
     } catch (err) { status.textContent = err.message || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send application'; }
   };
   showModal();
 }
 
+/* ---------- Live ideas + editing (apps-script/upload.gs: ?action=ideas, idea-save) ---------- */
+function rerenderIdeas() { if (has('#idea-grid')) renderIdeas(); if (has('#production-board')) renderProduction(); }
+async function loadIdeas() {
+  if (!UPLOAD_ON() || !mentorKey() || typeof fetch !== 'function') return;
+  try {
+    const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=ideas&key=${encodeURIComponent(mentorKey())}`); const data = await res.json();
+    if (data.ok && Array.isArray(data.ideas) && data.ideas.length) { liveIdeas = data.ideas; rerenderIdeas(); }
+  } catch {}
+}
+function upsertIdea(idea) {
+  if (!idea || !idea.id) return;
+  const list = [...ideas()]; const at = list.findIndex(i => i.id === idea.id);
+  if (at >= 0) list[at] = idea; else list.push(idea);
+  liveIdeas = list; rerenderIdeas();
+}
+function openIdeaEdit(id) {
+  const i = ideas().find(x => x.id === id); if (!i) return;
+  const lines = arr => escapeHTML((Array.isArray(arr) ? arr : []).join('\n'));
+  const savedName = storageGet(UPLOAD_NAME_KEY) || '';
+  const names = squadNames();
+  title.textContent = 'Edit idea';
+  body.innerHTML = `<form id="idea-edit-form" novalidate>
+      <p class="quiet">Changes save to the Creators Club ideas sheet and show for everyone right away.</p>
+      <label for="ie-name">Who’s editing?</label>
+      <select id="ie-name" required><option value="">Choose your name</option>${names.map(n => `<option${n === savedName ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
+      <label for="ie-title">Title</label>
+      <input id="ie-title" type="text" maxlength="120" value="${escapeHTML(i.title || '')}" required>
+      <div class="field-pair">
+        <div><label for="ie-series">Series</label><select id="ie-series">${SERIES.map(s => `<option value="${escapeHTML(s.id)}"${s.id === i.series ? ' selected' : ''}>${escapeHTML(s.label)}</option>`).join('')}</select></div>
+        <div><label for="ie-stage">Stage</label><select id="ie-stage">${Object.entries(STAGES).map(([k,v]) => `<option value="${k}"${k === stageKey(i.stage) ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
+      </div>
+      <label for="ie-lead">Lead</label>
+      <select id="ie-lead"><option value="">No lead yet</option>${[...new Set([...names, i.lead].filter(Boolean))].map(n => `<option${n === i.lead ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
+      <label for="ie-summary">The idea</label>
+      <textarea id="ie-summary" maxlength="1500">${escapeHTML(i.summary || '')}</textarea>
+      <label for="ie-how">How it works <span class="quiet">(one step per line)</span></label>
+      <textarea id="ie-how" maxlength="4000">${lines(i.howItWorks)}</textarea>
+      <label for="ie-guidance">Before you film <span class="quiet">(one per line)</span></label>
+      <textarea id="ie-guidance" maxlength="4000">${lines(i.guidance)}</textarea>
+      <label for="ie-notes">Notes <span class="quiet">(one per line)</span></label>
+      <textarea id="ie-notes" maxlength="4000">${lines(i.notes)}</textarea>
+      <label for="ie-questions">Question bank <span class="quiet">(one per line)</span></label>
+      <textarea id="ie-questions" maxlength="4000">${lines(i.questions)}</textarea>
+      <div class="form-actions"><button class="button" type="submit" id="ie-save">Save changes</button><button class="button secondary" type="button" data-action="idea" data-id="${escapeHTML(i.id)}">Cancel</button></div>
+    </form>`;
+  $('#idea-edit-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const val = id => document.getElementById(id).value;
+    const name = val('ie-name'); if (!name) { status.textContent = 'Choose your name first.'; return document.getElementById('ie-name').focus(); }
+    const idea = { id: i.id, title: val('ie-title').trim(), series: val('ie-series'), stage: val('ie-stage'), lead: val('ie-lead'), summary: val('ie-summary').trim(),
+      howItWorks: val('ie-how'), guidance: val('ie-guidance'), notes: val('ie-notes'), questions: val('ie-questions') };
+    if (!idea.title) { status.textContent = 'Give the idea a title.'; return document.getElementById('ie-title').focus(); }
+    const go = document.getElementById('ie-save'); go.disabled = true; go.textContent = 'Saving…'; status.textContent = '';
+    try {
+      const res = await uploadRequest({ action:'idea-save', name, idea });
+      if (!res.ok) throw new Error(res.error || '');
+      storageSet(UPLOAD_NAME_KEY, name); upsertIdea(res.idea); openIdea(res.idea.id); status.textContent = 'Saved.';
+    } catch (err) { status.textContent = err.message || 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = 'Save changes'; }
+  };
+  showModal();
+}
+
+/* "Got an idea for a Squad Reel?" on the landing page: open to anyone, goes to Sarah and Taylor's review sheet (not the Idea Bank). */
+function setupSquadPitch() {
+  const form = document.getElementById ? document.getElementById('sp-form') : null; if (!form) return;
+  const section = document.getElementById('squad-pitch');
+  if (!UPLOAD_ON()) { if (section) section.hidden = true; return; }
+  const series = document.getElementById('sp-series');
+  if (series && series.options.length < 2) series.insertAdjacentHTML('beforeend', SERIES.map(s => `<option value="${escapeHTML(s.label)}">${escapeHTML(s.label)}</option>`).join(''));
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    const val = id => document.getElementById(id).value.trim(), note = document.getElementById('sp-note');
+    const pitch = { name: val('sp-name'), contact: val('sp-contact'), title: val('sp-title-in'), series: val('sp-series'), idea: val('sp-idea') };
+    const missing = !pitch.name ? 'sp-name' : !pitch.title ? 'sp-title-in' : !pitch.idea ? 'sp-idea' : '';
+    if (missing) { note.textContent = 'Add your name, an idea title and your idea.'; return document.getElementById(missing).focus(); }
+    const go = document.getElementById('sp-go'); go.disabled = true; go.textContent = 'Sending…'; note.textContent = '';
+    try {
+      const res = await uploadRequest({ action:'squad-pitch', pitch, website: val('sp-website') });
+      if (!res.ok) throw new Error(res.error || '');
+      form.innerHTML = `<p class="sp-done"><strong>Thanks, ${escapeHTML(pitch.name.split(/\s+/)[0])}!</strong> Your idea is with Sarah and Taylor. They’ll reach out if it’s a fit.</p>`;
+    } catch (err) { note.textContent = err.message || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send your idea'; }
+  };
+}
+
+/* Open casting call ("Send your video"): a guided, no-password flow. 1 Find the toy · 2 Film it · 3 Send it.
+   Videos go to the casting call's Drive folder through the script (cast-start); no Drive links are shown. */
+let castStep = 1, castProject = '';
+function openCast(id, step = 1) {
+  const p = allProjects.find(x => x.id === id); const call = p && p.openCall; if (!call) return;
+  castStep = step;
+  const toy = call.toy || {}, steps = call.steps || [];
+  const nav = `<ol class="steps cast-steps">${['Find the toy','Film it','Send it'].map((t,i) => `<li${i + 1 === step ? ' aria-current="step"' : ''}>${i + 1} · ${t}</li>`).join('')}</ol>`;
+  title.textContent = p.title;
+  if (step === 1) body.innerHTML = `${nav}
+    <div class="cast-toy">${imageUrl(toy.photo) ? `<img src="${escapeHTML(imageUrl(toy.photo))}" alt="The sunshine toy: a soft yellow sun with a smiling face, little arms and legs">` : ''}
+      <div><h3>Find the sunshine toy</h3><p><strong>${escapeHTML(toy.name || '')}</strong></p><p>${escapeHTML(toy.note || '')}</p>
+      ${toy.item ? `<p class="quiet">Can’t spot it? Search <strong>${escapeHTML(toy.item)}</strong> in the Target app, or ask a team member to look it up.</p>` : ''}
+      ${externalLink(toy.url, 'See it on Target.com', 'text-button')}</div></div>
+    <div class="form-actions"><button class="button" type="button" data-cast-step="2">I have the toy</button>${p.exampleReelUrl ? externalLink(p.exampleReelUrl,'Watch Part 1','button secondary') : ''}</div>`;
+  if (step === 2) body.innerHTML = `${nav}
+    <h3>Film your part</h3><ol class="cast-howto">${steps.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ol>
+    ${call.dont ? `<p class="flow-note">${escapeHTML(call.dont)}</p>` : ''}
+    <div class="form-actions"><button class="button" type="button" data-cast-step="3">I’ve filmed it</button><button class="button secondary" type="button" data-cast-step="1">Back</button></div>`;
+  if (step === 3) {
+    body.innerHTML = `${nav}
+    <form id="cast-form" novalidate>
+      <label for="cs-name">Your name</label>
+      <input id="cs-name" type="text" autocomplete="name" maxlength="80" value="${escapeHTML(storageGet(UPLOAD_NAME_KEY) || '')}" required>
+      <label for="cs-contact">How can the team reach you? <span class="quiet">(optional)</span></label>
+      <input id="cs-contact" type="text" maxlength="120" placeholder="Disco name, email or @handle">
+      <label for="cs-file">Your video</label>
+      <input id="cs-file" type="file" accept="video/*" required>
+      <p class="quiet">Vertical (9:16), up to 2 GB. It goes straight to the Squad’s private Drive; only the Creators Club team can see it.</p>
+      <label class="check agree"><input type="checkbox" id="cs-agree">Everyone in the video agreed to be filmed, and there are no shoppers’ or babies’ faces in it.</label>
+      <ul class="upload-list" id="cast-list" aria-live="polite"></ul>
+      <div class="form-actions"><button class="button" type="submit" id="cs-go">Send my video</button><button class="button secondary" type="button" data-cast-step="2">Back</button></div>
+    </form>`;
+    $('#cast-form').onsubmit = ev => { ev.preventDefault(); sendCast(p); };
+    $('#cast-form').oninput = () => { if (!document.getElementById('cs-go').disabled) status.textContent = ''; };
+  }
+  castProject = id;
+  showModal();
+}
+async function sendCast(p) {
+  const val = id => document.getElementById(id).value.trim();
+  const name = val('cs-name'), file = (document.getElementById('cs-file').files || [])[0];
+  if (!name) { status.textContent = 'Add your name first.'; return document.getElementById('cs-name').focus(); }
+  if (!file) { status.textContent = 'Choose your video.'; return document.getElementById('cs-file').focus(); }
+  if (!/^video\//.test(file.type) || file.size > 2*1024**3) { status.textContent = 'Choose a video up to 2 GB.'; return; }
+  if (!document.getElementById('cs-agree').checked) { status.textContent = 'Check the box first.'; return document.getElementById('cs-agree').focus(); }
+  const go = document.getElementById('cs-go'); go.disabled = true; go.textContent = 'Sending…'; status.textContent = '';
+  const list = document.getElementById('cast-list');
+  list.innerHTML = `<li><span>${escapeHTML(file.name)} <small>${sizeLabel(file.size)}</small></span><progress max="1" value="0"></progress><small class="up-state">Starting</small></li>`;
+  const bar = list.querySelector('progress'), state = list.querySelector('.up-state');
+  try {
+    const start = await uploadRequest({ action:'cast-start', name, contact: val('cs-contact'), project: p.title, agreed: true, fileName: file.name, type: file.type, size: file.size, origin: location.origin });
+    if (!start.ok) throw new Error(start.error || 'Couldn’t start');
+    state.textContent = 'Uploading';
+    await putFile(start.uploadUrl, file, f => { bar.value = f; state.textContent = Math.round(f*100)+'%'; });
+    storageSet(UPLOAD_NAME_KEY, name);
+    body.innerHTML = `<div class="cast-done"><h3>Your video is in!</h3><p>Thanks, ${escapeHTML(name.split(/\s+/)[0])}. It’s safely in the Squad’s private Drive for ${escapeHTML(p.title)}. ${p.lead ? escapeHTML(p.lead)+' and the team will' : 'The team will'} reach out if they need anything.</p></div>`;
+    status.textContent = '';
+  } catch (err) {
+    state.textContent = 'Didn’t send'; list.querySelector('li').classList.add('failed');
+    status.textContent = /network|status/.test(err.message) ? 'The upload stopped. Check your connection and try again.' : err.message;
+    go.disabled = false; go.textContent = 'Try again';
+  }
+}
+
 /* ---------- Events ---------- */
 document.addEventListener('click', e => {
   const t = e.target;
+  const cs = t.closest('[data-cast-step]');
+  if (cs && castProject) { status.textContent = ''; openCast(castProject, +cs.dataset.castStep); return; }
   const more = t.closest('[data-bio]');
   if (more) { const open = more.getAttribute('aria-expanded') !== 'true'; more.setAttribute('aria-expanded', String(open)); more.textContent = open ? 'Show less' : 'Read more'; more.closest('.person')?.classList.toggle('open', open); return; }
   const filter = t.closest('[data-filter]');
@@ -1010,8 +1166,8 @@ function passwordForm(form, input, note$, go, label) {
     const key = input.value.trim(); if (!key) { note$.textContent = 'Enter the creator password.'; return; }
     go.disabled = true; go.textContent = 'Checking…'; note$.textContent = '';
     try {
-      if (await mentorHash(key) !== content.mentorPasswordHash) { note$.textContent = 'That password doesn’t match. Check it with Taylor.'; input.select(); }
-      else { mentorMemory = key; storageSet(MENTOR_KEY, key); unlock(); renderContent(); toast('You’re signed in.'); return; }
+      if (await mentorHash(key) !== content.mentorPasswordHash) { note$.textContent = 'That password doesn’t match. Check it with Sarah or Taylor.'; input.select(); }
+      else { mentorMemory = key; storageSet(MENTOR_KEY, key); unlock(); renderContent(); loadIdeas(); toast('You’re signed in.'); return; }
     } catch { note$.textContent = 'This browser couldn’t check the password. Try Chrome or Safari.'; }
     go.disabled = false; go.textContent = label;
   };
@@ -1046,8 +1202,8 @@ function showGate(note = '') {
 document.addEventListener('click', e => {
   if (!LANDING() || !LOCKED()) return;
   const a = e.target.closest && e.target.closest('[data-action],[data-reel]');
-  if (a && !['reel-share','apply'].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
+  if (a && !['reel-share','apply','cast'].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
 }, true);
-if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); }
-else if (LANDING()) { renderContent(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
+if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); }
+else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
 else showGate();

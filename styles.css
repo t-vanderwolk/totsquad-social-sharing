@@ -595,3 +595,29 @@ html.unlocked [data-public]{display:none!important}
   .series-switch button{white-space:nowrap}
   .idea-list{grid-template-columns:1fr}
 }
+
+.field-pair{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+@media (max-width:480px){.field-pair{grid-template-columns:1fr}}
+label .quiet{font-weight:500;font-size:12px}
+
+/* Landing page: "Got an idea for a Squad Reel?" (signed-out visitors) */
+.squad-pitch{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:var(--s8);align-items:start;margin:var(--s8) 0;padding:var(--s8) var(--s10);border-radius:28px;background:var(--linen)}
+.squad-pitch h2{font:800 32px/1.05 var(--serif);letter-spacing:-.02em;color:var(--plum-ink);margin:0 0 var(--s3)}
+.squad-pitch-copy p{margin:0;color:var(--body);max-width:34ch}
+.squad-pitch form label:first-child{margin-top:0}
+.squad-pitch .field-pair label{margin-top:0}
+.squad-pitch textarea{min-height:120px}
+.sp-done{margin:0;padding:var(--s5);border-radius:var(--r-md);background:var(--white);color:var(--body)}
+@media (max-width:720px){.squad-pitch{grid-template-columns:1fr;gap:var(--s5);padding:var(--s6)}}
+.squad-pitch .form-actions{position:static;background:none;border:0;padding:var(--s4) 0 0;margin:0;box-shadow:none}
+
+/* Open casting call: Send your video */
+.cast-steps{margin-bottom:var(--s5)}
+.cast-toy{display:grid;grid-template-columns:150px minmax(0,1fr);gap:var(--s5);align-items:start}
+.cast-toy img{width:150px;aspect-ratio:4/5;object-fit:cover;object-position:bottom;border-radius:var(--r-md)}
+.cast-toy h3,#modal-body > h3{font:800 22px/1.2 var(--serif);color:var(--plum-ink);margin:0 0 var(--s2)}
+.cast-toy p{margin:0 0 var(--s2)}
+.cast-howto{margin:0;padding-left:1.3em;display:grid;gap:var(--s2);line-height:1.55}
+.cast-done{padding:var(--s5);border-radius:var(--r-md);background:var(--linen)}
+.cast-done h3{font:800 24px/1.2 var(--serif);color:var(--plum-ink);margin:0 0 var(--s2)}.cast-done p{margin:0}
+@media (max-width:520px){.cast-toy{grid-template-columns:1fr}.cast-toy img{width:120px}}

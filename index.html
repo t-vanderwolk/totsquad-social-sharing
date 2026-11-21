@@ -35,6 +35,7 @@
       <li><a href="#made">Made by the Squad</a></li>
       <li><a href="#squad">Meet the Squad</a></li>
       <li data-mentor><a href="#week">This week</a></li>
+      <li data-public><a href="#squad-pitch">Pitch an idea</a></li>
       <li data-public><a href="#mentor-signin">Creator sign in</a></li>
     </ul>
   </nav>
@@ -97,6 +98,28 @@
   <section class="section" id="squad" aria-labelledby="squad-title">
     <div class="section-head"><div><h2 id="squad-title">Meet the Squad</h2><p>The specialists behind the Reels.</p></div></div>
     <div class="squad-grid" id="squad-grid"></div>
+  </section>
+
+  <section class="squad-pitch" id="squad-pitch" aria-labelledby="sp-title" data-public>
+    <div class="squad-pitch-copy">
+      <h2 id="sp-title">Got an idea for a Squad Reel?</h2>
+      <p>Anyone can pitch one. No password needed. Sarah and Taylor read every idea and reach out if it’s a fit.</p>
+    </div>
+    <form id="sp-form" novalidate>
+      <div class="field-pair">
+        <div><label for="sp-name">Your name</label><input id="sp-name" type="text" autocomplete="name" maxlength="80" required></div>
+        <div><label for="sp-contact">How can we reach you? <span class="quiet">(optional)</span></label><input id="sp-contact" type="text" maxlength="120" placeholder="Disco name, email or @handle"></div>
+      </div>
+      <label for="sp-title-in">Idea title</label>
+      <input id="sp-title-in" type="text" maxlength="120" placeholder="A working title is fine" required>
+      <label for="sp-series">Kind of idea <span class="quiet">(optional)</span></label>
+      <select id="sp-series"><option value="">Not sure</option></select>
+      <label for="sp-idea">Your idea</label>
+      <textarea id="sp-idea" maxlength="2000" placeholder="What happens in it, and why would families love it?" required></textarea>
+      <input class="hp" id="sp-website" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <div class="form-actions"><button class="button" type="submit" id="sp-go">Send your idea</button></div>
+      <p class="gate-note" id="sp-note" role="status" aria-live="polite"></p>
+    </form>
   </section>
 
   <section class="crew-band" aria-labelledby="crew-title" data-mentor>
