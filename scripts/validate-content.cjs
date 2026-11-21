@@ -21,6 +21,7 @@ function validate(c) {
     else optUrl(w, v);
   };
   const optUrl = (w, v) => { if (v && !isUrl(v)) err(w, `"${v}" must be a full https:// link`); };
+  const discoLink = (w, v) => { if (!v) return; let u; try { u = new URL(v); } catch {} if (!u || u.host !== 'tot-squad-hub.disco.co' || !u.searchParams.get('drawerProfileId')) err(w, 'should be the link copied from their Disco profile (it contains drawerProfileId)'); };
   const list = name => { const v = c[name]; if (v === undefined) return []; if (!Array.isArray(v)) { err(name, 'must be a list'); return []; } return v; };
   const names = (w, v) => { if (v !== undefined && (!Array.isArray(v) || v.some(n => typeof n !== 'string' || !n.trim()))) err(w, 'credit must be a list of names'); };
 
@@ -86,6 +87,7 @@ function validate(c) {
     const l = c.leader;
     if (!l.name) err('leader', 'needs a name');
     optImage('leader photo', l.photo); optUrl('leader link', l.link);
+    discoLink('leader disco', l.disco);
     if (l.instagram && !/^[A-Za-z0-9._]{1,30}$/.test(String(l.instagram).trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/^@/, '').replace(/[/?#].*$/, ''))) err('leader instagram', `"${l.instagram}" is not a valid Instagram handle`);
   }
   list('ideas').forEach(i => { if (i && i.image) optImage(`ideas (${i.id}) image`, i.image); });
@@ -116,6 +118,7 @@ function validate(c) {
     if (!n) { err(w, 'needs a name'); return; }
     if (people.has(n.toLowerCase())) err(w, `"${n}" is listed twice`);
     people.add(n.toLowerCase());
+    if (typeof p === 'object') discoLink(`${w} disco`, p.disco);
     if (p && p.region && !['East', 'Central', 'West'].includes(p.region)) err(w + ' region', `"${p.region}" must be East, Central or West`);
     if (typeof p === 'object') { optImage(w + ' photo', p.photo); optUrl(w + ' link', p.link); }
     if (p && p.instagram) {

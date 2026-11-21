@@ -274,3 +274,19 @@ assert.match(t.html('#modal-body'), /brief-body/);
 t = boot(); t.run("window.HUB_REELS = undefined; loadReels()"); assert.equal(t.el('#reels-source').textContent, ''); // falls back to content.js
 
 console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');
+
+// Disco profiles on Squad cards, "Message <lead>" on casting and Reel details, chat links after pitch/upload.
+{
+  const prof = 'https://tot-squad-hub.disco.co/group-directory/X?memberGroupId=1&tab=details&drawerProfileId=abc123&profileSettingsTab=profile';
+  const c = load(); c.featuredSpecialists = c.featuredSpecialists.map(p => p.name === 'Kristin' ? { ...p, disco: prof } : p);
+  assert.deepEqual(validate(c), []);
+  assert.ok(validate({ ...c, leader: { ...c.leader, disco: 'https://example.com/?drawerProfileId=1' } }).some(e => /Disco profile/.test(e)));
+  const t2 = boot(c);
+  assert.match(t2.html('#squad-grid'), /channel\/Q2hhdENoYW5uZWw6MjAwMDUx\?drawerProfileId=abc123&amp;profileSettingsTab=profile[^>]*>Disco profile/);
+  assert.doesNotMatch(t2.html('#squad-grid'), /memberGroupId/);
+  assert.match(t2.html('#casting-projects'), />Message Kristin</);
+  assert.doesNotMatch(t2.html('#casting-projects'), /Prepare interest message/);
+  assert.equal(t2.run("discoProfile({disco:'https://evil.example/?drawerProfileId=1'})"), '');
+}
+console.log('PASS: Disco profiles and chat links');
+

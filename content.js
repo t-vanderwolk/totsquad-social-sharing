@@ -171,27 +171,34 @@ window.HUB_CONTENT = {
   // Approved first names.
   // region: East, Central or West (from the Squad Cup mentor sub-groups).
   // Optional: bio (one or two sentences), expertise, location, photo (https or images/ file), spotlight, link (https), instagram.
+  // disco: the link from their Disco profile (open the profile in Disco, copy the address bar). Adds a "Disco profile" button
+  // and "Message <name>" on the Reels they lead.
   featuredSpecialists: [
     { name: 'Kristin', region: 'East', photo: 'images/squad-kristin.jpg', 
       bio: 'Mom of three in Holly Springs, NC, and a former reality TV producer. Loves baking, all things Disney and musicals.',
-      instagram: 'kristinbabyregistryspecialist' }, { name: 'Taylor', region: 'West', photo: 'images/squad-taylor.jpg', 
+      instagram: 'kristinbabyregistryspecialist',
+      disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzQzMDk5NzQ0MDUxNDMzNDkx&profileSettingsTab=profile' }, { name: 'Taylor', region: 'West', photo: 'images/squad-taylor.jpg', 
       bio: 'Scottsdale-based baby gear expert with hands-on experience from Strolleria and Pottery Barn Kids. Certified Babywearing Educator and CPST, and the force behind Squad Cup.',
-      instagram: 'taylormadebabyco' }, { name: 'Lora', region: 'East', photo: 'images/squad-lora.jpg', 
+      instagram: 'taylormadebabyco', disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzE4OTcyMTMwODE4MTE1MzA4&profileSettingsTab=profile' }, { name: 'Lora', region: 'East', photo: 'images/squad-lora.jpg', 
       bio: 'East Coast mentor, mom of four boys, esthetician and former birth doula who loves helping families navigate their registries.',
-      instagram: 'lora_thebabyspecialist' }, { name: 'Lindsay', region: 'Central', photo: 'images/squad-lindsay.jpg', 
+      instagram: 'lora_thebabyspecialist', disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzI4MDAwODk4NzY0NzM2NTUx&profileSettingsTab=profile' }, { name: 'Lindsay', region: 'Central', photo: 'images/squad-lindsay.jpg', 
       bio: 'Serves North Denver-area Target stores, bringing social work, healthcare and postpartum-advocacy experience to zero-judgment registry help.',
-      instagram: 'northdenverbabyspecialist' }, { name: 'Aly', region: 'West', photo: 'images/squad-aly.jpg', 
+      instagram: 'northdenverbabyspecialist',
+      disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzUzMDE2MzU3ODQwOTA3MTI4&profileSettingsTab=profile' }, { name: 'Aly', region: 'West', photo: 'images/squad-aly.jpg', 
       bio: 'Redmond, WA mom of three, including twins, with a background in medical support. Loves music, nature and shopping.',
-      instagram: 'alygbabygoto' },
-    { name: 'Jessica', region: 'East', photo: 'images/squad-jessica.jpg', instagram: 'registrywithjessica' }, { name: 'Constance', region: 'East', photo: 'images/squad-constance.jpg', 
+      instagram: 'alygbabygoto',
+      disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzMzODExNDk0MDM2NDIzMjEw&profileSettingsTab=profile' },
+    { name: 'Jessica', region: 'East', photo: 'images/squad-jessica.jpg', instagram: 'registrywithjessica', disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzE5MTM0MjEyMzIzNDIzODUx&profileSettingsTab=profile' }, { name: 'Constance', region: 'East', photo: 'images/squad-constance.jpg', 
       bio: 'Charlotte, NC-based former critical care nurse who now runs a virtual practice for infant sleep and registry guidance. Certified CPST.',
-      instagram: 'constance_babygearspecialist' }, { name: 'Sarah', region: 'West', photo: 'images/squad-sarah.jpg', 
+      instagram: 'constance_babygearspecialist', disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzI4NTYzNTc1Nzc2MDYyMTQ1&profileSettingsTab=profile' }, { name: 'Sarah', region: 'West', photo: 'images/squad-sarah.jpg', 
       bio: 'San Diego-based creator of The Modern Nanny and the Nanny Census Report, building community for domestic workers with humor and heart.',
-      instagram: 'sarahcarlislestewart' },
-    { name: 'Atiba', region: 'Central', photo: 'images/squad-atiba.jpg', instagram: 'tiba.cooper' },
+      instagram: 'sarahcarlislestewart',
+      disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzMzNjYzMDAxNTQ5MzU5Mzcw&profileSettingsTab=profile' },
+    { name: 'Atiba', region: 'Central', photo: 'images/squad-atiba.jpg', instagram: 'tiba.cooper', disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzI4NTk2OTQzMjk5NDU2Mjg2&profileSettingsTab=profile' },
     { name: 'Melissa', region: 'East', photo: 'images/squad-melissa.jpg', 
       bio: 'Mom of many, full-spectrum doula, newborn care specialist and pediatric sleep consultant who also co-owns a baby clothing brand.',
-      instagram: 'melissababyconcierge' }
+      instagram: 'melissababyconcierge',
+      disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzQzODAxMTk4ODEyOTYwNDkw&profileSettingsTab=profile' }
   ],
 
   /* B-roll library (b-roll.html). brollFolderUrl: the shared Drive folder for clips (blank = the submission folder).

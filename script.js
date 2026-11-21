@@ -124,6 +124,22 @@ const IDEAS_URL = pageUrl('ideas.html');
 const has = sel => !!document.querySelector(sel);
 
 /* ---------- Page sections ---------- */
+/* Disco profiles: `disco` on a Squad member is the link copied from their Disco profile (it has drawerProfileId in it).
+   The profile opens over the Social & Sharing chat, where Disco's Message button starts a DM. */
+function discoProfile(person) {
+  const raw = person && publicUrl(person.disco); if (!raw || !inHub(raw)) return '';
+  const id = new URL(raw).searchParams.get('drawerProfileId'); if (!id) return '';
+  const base = publicUrl(content.discoUrl) && inHub(content.discoUrl) ? new URL(content.discoUrl) : new URL(raw);
+  base.search = ''; base.hash = ''; base.searchParams.set('drawerProfileId', id); base.searchParams.set('profileSettingsTab', 'profile');
+  return base.href;
+}
+function squadPerson(name) {
+  const first = String(name || '').trim().split(/\s+/)[0].toLowerCase(); if (!first) return null;
+  return [content.leader, ...(content.featuredSpecialists || [])].find(p => p && typeof p === 'object' && String(p.name || '').toLowerCase() === first) || null;
+}
+const messageLead = (name, cls = 'button secondary') => { const url = discoProfile(squadPerson(name)); return url ? externalLink(url, `Message ${String(name).trim().split(/\s+/)[0]}`, cls) : ''; };
+const chatLink = (url, cls = 'text-button') => externalLink(publicUrl(url) || content.discoUrl, 'Tell the Squad in chat', cls);
+
 function renderCasting() {
   const casting = openProjects();
   $('#casting-projects').innerHTML = casting.length ? casting.map(p => `<article class="casting">
@@ -131,7 +147,7 @@ function renderCasting() {
     <div class="casting-copy"><span class="chip casting-chip">Casting now</span><h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
-    <div class="button-row"><button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
+    <div class="button-row">${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
     : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
 }
 
@@ -232,7 +248,7 @@ function leaderCard() {
   const photo = imageUrl(p.photo);
   return `<article class="leader">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
     <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(p.name)}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.bio ? `<p>${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-    <div class="person-links">${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
+    <div class="person-links">${externalLink(discoProfile(p),'Disco profile','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
 }
 function renderSquad() {
   const leader = leaderCard();
@@ -241,7 +257,7 @@ function renderSquad() {
     const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
     return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
       <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio">${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-      <div class="person-links">${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></article>`;
+      <div class="person-links">${externalLink(discoProfile(p),'Disco profile','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
 }
 
@@ -748,7 +764,7 @@ function openReel(id) {
     <p class="reel-detail-meta"><span class="stage stage-${REEL_STAGE_CLASS[r.status]}">${reelStageLabel(r.status)}</span>${r.lead ? `<span>Led by ${escapeHTML(r.lead)}</span>` : ''}${due ? `<span>${escapeHTML(due)}</span>` : ''}</p>
     ${r.prompt ? `<h3 class="cal-head">The prompt</h3><p>${escapeHTML(r.prompt)}</p>` : ''}
     ${r.people.length ? `<h3 class="cal-head">Featuring</h3><p>${escapeHTML(r.people.join(', '))}</p>` : ''}
-    <div class="button-row">${r.status === 'posted' && r.url ? externalLink(r.url,'Watch','button') : ''}${r.projectId ? `<button type="button" class="button secondary" data-action="reel-share" data-project="${escapeHTML(r.projectId)}">Share</button>` : ''}${live ? uploadButton('Upload your clips','collab',r.title) : ''}${r.briefUrl && !briefDocId(r.briefUrl) ? externalLink(r.briefUrl,'Read the brief','button secondary') : ''}${live && r.folderUrl ? externalLink(r.folderUrl,'Open the folder','button secondary') : ''}</div>
+    <div class="button-row">${r.status === 'posted' && r.url ? externalLink(r.url,'Watch','button') : ''}${r.lead && r.status !== 'posted' ? messageLead(r.lead) : ''}${r.projectId ? `<button type="button" class="button secondary" data-action="reel-share" data-project="${escapeHTML(r.projectId)}">Share</button>` : ''}${live ? uploadButton('Upload your clips','collab',r.title) : ''}${r.briefUrl && !briefDocId(r.briefUrl) ? externalLink(r.briefUrl,'Read the brief','button secondary') : ''}${live && r.folderUrl ? externalLink(r.folderUrl,'Open the folder','button secondary') : ''}</div>
     ${r.briefUrl && briefDocId(r.briefUrl) ? `<section class="reel-brief" aria-labelledby="brief-head"><div class="reel-brief-top"><h3 class="cal-head" id="brief-head">The brief</h3>${externalLink(r.briefUrl,'Open in Google Docs','text-button')}</div><div class="brief-body" id="brief-body" data-doc="${escapeHTML(briefDocId(r.briefUrl))}"><p class="quiet">Loading the brief…</p></div></section>` : ''}`;
   if (r.briefUrl) loadBrief(r);
   showModal();
@@ -773,7 +789,7 @@ async function sendPitch(d, onSent) {
     const res = await uploadRequest({ action:'pitch', name, pitch, website: $('#send-website').value });
     if (!res.ok) { status.textContent = res.error || 'That didn’t send. Try again in a minute.'; btn.disabled = false; btn.textContent = 'Send pitch'; return; }
     storageSet(UPLOAD_NAME_KEY, name);
-    btn.textContent = 'Sent'; status.textContent = 'Pitch sent! It’s on Taylor’s pitch list now.';
+    btn.textContent = 'Sent'; status.innerHTML = `Pitch sent! It’s on Taylor’s pitch list now. ${chatLink(content.discoUrl)}`;
     onSent && onSent();
   } catch { status.textContent = 'That didn’t send. Check your connection and try again.'; btn.disabled = false; btn.textContent = 'Send pitch'; }
 }
@@ -849,6 +865,7 @@ async function runUpload() {
   go.disabled = true; go.textContent = 'Uploading…';
   list.innerHTML = files.map((f,i) => `<li id="up-${i}"><span>${escapeHTML(f.name)} <small>${sizeLabel(f.size)}</small></span><progress max="1" value="0"></progress><small class="up-state">Waiting</small></li>`).join('');
   let done = 0, folderUrl = '';
+  const chatFor = (content.activeCollaborations || []).find(p => p.title === destVal || p.id === destVal)?.discussionUrl || content.discoUrl;
   for (const [i,f] of files.entries()) {
     const row = $('#up-'+i), bar = row.querySelector('progress'), state = row.querySelector('.up-state');
     try {
@@ -863,7 +880,7 @@ async function runUpload() {
   go.disabled = false; go.textContent = 'Upload more';
   if (done) {
     $('#up-files').value = '';
-    status.innerHTML = `${done === files.length ? 'All set!' : `${done} of ${files.length} uploaded.`} ${done === 1 ? 'Your file is' : 'Your files are'} in the Squad’s Drive.${destVal === 'broll' ? ' New B-roll shows in the library once Taylor adds it.' : ''} ${folderUrl ? externalLink(folderUrl,'Open the folder','text-button') : ''}`;
+    status.innerHTML = `${done === files.length ? 'All set!' : `${done} of ${files.length} uploaded.`} ${done === 1 ? 'Your file is' : 'Your files are'} in the Squad’s Drive.${destVal === 'broll' ? ' New B-roll shows in the library once Taylor adds it.' : ''} ${folderUrl ? externalLink(folderUrl,'Open the folder','text-button') : ''} ${chatLink(chatFor)}`;
   }
 }
 
