@@ -358,7 +358,7 @@ function renderDeadlines() {
   $('#deadlines').innerHTML = unique.length ? unique.map(d => `<div class="deadline-item"><strong>${escapeHTML(d.title)}</strong><time datetime="${d.date}">${dateLabel(d.date)} · ${escapeHTML(content.timeZone)}</time>${externalLink(d.url,'View details','text-button')}</div>`).join('') : '<p class="quiet">No deadlines have been announced. New dates show up here first.</p>';
 }
 
-const TOOL_ICON = { palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝' };
+const TOOL_ICON = { palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝', bulb:'💡' };
 // Toolkit: everything opens inside the Creators Club (panels or pages in this site), never an outside link.
 function toolkitItems() {
   return [
@@ -366,6 +366,7 @@ function toolkitItems() {
     { label:'Starter guide', action:'guide', desc:'Turn a spark into a Reel', icon:'spark' },
     { label:'Before you share', action:'checklist', desc:'A quick final check', icon:'check' },
     ...(UPLOAD_ON() ? [{ label:'Upload clips', action:'upload', dest:'collab', desc:'Send footage straight to the Squad’s Drive', icon:'upload' }] : []),
+    { label:'Idea Bank', page:'ideas.html', desc:'Every Squad idea, ready to lead or build on', icon:'bulb' },
     { label:'B-roll library', page:'b-roll.html', desc:'Short clips anyone can reuse', icon:'film' },
     ...(content.resources || []).filter(r => r && r.label && (r.page || r.action)),
     { label:'My drafts', action:'drafts', desc:'Pitches saved on this device', icon:'draft' }
