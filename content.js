@@ -6,6 +6,9 @@ window.HUB_CONTENT = {
   appUrl: 'https://tot-squad-hub.disco.co/page-app/UHJvZHVjdEFwcDozODQzNTg=?u=8d8e2732-9268-481e-9d53-1363df5e83ca&drawerTab=analytics',
   discoUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx',
   submissionFolderUrl: 'https://drive.google.com/drive/folders/1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd',
+  // Mentor password screen: SHA-256 of the lowercase password (see README). Leave blank to turn the screen off.
+  // Keep it in step with MENTOR_PASSCODE in the Creators Club script, which pitches still check.
+  mentorPasswordHash: 'e9bb17bbee033d2cee200d8e50793aa350a04a68367bda9a334fedaa4f7cc0a1',
   // Upload form (apps-script/upload.gs). Leave blank to send people to the Drive folders instead.
   uploadEndpoint: 'https://script.google.com/macros/s/AKfycbyJrEWbDp0vWGU__88IlgRf7HXfGXYt6Em1lWOcjFgQhOVY5NGBjjYriE12qVsmXbxMBw/exec',
   submissionInstructionsUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA',

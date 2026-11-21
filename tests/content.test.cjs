@@ -3,7 +3,7 @@ const vm = require('node:vm'), fs = require('node:fs'), assert = require('node:a
 const root = require('node:path').join(__dirname, '..');
 const { validate, load } = require('../scripts/validate-content.cjs');
 
-function boot(config, storageFailure = false, stored = new Map()) {
+function boot(config, storageFailure = false, stored = new Map([['totsquad-mentor-key','test-key']])) {
   const elements = new Map();
   const el = id => { if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, addEventListener() {}, classList: { toggle() {} }, replaceChildren() {}, showModal() { this.open = true; } }); return elements.get(id); };
   const storage = { getItem(k) { if (storageFailure) throw Error('blocked'); return stored.get(k) ?? null; }, setItem(k, v) { if (storageFailure) throw Error('blocked'); stored.set(k, String(v)); }, removeItem(k) { if (storageFailure) throw Error('blocked'); stored.delete(k); } };
@@ -231,7 +231,7 @@ assert.equal(t.run("sheetDate('PAST DUE')"), '');
 assert.equal(t.run("reelStatus('IN EDIT')"), 'editing'); assert.equal(t.run("reelStatus('POSTED')"), 'posted'); assert.equal(t.run("reelStatus('')"), '');
 t.run(`reelsData = buildReels([
   {title:'Pass the Toy', lead:'Kristin', prompt:'Intros passing the sunshine toy', deadline:'PAST DUE', status:'POSTED', folderUrl:'https://drive.google.com/drive/folders/x'},
-  {title:"Daddy's Home", lead:'Sarah', prompt:'', briefUrl:'https://docs.google.com/document/d/abc/edit', deadline:'Sunday 10/25', status:'IN EDIT', folderUrl:''},
+  {title:"Daddy's Home", lead:'Sarah', prompt:'', briefUrl:'https://docs.google.com/document/d/1-EXu39nUOtxi7YvTaoneQRu6n4L-LgeGpCxvcWUAYAM/edit', deadline:'Sunday 10/25', status:'IN EDIT', folderUrl:''},
   {title:'Pass the Toy - Fall Recruits', lead:'Kristin', prompt:'Intros', deadline:'Friday 11/13', status:'', folderUrl:''},
   {title:'Brand new <Reel>', lead:'Lora', prompt:'', deadline:'', status:'FILMING', folderUrl:''},
   {title:'Trick or Treat', lead:'Taylor', prompt:'', deadline:'', status:'IDEA', folderUrl:''}], true); reelsLive = true;`);
@@ -247,9 +247,30 @@ t.run("reelsView='calendar'; reelsMonth = new Date(2026,9,1); renderReels()");
 assert.match(t.html('#reels-view'), /October 2026/); assert.match(t.html('#reels-view'), /data-reel="r1"/);
 assert.match(t.html('#reels-view'), /No date yet/); // Brand new Reel has no deadline
 t.run("openPanel('reel',{reel:'r1'})");
-assert.match(t.html('#modal-body'), /In edit/); assert.match(t.html('#modal-body'), /Read the brief/); assert.match(t.html('#modal-body'), /Upload your clips/);
+assert.match(t.html('#modal-body'), /In edit/); assert.match(t.html('#modal-body'), /Upload your clips/);
+assert.match(t.html('#modal-body'), /id="brief-body" data-doc="1-EXu39nUOtxi7YvTaoneQRu6n4L-LgeGpCxvcWUAYAM"/); assert.match(t.html('#modal-body'), /Open in Google Docs/); // brief shows in the app
+assert.equal(t.run("briefDocId('https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing')"), '19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA');
+assert.equal(t.run("briefDocId('https://example.com/x')"), '');
 t.run("openPanel('reel',{reel:'r0'})"); assert.match(t.html('#modal-body'), /Watch/); assert.match(t.html('#modal-body'), /data-action="reel-share"/);
 t = boot(); assert.match(t.html('#resource-links'), /href="reels\.html\?view=board&amp;embed=1"/); assert.match(t.html('#resource-links'), /reels\.html\?view=calendar/);
 assert.ok(validate({ ...load(), resources: [{ label: 'X', page: 'https://evil.com' }] }).some(e => /page in this site/.test(e)));
+
+// Mentor password: nothing renders until it's entered, and every request to the script carries it.
+t = boot(undefined, false, new Map());
+assert.equal(t.html('#casting-projects'), ''); // still locked
+t = boot();
+assert.match(t.html('#casting-projects'), /Meet the Squad, Part 2/);
+t = boot({ mentorPasswordHash: '' }, false, new Map());
+assert.match(t.html('#casting-projects'), /Meet the Squad, Part 2/); // no password set, no password screen
+assert.ok(validate({ ...load(), mentorPasswordHash: 'footpop' }).some(e => /SHA-256/.test(e))); // never the password itself
+
+// Reels page reads the copy in reels-data.js (scripts/sync-from-google.cjs), not Google.
+t = boot();
+t.run(`window.HUB_REELS = { updated: '2026-11-20T23:59:00Z', reels: [{ title: 'Tot Squad Round Up #3', lead: 'Kristin', prompt: '', briefUrl: 'https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit', deadline: 'Sunday 11/8', status: 'FILMING', folderUrl: '' }], briefs: { '19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA': { title: 'Round Ups', html: '<p><strong>Concept</strong>: favorites</p>' } } }; loadReels();`);
+assert.match(t.el('#reels-source').textContent, /From the Reels tracker · copied Nov 20/);
+assert.match(t.html('#reels-view'), /Tot Squad Round Up #3/); assert.match(t.html('#reels-view'), /Filming/);
+const synced = JSON.parse(t.run('JSON.stringify(reelsData)')); t.run(`openPanel('reel',{reel:'${synced[0].id}'})`);
+assert.match(t.html('#modal-body'), /brief-body/);
+t = boot(); t.run("window.HUB_REELS = undefined; loadReels()"); assert.equal(t.el('#reels-source').textContent, ''); // falls back to content.js
 
 console.log('PASS: upload guidance, connected resources, autosave, draft recovery, blocked-storage autosave');

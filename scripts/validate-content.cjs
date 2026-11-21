@@ -99,6 +99,7 @@ function validate(c) {
   });
   optUrl('brollFolderUrl', c.brollFolderUrl);
   optUrl('uploadEndpoint', c.uploadEndpoint);
+  if (c.mentorPasswordHash && !/^[a-f0-9]{64}$/.test(c.mentorPasswordHash)) err('mentorPasswordHash', 'should be the SHA-256 of the password (64 hex characters), never the password itself');
   if (c.uploadEndpoint && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(c.uploadEndpoint)) err('uploadEndpoint', 'should be the Apps Script web app URL ending in /exec');
   const brollIds = new Set(list('brollCategories').map(x => x && x.id));
   list('brollClips').forEach((x, i) => {

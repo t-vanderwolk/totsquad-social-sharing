@@ -635,16 +635,12 @@ function buildReels(rows, live) {
     };
   });
 }
-function reelsUrl() { const ep = publicUrl(content.uploadEndpoint); return ep ? ep + (ep.includes('?') ? '&' : '?') + 'action=reels' : ''; }
-async function loadReels() {
-  reelsData = buildReels((content.contentCalendar || []).filter(x => x && x.title), false);
-  renderReels();
-  const url = reelsUrl(); if (!url || typeof fetch !== 'function') return;
-  try {
-    const res = await fetch(url); const data = await res.json();
-    if (!data.ok || !Array.isArray(data.reels) || !data.reels.length) throw new Error('empty');
-    reelsData = buildReels(data.reels, true); reelsLive = true; reelsUpdated = data.updated || '';
-  } catch { reelsLive = false; }
+// The Reels tracker copied into the site by scripts/sync-from-google.cjs (reels-data.js); content.js is the fallback.
+const syncedReels = () => (typeof window !== 'undefined' && window.HUB_REELS && Array.isArray(window.HUB_REELS.reels) && window.HUB_REELS.reels.length) ? window.HUB_REELS : null;
+function loadReels() {
+  const synced = syncedReels();
+  reelsData = synced ? buildReels(synced.reels, true) : buildReels((content.contentCalendar || []).filter(x => x && x.title), false);
+  reelsLive = !!synced; reelsUpdated = synced ? synced.updated || '' : '';
   renderReels();
 }
 const dueLabel = r => r.date ? fmt(r.date,{month:'short',day:'numeric'}) : r.pastDue ? 'Past due' : '';
@@ -700,10 +696,49 @@ function renderReels() {
   const live = list.filter(r => !['posted','idea'].includes(r.status)).length;
   if (has('#reels-summary')) $('#reels-summary').textContent = list.length ? `${live} in progress, ${list.filter(r => r.status === 'posted').length} posted.` : '';
   if (has('#reels-sheet')) $('#reels-sheet').innerHTML = externalLink(content.reelsTrackerUrl,'Edit in Google Sheets','button');
-  if (has('#reels-source')) $('#reels-source').textContent = reelsLive ? `Live from the sheet${reelsUpdated ? ' · checked '+new Date(reelsUpdated).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : ''}` : (reelsData ? 'Showing the last saved copy.' : 'Loading…');
+  if (has('#reels-source')) $('#reels-source').textContent = reelsLive ? `From the Reels tracker${reelsUpdated ? ' · copied '+new Date(reelsUpdated).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}` : '';
   $('#reels-view').innerHTML = !list.length ? emptyState('No Reels yet.','Add a Reel to the Status Report sheet and it shows up here.', externalLink(content.reelsTrackerUrl,'Open the sheet'), ICON.play)
     : reelsView === 'calendar' ? reelsCalendar(list) : reelsView === 'list' ? reelsList(list) : reelsBoard(list);
 }
+/* Briefs: the Google Doc linked in the sheet, shown in the Reel's details (apps-script/upload.gs → ?action=brief). */
+const briefDocId = url => { const m = String(url || '').match(/\/document\/d\/([\w-]{20,})/); return m ? m[1] : ''; };
+function briefLink(href) {
+  try { const u = new URL(href); if (u.hostname === 'www.google.com' && u.pathname === '/url' && u.searchParams.get('q')) return publicUrl(u.searchParams.get('q')); } catch {}
+  return publicUrl(href);
+}
+// Rebuild the exported doc with a short list of safe elements; everything else is dropped or unwrapped.
+function renderBrief(target, html) {
+  target.replaceChildren();
+  if (typeof DOMParser === 'undefined') { const p = document.createElement('p'); p.textContent = String(html).replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(); target.append(p); return; }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const MAP = { H1:'h3', H2:'h3', H3:'h4', H4:'h4', H5:'h4', H6:'h4', P:'p', UL:'ul', OL:'ol', LI:'li', BR:'br', STRONG:'strong', B:'strong', EM:'em', I:'em', TABLE:'table', TBODY:'tbody', THEAD:'thead', TR:'tr', TD:'td', TH:'th', HR:'hr' };
+  const walk = (node, out) => {
+    for (const n of [...node.childNodes]) {
+      if (n.nodeType === 3) { if (n.textContent) out.append(document.createTextNode(n.textContent)); continue; }
+      if (n.nodeType !== 1 || ['SCRIPT','STYLE','HEAD','META','TITLE','IFRAME','OBJECT','FORM','INPUT','BUTTON','SVG'].includes(n.tagName)) continue;
+      const style = (n.getAttribute('style') || '').toLowerCase();
+      if (n.tagName === 'A') { const href = briefLink(n.getAttribute('href')); if (href) { const a = document.createElement('a'); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; walk(n, a); out.append(a); } else walk(n, out); continue; }
+      if (n.tagName === 'IMG') { const src = n.getAttribute('src') || ''; if (/^https:\/\/[\w.-]*googleusercontent\.com\//.test(src)) { const img = document.createElement('img'); img.src = src; img.alt = ''; img.loading = 'lazy'; img.className = 'brief-img'; out.append(img); } continue; }
+      if (n.tagName === 'SPAN' && /font-weight:\s*(700|bold)/.test(style)) { const b = document.createElement('strong'); walk(n, b); out.append(b); continue; }
+      if (n.tagName === 'SPAN' && /font-style:\s*italic/.test(style)) { const i = document.createElement('em'); walk(n, i); out.append(i); continue; }
+      const tag = MAP[n.tagName];
+      if (!tag) { walk(n, out); continue; }
+      const el = document.createElement(tag); walk(n, el);
+      if (['p','h3','h4','li'].includes(tag) && !el.textContent.trim() && !el.querySelector('img')) continue;
+      out.append(el);
+    }
+  };
+  walk(doc.body, target);
+  if (!target.textContent.trim() && !target.querySelector('img')) { const p = document.createElement('p'); p.className = 'quiet'; p.textContent = 'This brief is empty.'; target.append(p); }
+}
+function loadBrief(r) {
+  const id = briefDocId(r.briefUrl), box = document.getElementById ? document.getElementById('brief-body') : null;
+  if (!id || !box) return;
+  const brief = syncedReels() && window.HUB_REELS.briefs && window.HUB_REELS.briefs[id];
+  if (brief) renderBrief(box, brief.html);
+  else box.innerHTML = `<p class="quiet">This brief hasn’t been copied in yet. ${externalLink(r.briefUrl,'Open it in Google Docs','text-button')}</p>`;
+}
+
 function openReel(id) {
   const r = (reelsData || []).find(x => x.id === id); if (!r) return;
   title.textContent = r.title;
@@ -713,7 +748,9 @@ function openReel(id) {
     <p class="reel-detail-meta"><span class="stage stage-${REEL_STAGE_CLASS[r.status]}">${reelStageLabel(r.status)}</span>${r.lead ? `<span>Led by ${escapeHTML(r.lead)}</span>` : ''}${due ? `<span>${escapeHTML(due)}</span>` : ''}</p>
     ${r.prompt ? `<h3 class="cal-head">The prompt</h3><p>${escapeHTML(r.prompt)}</p>` : ''}
     ${r.people.length ? `<h3 class="cal-head">Featuring</h3><p>${escapeHTML(r.people.join(', '))}</p>` : ''}
-    <div class="button-row">${r.status === 'posted' && r.url ? externalLink(r.url,'Watch','button') : ''}${r.projectId ? `<button type="button" class="button secondary" data-action="reel-share" data-project="${escapeHTML(r.projectId)}">Share</button>` : ''}${live ? uploadButton('Upload your clips','collab',r.title) : ''}${r.briefUrl ? externalLink(r.briefUrl,'Read the brief','button secondary') : ''}${live && r.folderUrl ? externalLink(r.folderUrl,'Open the folder','button secondary') : ''}</div>`;
+    <div class="button-row">${r.status === 'posted' && r.url ? externalLink(r.url,'Watch','button') : ''}${r.projectId ? `<button type="button" class="button secondary" data-action="reel-share" data-project="${escapeHTML(r.projectId)}">Share</button>` : ''}${live ? uploadButton('Upload your clips','collab',r.title) : ''}${r.briefUrl && !briefDocId(r.briefUrl) ? externalLink(r.briefUrl,'Read the brief','button secondary') : ''}${live && r.folderUrl ? externalLink(r.folderUrl,'Open the folder','button secondary') : ''}</div>
+    ${r.briefUrl && briefDocId(r.briefUrl) ? `<section class="reel-brief" aria-labelledby="brief-head"><div class="reel-brief-top"><h3 class="cal-head" id="brief-head">The brief</h3>${externalLink(r.briefUrl,'Open in Google Docs','text-button')}</div><div class="brief-body" id="brief-body" data-doc="${escapeHTML(briefDocId(r.briefUrl))}"><p class="quiet">Loading the brief…</p></div></section>` : ''}`;
+  if (r.briefUrl) loadBrief(r);
   showModal();
 }
 
@@ -784,8 +821,9 @@ function openUpload(d={}) {
   showModal();
 }
 async function uploadRequest(payload) {
-  const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
-  return res.json();
+  const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ ...payload, key: mentorKey() }) });
+  const data = await res.json(); if (data && data.locked) data.error = 'The mentor password on this device is out of date. Ask Taylor for the new one.';
+  return data;
 }
 function putFile(url, file, onProgress) {
   return new Promise((resolve, reject) => {
@@ -888,4 +926,41 @@ $('#modal .close').onclick = () => modal.close();
 modal.addEventListener('cancel', stash);
 modal.addEventListener('close', () => { stash(); opener?.focus(); });
 modal.addEventListener('click', e => { if (e.target === modal) { const r = modal.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) modal.close(); } });
-renderContent();
+/* ---------- Mentor password screen ----------
+   The page stays hidden until a mentor enters the password (checked against mentorPasswordHash in content.js).
+   It's remembered on the device and sent with pitches, which the script checks against MENTOR_PASSCODE. */
+const MENTOR_KEY = 'totsquad-mentor-key';
+let mentorMemory = '';
+function mentorKey() { return mentorMemory || storageGet(MENTOR_KEY) || ''; }
+const GATE_ON = () => /^[a-f0-9]{64}$/.test(content.mentorPasswordHash || '');
+async function mentorHash(key) { const bytes = new TextEncoder().encode(String(key).trim().toLowerCase()); const buf = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
+function unlock() { document.documentElement?.classList.add('unlocked'); document.getElementById?.('gate')?.remove(); }
+function showGate(note = '') {
+  if (!document.body || !document.body.append || document.getElementById('gate')) return;
+  document.body.classList.toggle('embed', EMBED);
+  const gate = document.createElement('div'); gate.id = 'gate'; gate.setAttribute('role','dialog'); gate.setAttribute('aria-modal','true'); gate.setAttribute('aria-labelledby','gate-title');
+  gate.innerHTML = `<form class="gate-card" id="gate-form" novalidate>
+    <img class="gate-logo" src="https://cdn.prod.website-files.com/5f4a9ffd91010361e130f380/68407ea76a2d0b8be6420f9e_Tot-Squad-Logo-NEW-REG.png" alt="Tot Squad">
+    <h1 id="gate-title">Creators Club</h1>
+    <p>For Tot Squad mentors. Enter the mentor password to come in.</p>
+    <label for="gate-key">Mentor password</label>
+    <input id="gate-key" type="password" autocomplete="current-password" required>
+    <button class="button" type="submit" id="gate-go">Come in</button>
+    <p class="gate-note" id="gate-note" role="alert">${escapeHTML(note)}</p>
+  </form>`;
+  document.body.append(gate);
+  const input = gate.querySelector('#gate-key'), note$ = gate.querySelector('#gate-note'), go = gate.querySelector('#gate-go');
+  setTimeout(() => input.focus(), 0);
+  gate.querySelector('#gate-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const key = input.value.trim(); if (!key) { note$.textContent = 'Enter the mentor password.'; return; }
+    go.disabled = true; go.textContent = 'Checking…'; note$.textContent = '';
+    try {
+      if (await mentorHash(key) !== content.mentorPasswordHash) { note$.textContent = 'That password doesn’t match. Check it with Taylor.'; input.select(); }
+      else { mentorMemory = key; storageSet(MENTOR_KEY, key); unlock(); renderContent(); return; }
+    } catch { note$.textContent = 'This browser couldn’t check the password. Try Chrome or Safari.'; }
+    go.disabled = false; go.textContent = 'Come in';
+  };
+}
+if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); }
+else showGate();

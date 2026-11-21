@@ -7,12 +7,14 @@
  *   Collaborations: Content submission folder / <Collaboration> / <Name>
  *
  * Setup (once per Google account):
- *   1. Project Settings > Script properties: add PASSCODE with the Squad passcode (not case-sensitive).
+ *   1. Project Settings > Script properties: add PASSCODE (Squad upload passcode) and MENTOR_PASSCODE
+ *      (the password on the Creators Club's front screen). Neither is case-sensitive.
  *   2. Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone.
  *   3. Put the web app URL in content.js as uploadEndpoint.
  * Uploads are owned by, and use the storage of, the account that deploys this script.
  *
- * The Reels page reads the Reels – Status Report sheet through doGet (?action=reels).
+ * The Reels page reads the Reels – Status Report sheet through doGet (?action=reels),
+ * and each Reel's brief doc through doGet (?action=brief&id=…), limited to docs linked in that sheet.
  * Pitches ("Pitch an idea") are added as rows to the "Creators Club pitches" sheet.
  * The sheet is created next to the B-Roll Library the first time someone sends a pitch.
  */
@@ -26,7 +28,7 @@ const MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB per file
 function doPost(e) {
   try {
     const req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    if (req.action === 'pitch') return savePitch(req); // pitches don't need the passcode
+    if (req.action === 'pitch') return isMentor(req.key) ? savePitch(req) : locked(); // pitches need the mentor password, not the upload passcode
     const passcode = PropertiesService.getScriptProperties().getProperty('PASSCODE');
     if (!passcode || String(req.passcode || '').trim().toLowerCase() !== passcode.toLowerCase()) return reply({ ok: false, error: 'That Squad passcode doesn’t match. Check it with Taylor.' });
     if (req.action === 'check') return reply({ ok: true });
@@ -106,6 +108,9 @@ function text(s) { const t = String(s == null ? '' : s).replace(/[\u0000-\u0008\
 const REELS_SHEET_ID = '1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg';
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
+  if (action && !isMentor(e.parameter.key)) return locked();
+  if (action === 'gate') return reply({ ok: true });
+  if (action === 'brief') return briefReply(String(e.parameter.id || ''));
   if (action !== 'reels') return reply({ ok: true, service: 'Tot Squad Creators Club uploads' });
   try {
     const cache = CacheService.getScriptCache();
@@ -119,6 +124,27 @@ function doGet(e) {
     return reply({ ok: false, error: 'Couldn’t read the Reels sheet.' });
   }
 }
+/* GET ?action=brief&id=DOC_ID: a brief doc as HTML. Only docs linked in the Reels sheet can be read. */
+function briefReply(id) {
+  if (!/^[\w-]{20,}$/.test(id)) return reply({ ok: false, error: 'Unknown brief.' });
+  try {
+    const cache = CacheService.getScriptCache();
+    const hit = cache.get('brief:' + id);
+    if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
+    const allowed = readReels().some(r => docId(r.briefUrl) === id);
+    if (!allowed) return reply({ ok: false, error: 'That brief isn’t on the Reels sheet.' });
+    const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + id + '/export?mimeType=text/html', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) return reply({ ok: false, error: 'Couldn’t open that brief.' });
+    const title = DriveApp.getFileById(id).getName();
+    const out = JSON.stringify({ ok: true, title: title, html: res.getContentText() });
+    if (out.length < 90000) cache.put('brief:' + id, out, 600);
+    return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    console.error(err);
+    return reply({ ok: false, error: 'Couldn’t open that brief.' });
+  }
+}
+function docId(url) { const m = String(url || '').match(/\/document\/d\/([\w-]+)/); return m ? m[1] : ''; }
 function readReels() {
   const sheet = SpreadsheetApp.openById(REELS_SHEET_ID).getSheets()[0];
   const values = sheet.getDataRange().getDisplayValues();
@@ -143,6 +169,13 @@ function readReels() {
 }
 
 
+
+// The mentor password on the Creators Club's front screen. Every request from the page carries it.
+function isMentor(key) {
+  const want = PropertiesService.getScriptProperties().getProperty('MENTOR_PASSCODE');
+  return !!want && String(key || '').trim().toLowerCase() === want.trim().toLowerCase();
+}
+function locked() { return reply({ ok: false, locked: true, error: 'That mentor password doesn’t match.' }); }
 
 function childFolder(parent, name) {
   const found = parent.getFoldersByName(name);
