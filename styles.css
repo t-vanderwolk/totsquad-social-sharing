@@ -626,3 +626,31 @@ label .quiet{font-weight:500;font-size:12px}
 .club-note{margin:0 0 var(--s5);padding:var(--s4) var(--s5);border-radius:var(--r-md);background:var(--white);border:1px solid var(--line-soft);border-left:4px solid var(--plum)}
 .club-note p{margin:0;font-size:15px;line-height:1.55;color:var(--body);max-width:none}
 .club-note strong{color:var(--plum-ink)}
+
+/* What's new (creators only) */
+.activity-section h2 .chip{vertical-align:middle;margin-left:var(--s2);font-family:var(--sans)}
+#activity-list{background:var(--white);border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s2) var(--s5)}
+#activity-list>.quiet{margin:var(--s3) 0}
+.activity{list-style:none;margin:0;padding:0}
+.activity li{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) 0;border-bottom:1px solid var(--line-soft)}
+.activity li:last-child{border-bottom:0}
+.activity-icon{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--lavender);font-size:15px}
+.activity li.fresh .activity-icon{box-shadow:0 0 0 2px var(--white),0 0 0 4px var(--plum)}
+.activity-text{flex:1;min-width:0;font-size:14px;line-height:1.45;color:var(--body)}
+.activity-text strong{color:var(--plum-ink)}
+.activity-text time{display:block;font-size:12px;color:var(--muted)}
+#activity-list>.text-button{margin:var(--s2) 0 var(--s3)}
+.nav-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--plum);color:var(--white);font-size:11px;font-weight:700}
+
+/* Toolkit tiles */
+.tool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:var(--s2);margin-top:var(--s3)}
+.tool{display:flex;gap:var(--s3);align-items:flex-start;width:100%;padding:var(--s3);border:1px solid var(--line-soft);border-radius:var(--r-sm);background:var(--white);text-align:left;text-decoration:none;color:inherit;font:inherit;cursor:pointer}
+.tool:hover{border-color:var(--plum);background:#fdfafc}.tool:focus-visible{outline:3px solid var(--plum);outline-offset:2px}
+.tool-icon{flex:0 0 36px;height:36px;border-radius:10px;background:var(--lavender);color:var(--plum);display:grid;place-items:center}
+.tool-icon svg{width:20px;height:20px}
+.tool-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.tool-text strong{font-size:14px;line-height:1.3;color:var(--plum-ink)}
+.tool-text span{font-size:12px;line-height:1.4;color:var(--muted)}
+
+.guide-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:0}
+@media (max-width:720px){.guide-grid{grid-template-columns:1fr}}

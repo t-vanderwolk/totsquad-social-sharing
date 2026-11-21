@@ -36,6 +36,7 @@ function doPost(e) {
     if (req.action === 'apply') return saveApplication(req); // open to anyone: it's how people ask to join
     if (req.action === 'squad-pitch') return saveSquadPitch(req); // open to anyone: ideas for Sarah to review
     if (req.action === 'cast-start') return startCastUpload(req); // open casting calls: video only, no password
+    if (req.action === 'upload-done') return uploadDone(req); // logs finished uploads for What's new
     if (!isMentor(req.key)) return locked(); // everything else needs the creator password
     if (req.action === 'idea-save') return saveIdea(req);
     if (req.action === 'ideas-seed') return seedIdeas(req);
@@ -95,6 +96,7 @@ function savePitch(req) {
       howItWorks: String(p.shots || '').split('\n'), notes: [p.hook && 'Hook: ' + p.hook, p.takeaway && 'Takeaway: ' + p.takeaway, p.audience && 'Who it’s for: ' + p.audience, p.format && 'Format: ' + p.format, p.lead && 'Wants to lead: ' + p.lead, p.support && 'Help wanted: ' + p.support].filter(Boolean) });
     idea.id = 'pitch-' + Date.now().toString(36);
     ideasSheet().appendRow(ideaRow(idea, name));
+    logActivity('pitch', name, 'pitched “' + idea.title + '”', 'idea:' + idea.id);
     return reply({ ok: true, idea: idea });
   } finally { lock.releaseLock(); }
 }
@@ -128,6 +130,7 @@ function saveApplication(req) {
   try {
     const row = APPLY_COLUMNS.map(([key]) => key === 'submitted' ? new Date() : key === 'status' ? 'New' : key === 'notes' ? '' : key === 'agreed' ? 'Yes' : text(a[key]).slice(0, 1000));
     applySheet().appendRow(row);
+    logActivity('apply', '', 'A new creator application came in', '');
     return reply({ ok: true });
   } finally { lock.releaseLock(); }
 }
@@ -194,6 +197,7 @@ function saveIdea(req) {
     idea.id = at > 0 ? id : (id || 'idea-' + Date.now().toString(36));
     if (at > 0) sheet.getRange(at + 1, 1, 1, IDEA_COLUMNS.length).setValues([ideaRow(idea, by)]);
     else sheet.appendRow(ideaRow(idea, by));
+    logActivity('edit', by, 'updated “' + idea.title + '”', 'idea:' + idea.id);
     return reply({ ok: true, idea: idea });
   } finally { lock.releaseLock(); }
 }
@@ -219,6 +223,7 @@ function saveSquadPitch(req) {
   cache.put('squad-pitch-count', String(count + 1), 3600);
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
+    logActivity('review', '', 'A new idea came in through the pitch box: “' + text(p.title).slice(0, 80) + '”', '');
     squadPitchSheet().appendRow(SQUAD_PITCH_COLUMNS.map(([k]) => k === 'submitted' ? new Date() : k === 'status' ? 'New' : k === 'notes' ? '' : k === 'name' ? clean(p.name) : text(p[k]).slice(0, 2000)));
     return reply({ ok: true });
   } finally { lock.releaseLock(); }
@@ -259,6 +264,37 @@ function startCastUpload(req) {
   if (res.getResponseCode() !== 200 || !uploadUrl) return reply({ ok: false, error: 'Drive didn’t accept the upload. Try again in a minute.' });
   return reply({ ok: true, uploadUrl: uploadUrl }); // no folder link: submissions stay private
 }
+/* Activity feed ("What's new" in the app, creators only): one row per event in "Creators Club activity". */
+function activitySheet() {
+  const props = PropertiesService.getScriptProperties(), id = props.getProperty('ACTIVITY_SHEET_ID');
+  if (id) { try { return SpreadsheetApp.openById(id).getSheets()[0]; } catch (err) { console.error(err); } }
+  const ss = SpreadsheetApp.create('Creators Club activity'), sheet = ss.getSheets()[0];
+  sheet.setName('Activity'); sheet.appendRow(['When', 'Type', 'Who', 'What', 'Link']); sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#f3eaf1');
+  DriveApp.getFileById(ss.getId()).moveTo(DriveApp.getFolderById(ROOTS.collab));
+  props.setProperty('ACTIVITY_SHEET_ID', ss.getId());
+  return sheet;
+}
+function logActivity(type, who, what, link) { try { activitySheet().appendRow([new Date(), type, clean(who), text(what).slice(0, 300), String(link || '').slice(0, 300)]); } catch (err) { console.error(err); } }
+function readActivity() {
+  const sheet = activitySheet(), last = sheet.getLastRow(); if (last < 2) return [];
+  const start = Math.max(2, last - 39);
+  return sheet.getRange(start, 1, last - start + 1, 5).getValues().reverse().map(r => ({ when: r[0] instanceof Date ? r[0].toISOString() : String(r[0]), type: String(r[1]), who: String(r[2]), what: String(r[3]), link: String(r[4]) }));
+}
+// Called by the page after a video or clip finishes uploading. Only logs files that really are new in the Squad's folders.
+function uploadDone(req) {
+  const id = String(req.fileId || '').replace(/[^\w-]/g, ''); if (!id) return reply({ ok: false });
+  const cache = CacheService.getScriptCache(); if (cache.get('done-' + id)) return reply({ ok: true }); cache.put('done-' + id, '1', 21600);
+  let file; try { file = DriveApp.getFileById(id); } catch (err) { return reply({ ok: false }); }
+  if (Date.now() - file.getDateCreated().getTime() > 3 * 3600 * 1000) return reply({ ok: false });
+  const person = file.getParents().hasNext() ? file.getParents().next() : null; if (!person) return reply({ ok: false });
+  const up = person.getParents().hasNext() ? person.getParents().next() : null; if (!up) return reply({ ok: false });
+  const top = up.getParents().hasNext() ? up.getParents().next() : null;
+  if (up.getId() === ROOTS.broll) logActivity('broll', person.getName(), 'added B-roll: ' + file.getName(), file.getUrl());
+  else if (top && top.getId() === ROOTS.collab) logActivity('video', person.getName(), 'sent a video for ' + up.getName(), file.getUrl());
+  else return reply({ ok: false });
+  return reply({ ok: true });
+}
 // Plain text only, and never a formula.
 function text(s) { const t = String(s == null ? '' : s).replace(/[\u0000-\u0008\u000b-\u001f]/g, '').trim().slice(0, 3000); return /^[=+\-@]/.test(t) ? "'" + t : t; }
 
@@ -269,6 +305,7 @@ function doGet(e) {
   if (action && !isMentor(e.parameter.key)) return locked();
   if (action === 'gate') return reply({ ok: true });
   if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() });
+  if (action === 'activity') return reply({ ok: true, activity: readActivity() });
   if (action === 'drivemap') { const all = PropertiesService.getScriptProperties().getProperties(), map = {}; Object.keys(all).filter(k => k.indexOf('C_') === 0).forEach(k => { map[k.slice(2)] = all[k]; }); return reply({ ok: true, map: map }); } // old Drive ID -> copy, for scripts/relink-drive.cjs
   if (action === 'brief') return briefReply(String(e.parameter.id || ''));
   if (action !== 'reels') return reply({ ok: true, service: 'Tot Squad Creators Club uploads' });

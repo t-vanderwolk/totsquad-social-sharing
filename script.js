@@ -348,20 +348,43 @@ function renderDeadlines() {
   $('#deadlines').innerHTML = unique.length ? unique.map(d => `<div class="deadline-item"><strong>${escapeHTML(d.title)}</strong><time datetime="${d.date}">${dateLabel(d.date)} · ${escapeHTML(content.timeZone)}</time>${externalLink(d.url,'View details','text-button')}</div>`).join('') : '<p class="quiet">No deadlines have been announced. New dates show up here first.</p>';
 }
 
-function renderResources() {
-  $('#resource-links').innerHTML = content.resources.map(r => r.page
-    ? `<a class="linkrow" href="${escapeHTML(pageUrl(r.page))}">${escapeHTML(r.label)}</a>`
-    : r.action
-    ? `<button class="linkrow" data-action="${escapeHTML(r.action)}">${escapeHTML(r.label)}</button>`
-    : publicUrl(r.url) ? externalLink(r.url,r.label,'linkrow')
-    : `<div class="linkrow" aria-disabled="true"><span>${escapeHTML(r.label)}</span><small>${escapeHTML(r.unavailableLabel || 'Not configured')}</small></div>`).join('');
+const TOOL_ICON = {
+  palette:'<circle cx="12" cy="12" r="9"/><circle cx="8" cy="10" r="1.3" fill="currentColor"/><circle cx="12" cy="7.5" r="1.3" fill="currentColor"/><circle cx="16" cy="10" r="1.3" fill="currentColor"/><path d="M12 21c-1.5 0-2-1-2-2s1-2 2-2h2a3 3 0 0 0 3-3"/>',
+  spark:'<path d="M12 3c.7 5 2.3 7.3 7 9-4.7 1.7-6.3 4-7 9-.7-5-2.3-7.3-7-9 4.7-1.7 6.3-4 7-9z"/>',
+  check:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
+  upload:'<path d="M12 16V5M7.5 9.5L12 5l4.5 4.5"/><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/>',
+  film:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/>',
+  board:'<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="10" rx="1.5"/><rect x="16" y="4" width="5" height="13" rx="1.5"/>',
+  calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  draft:'<path d="M14 4l6 6-10 10H4v-6z"/><path d="M12 6l6 6"/>'
+};
+// Toolkit: everything opens inside the Creators Club (panels or pages in this site), never an outside link.
+function toolkitItems() {
+  return [
+    { label:'Brand & voice', action:'brand', desc:'Colors, fonts and how we sound', icon:'palette' },
+    { label:'Starter guide', action:'guide', desc:'Turn a spark into a Reel', icon:'spark' },
+    { label:'Before you share', action:'checklist', desc:'A quick final check', icon:'check' },
+    ...(UPLOAD_ON() ? [{ label:'Upload clips', action:'upload', dest:'collab', desc:'Send footage straight to the Squad’s Drive', icon:'upload' }] : []),
+    { label:'B-roll library', page:'b-roll.html', desc:'Short clips anyone can reuse', icon:'film' },
+    ...(content.resources || []).filter(r => r && r.label && (r.page || r.action)),
+    { label:'My drafts', action:'drafts', desc:'Pitches saved on this device', icon:'draft' }
+  ];
 }
+function toolTile(r) {
+  const inner = `<span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${TOOL_ICON[r.icon] || TOOL_ICON.spark}</svg></span><span class="tool-text"><strong>${escapeHTML(r.label)}</strong>${r.desc ? `<span>${escapeHTML(r.desc)}</span>` : ''}</span>`;
+  return r.page ? `<a class="tool" href="${escapeHTML(pageUrl(r.page))}">${inner}</a>`
+    : `<button type="button" class="tool" data-action="${escapeHTML(r.action)}"${r.dest ? ` data-dest="${escapeHTML(r.dest)}"` : ''}>${inner}</button>`;
+}
+// The three guides anyone can read on the landing page, no password.
+const PUBLIC_GUIDES = ['brand','guide','checklist'];
+function renderGuides() { $('#public-guides').innerHTML = toolkitItems().filter(r => PUBLIC_GUIDES.includes(r.action)).map(toolTile).join(''); }
+function renderResources() { $('#resource-links').innerHTML = toolkitItems().map(toolTile).join(''); }
 
 function renderContent() {
   document.body.classList.toggle('embed', EMBED);
   if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"], a[href="b-roll.html"], a[href="reels.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
   if (has('#welcome')) $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
-  const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources]];
+  const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources],['#public-guides',renderGuides]];
   for (const [sel,render] of sections) if (has(sel)) render();
   storageSet('totsquad-last-visit', today());
 }
@@ -848,7 +871,7 @@ function putFile(url, file, onProgress) {
     xhr.open('PUT', url);
     xhr.setRequestHeader('Content-Type', file.type);
     xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
-    xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('status '+xhr.status));
+    xhr.onload = () => { if (xhr.status < 200 || xhr.status >= 300) return reject(new Error('status '+xhr.status)); let id = ''; try { id = JSON.parse(xhr.responseText || '{}').id || ''; } catch {} resolve(id); };
     xhr.onerror = () => reject(new Error('network'));
     xhr.send(file);
   });
@@ -873,7 +896,7 @@ async function runUpload() {
       const start = await uploadRequest({ action:'start', name, dest: destVal === 'broll' ? 'broll' : 'collab', project: destVal === 'broll' ? '' : destVal, fileName:f.name, type:f.type, size:f.size, origin: location.origin });
       if (!start.ok) { state.textContent = start.error || 'Couldn’t start'; row.classList.add('failed'); if (start.locked) break; continue; }
       storageSet(UPLOAD_NAME_KEY, name); folderUrl = start.folderUrl || folderUrl;
-      await putFile(start.uploadUrl, f, p => { bar.value = p; state.textContent = Math.round(p*100)+'%'; });
+      uploadDone(await putFile(start.uploadUrl, f, p => { bar.value = p; state.textContent = Math.round(p*100)+'%'; }));
       bar.value = 1; state.textContent = 'Uploaded'; row.classList.add('done'); done++;
     } catch { state.textContent = 'Upload stopped. Check your connection and try again.'; row.classList.add('failed'); }
   }
@@ -1105,7 +1128,7 @@ async function sendCast(p) {
     const start = await uploadRequest({ action:'cast-start', name, contact: val('cs-contact'), project: p.title, agreed: true, fileName: file.name, type: file.type, size: file.size, origin: location.origin });
     if (!start.ok) throw new Error(start.error || 'Couldn’t start');
     state.textContent = 'Uploading';
-    await putFile(start.uploadUrl, file, f => { bar.value = f; state.textContent = Math.round(f*100)+'%'; });
+    uploadDone(await putFile(start.uploadUrl, file, f => { bar.value = f; state.textContent = Math.round(f*100)+'%'; }));
     storageSet(UPLOAD_NAME_KEY, name);
     body.innerHTML = `<div class="cast-done"><h3>Your video is in!</h3><p>Thanks, ${escapeHTML(name.split(/\s+/)[0])}. It’s safely in the Squad’s private Drive for ${escapeHTML(p.title)}. ${p.lead ? escapeHTML(p.lead)+' and the team will' : 'The team will'} reach out if they need anything.</p></div>`;
     status.textContent = '';
@@ -1116,9 +1139,47 @@ async function sendCast(p) {
   }
 }
 
+/* ---------- What's new (creators only): apps-script ?action=activity ---------- */
+const SEEN_KEY = 'totsquad-activity-seen';
+const ACTIVITY_ICON = { pitch:'💡', edit:'✏️', video:'🎬', broll:'🎞️', review:'📬', apply:'👋' };
+function uploadDone(fileId) { if (fileId && UPLOAD_ON()) uploadRequest({ action:'upload-done', fileId }).catch(() => {}); }
+function timeAgo(iso) {
+  const t = Date.parse(iso); if (!t) return '';
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'just now'; if (m < 60) return `${m}m ago`; const h = Math.round(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24); return d < 7 ? `${d}d ago` : shortDate(new Date(t).toISOString().slice(0,10));
+}
+let activityItems = [], activityAll = false;
+function renderActivity() {
+  if (!has('#activity-list')) return; const box = $('#activity-list');
+  const seen = Date.parse(storageGet(SEEN_KEY) || '') || 0;
+  const fresh = activityItems.filter(a => Date.parse(a.when) > seen).length;
+  const badge = has('#activity-new') ? $('#activity-new') : null; if (badge) { badge.textContent = fresh ? `${fresh} new` : ''; badge.hidden = !fresh; }
+  const navBadge = has('#nav-new') ? $('#nav-new') : null; if (navBadge) { navBadge.textContent = fresh || ''; navBadge.hidden = !fresh; }
+  const shown = activityAll ? activityItems : activityItems.slice(0, 6);
+  box.innerHTML = activityItems.length ? `<ul class="activity">${shown.map(a => {
+    const idea = /^idea:/.test(a.link) ? a.link.slice(5) : '';
+    const what = `${a.who ? `<strong>${escapeHTML(a.who)}</strong> ` : ''}${escapeHTML(a.what)}`;
+    const open = idea ? `<button type="button" class="text-button" data-action="idea" data-id="${escapeHTML(idea)}">Open</button>` : publicUrl(a.link) ? externalLink(a.link,'Watch','text-button') : '';
+    return `<li class="${Date.parse(a.when) > seen ? 'fresh' : ''}"><span class="activity-icon" aria-hidden="true">${ACTIVITY_ICON[a.type] || '•'}</span><span class="activity-text">${what}<time datetime="${escapeHTML(a.when)}">${timeAgo(a.when)}</time></span>${open}</li>`;
+  }).join('')}</ul>${activityItems.length > 6 ? `<button type="button" class="text-button" data-activity-more>${activityAll ? 'Show less' : `Show all ${activityItems.length}`}</button>` : ''}`
+    : '<p class="quiet">Nothing yet. New pitches, videos and idea updates will show up here.</p>';
+}
+async function loadActivity() {
+  if (!has('#activity-list') || !UPLOAD_ON() || !mentorKey() || typeof fetch !== 'function') return;
+  try {
+    const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=activity&key=${encodeURIComponent(mentorKey())}`); const data = await res.json();
+    if (!data.ok || !Array.isArray(data.activity)) return;
+    activityItems = data.activity; renderActivity();
+    // Mark as seen a few seconds after it's been shown, so the "new" dots stay for this visit.
+    if (activityItems[0]) setTimeout(() => storageSet(SEEN_KEY, activityItems[0].when), 4000);
+  } catch {}
+}
+
 /* ---------- Events ---------- */
 document.addEventListener('click', e => {
   const t = e.target;
+  if (t.closest('[data-activity-more]')) { activityAll = !activityAll; renderActivity(); return; }
   const cs = t.closest('[data-cast-step]');
   if (cs && castProject) { status.textContent = ''; openCast(castProject, +cs.dataset.castStep); return; }
   const more = t.closest('[data-bio]');
@@ -1167,7 +1228,7 @@ function passwordForm(form, input, note$, go, label) {
     go.disabled = true; go.textContent = 'Checking…'; note$.textContent = '';
     try {
       if (await mentorHash(key) !== content.mentorPasswordHash) { note$.textContent = 'That password doesn’t match. Check it with Sarah or Taylor.'; input.select(); }
-      else { mentorMemory = key; storageSet(MENTOR_KEY, key); unlock(); renderContent(); loadIdeas(); toast('You’re signed in.'); return; }
+      else { mentorMemory = key; storageSet(MENTOR_KEY, key); unlock(); renderContent(); loadIdeas(); loadActivity(); toast('You’re signed in.'); return; }
     } catch { note$.textContent = 'This browser couldn’t check the password. Try Chrome or Safari.'; }
     go.disabled = false; go.textContent = label;
   };
@@ -1202,8 +1263,8 @@ function showGate(note = '') {
 document.addEventListener('click', e => {
   if (!LANDING() || !LOCKED()) return;
   const a = e.target.closest && e.target.closest('[data-action],[data-reel]');
-  if (a && !['reel-share','apply','cast'].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
+  if (a && !['reel-share','apply','cast',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
 }, true);
-if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); }
+if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); }
 else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
 else showGate();

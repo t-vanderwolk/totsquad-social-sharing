@@ -38,6 +38,7 @@
       <li data-mentor><a href="ideas.html">Idea Bank</a></li>
       <li><a href="#made">Made by the Squad</a></li>
       <li><a href="#squad">Meet the Squad</a></li>
+      <li data-mentor><a href="#whats-new">What’s new <span class="nav-badge" id="nav-new" hidden></span></a></li>
       <li data-mentor><a href="#week">This week</a></li>
       <li data-public><a href="#squad-pitch">Pitch an idea</a></li>
       <li data-public><a href="#mentor-signin">Creator sign in</a></li>
@@ -66,6 +67,11 @@
 
   <noscript><p>Please enable JavaScript to view collaborations and the draft tools.</p></noscript>
 
+  <section class="section activity-section" id="whats-new" aria-labelledby="new-title" data-mentor>
+    <div class="section-head"><div><h2 id="new-title">What’s new <span class="chip new" id="activity-new" hidden></span></h2><p>Pitches, videos and idea updates from the Squad. Only creators can see this.</p></div></div>
+    <div id="activity-list"><p class="quiet">Loading…</p></div>
+  </section>
+
   <section class="section" id="casting" aria-labelledby="casting-title">
     <div class="section-head"><div><h2 id="casting-title">Casting now</h2><p>Reels that need creators. Pick one and film your part.</p></div></div>
     <div id="casting-projects"></div>
@@ -85,14 +91,15 @@
     </section>
     <section class="sidebox" aria-labelledby="toolkit-title">
       <h2 id="toolkit-title">Toolkit</h2>
-      <button class="linkrow" data-action="brand">Brand and voice</button>
-      <button class="linkrow" data-action="guide">Content starter guide</button>
-      <button class="linkrow" data-action="checklist">Before-you-share checklist</button>
-      <button class="linkrow" data-action="drafts">My saved drafts</button>
-      <a class="linkrow" href="b-roll.html">B-roll library (extra footage for Reels)</a>
-      <div id="resource-links"></div>
+      <p class="box-note">Everything you need to make a Squad Reel, right here.</p>
+      <div class="tool-grid" id="resource-links"></div>
     </section>
   </div>
+
+  <section class="section" id="guides" aria-labelledby="guides-title" data-public>
+    <div class="section-head"><div><h2 id="guides-title">Making content with the Squad</h2><p>Quick guides anyone can read before filming or posting.</p></div></div>
+    <div class="tool-grid guide-grid" id="public-guides"></div>
+  </section>
 
   <section class="section" id="made" aria-labelledby="gallery-title">
     <div class="section-head"><div><h2 id="gallery-title">Made by the Squad</h2><p>Reels the Squad has published. Watch, share and cheer each other on.</p></div></div>

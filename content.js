@@ -254,9 +254,10 @@ window.HUB_CONTENT = {
   ],
 
   // Only links that aren't already in Disco's sidebar.
+  // Extra Toolkit tiles (the built-in ones are Brand & voice, Starter guide, Before you share, Upload clips, B-roll library, My drafts).
+  // Pages in this site only, so everything stays in the app. desc: one short line. icon: board, calendar, film, palette, spark, check, upload, draft.
   resources: [
-    { label: 'Content submission folder', url: 'https://drive.google.com/drive/folders/1vDAjuYxPu2mreRracyxlm7Phbp0VKXka' },
-    { label: 'Reels tracker', page: 'reels.html?view=board' },
-    { label: 'Content calendar', page: 'reels.html?view=calendar' }
+    { label: 'Reels tracker', page: 'reels.html?view=board', desc: 'Every Reel, from casting to posted', icon: 'board' },
+    { label: 'Content calendar', page: 'reels.html?view=calendar', desc: 'What’s posting and when', icon: 'calendar' }
   ]
 };

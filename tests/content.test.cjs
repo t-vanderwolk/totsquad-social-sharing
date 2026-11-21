@@ -104,7 +104,7 @@ console.log('PASS: empty states, Idea Bank + filters, squad credits, weekly even
 t = boot();
 assert.match(t.run('submissionHelp()'), /data-action="upload" data-dest="collab"/); // upload form is on
 assert.match(t.run('submissionHelp()'), /Folder instructions in Disco/);
-assert.match(t.html('#resource-links'), /Content submission folder/);
+assert.match(t.html('#resource-links'), /data-action="upload" data-dest="collab"/); assert.doesNotMatch(t.html('#resource-links'), /drive\.google|target="_blank"/); // Toolkit stays in the app
 t = boot({ uploadEndpoint: '', submissionFolderUrl: 'javascript:alert(1)', submissionInstructionsUrl: 'javascript:alert(1)' });
 assert.equal(t.run('submissionHelp()'), '');
 
@@ -326,3 +326,12 @@ console.log('PASS: live ideas, pitched ideas, editing');
   assert.doesNotMatch(t7.html('#modal-body'), /drive\.google/);
 }
 console.log('PASS: open casting call');
+
+// What's new: creators-only feed, newest first, links ideas in the app.
+{
+  const t8 = boot();
+  t8.run(`activityItems = [{ when: new Date().toISOString(), type:'pitch', who:'Lora', what:'pitched “Car Seat Speed Round”', link:'idea:fund-or-no-fund' }, { when: '2026-11-01T10:00:00Z', type:'apply', who:'', what:'A new creator application came in', link:'' }]; renderActivity();`);
+  assert.match(t8.html('#activity-list'), /<strong>Lora<\/strong> pitched/); assert.match(t8.html('#activity-list'), /data-action="idea" data-id="fund-or-no-fund"/);
+  assert.match(t8.html('#activity-list'), /A new creator application came in/); assert.doesNotMatch(t8.html('#activity-list'), /drive\.google/);
+}
+console.log('PASS: what’s new feed');
