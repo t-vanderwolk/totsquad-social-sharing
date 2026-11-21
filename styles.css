@@ -566,3 +566,32 @@ html.unlocked [data-public]{display:none!important}
 .check.agree{margin-top:var(--s5);font-weight:500}
 .signin-apply{margin:var(--s3) 0 0;font-size:14px;color:var(--body)}
 .signin-apply .text-button{font-size:14px}
+
+/* Idea Bank: same pieces as the Reels board (segmented tabs, linen groups, compact white cards) */
+.series-switch{display:flex;flex-wrap:wrap;width:fit-content;max-width:100%;margin-bottom:var(--s5);border-radius:22px}
+.series-switch button{min-height:38px;padding:0 var(--s4);border:0;border-radius:100px;background:none;font-size:14px;font-weight:700;color:var(--plum-text);cursor:pointer}
+.series-switch button .count{font-weight:600;color:var(--muted);margin-left:2px}
+.series-switch button[aria-pressed=true]{background:var(--white);color:var(--plum-ink);box-shadow:0 1px 4px #3b213922}
+.series-switch button:focus-visible{outline:3px solid var(--plum);outline-offset:2px}
+.idea-groups{display:grid;gap:var(--s4)}
+.idea-groups>.empty-state{grid-column:1/-1}
+.idea-group{padding:var(--s4);border-radius:var(--r-md);background:var(--linen)}
+.idea-group h2{display:flex;align-items:center;gap:var(--s2);font:700 15px/1.3 var(--sans);color:var(--plum-ink);margin:0 0 var(--s3)}
+.idea-group h2 .dot{width:10px;height:10px;border-radius:50%;background:var(--tint-ink)}
+.idea-group h2 .count{margin-left:auto;font-size:13px;font-weight:600;color:var(--muted)}
+.idea-group>.quiet{font-size:13px;margin:calc(var(--s2) * -1) 0 var(--s3)}
+.idea-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--s2)}
+.idea-tile{display:flex;gap:var(--s3);align-items:flex-start;width:100%;padding:var(--s3);border:1px solid var(--line-soft);border-radius:var(--r-sm);background:var(--white);text-align:left;cursor:pointer;font:inherit;color:inherit}
+.idea-tile:hover{border-color:var(--plum)}.idea-tile:focus-visible{outline:3px solid var(--plum);outline-offset:2px}
+.idea-tile .idea-art{flex:0 0 64px;height:64px;margin:0;border-radius:10px;background:var(--tint);color:var(--tint-ink);display:grid;place-items:center;overflow:hidden}
+.idea-tile .idea-art svg{width:150%;height:150%;stroke-width:4}.idea-tile .idea-art img{width:100%;height:100%;object-fit:cover}
+.idea-body{display:flex;flex-direction:column;gap:3px;min-width:0}
+.idea-body strong{font-size:14px;line-height:1.3;color:var(--plum-ink)}
+.idea-sum{font-size:13px;line-height:1.45;color:var(--body);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.reel-card-meta .new{color:var(--plum);font-weight:700}
+.sidebox .button-row{margin-top:var(--s4)}
+@media (max-width:640px){
+  .series-switch{flex-wrap:nowrap;overflow-x:auto;width:auto;scrollbar-width:none;border-radius:100px}
+  .series-switch button{white-space:nowrap}
+  .idea-list{grid-template-columns:1fr}
+}

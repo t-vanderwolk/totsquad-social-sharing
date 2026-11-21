@@ -30,19 +30,29 @@
   <noscript><p>Please enable JavaScript to view the Idea Bank.</p></noscript>
 
   <section class="section" id="ideas" aria-label="All ideas">
-    <div class="filters" id="idea-filters" role="group" aria-label="Filter ideas by series"></div>
-    <div class="idea-grid" id="idea-grid" aria-live="polite"></div>
+    <div class="view-switch series-switch" id="idea-filters" role="group" aria-label="Filter ideas by series"></div>
+    <div class="idea-groups" id="idea-grid" aria-live="polite"></div>
   </section>
 
-  <section class="section" aria-labelledby="ways-title">
-    <div class="section-head"><div><h2 id="ways-title">How we work</h2><p>Small habits that keep ideas moving.</p></div></div>
-    <ul class="ways ways-grid" id="ways"></ul>
-  </section>
+  <div class="broll-guide">
+    <section class="sidebox" aria-labelledby="ways-title">
+      <h2 id="ways-title">How we work</h2>
+      <p class="box-note">Small habits that keep ideas moving.</p>
+      <ul class="ways" id="ways"></ul>
+    </section>
+    <section class="sidebox" aria-labelledby="pitch-title">
+      <h2 id="pitch-title">Got a “what if?”</h2>
+      <p class="box-note">It doesn’t need to be perfect. Pitch it and the Squad can help shape it.</p>
+      <ul class="rules">
+        <li><strong>Pitch it</strong><span>Give it a working title and a sentence or two. That’s enough.</span></li>
+        <li><strong>Taylor reviews it</strong><span>Good fits land here in the Idea Bank for anyone to build on.</span></li>
+        <li><strong>Someone leads it</strong><span>One lead per idea. When it’s ready, it moves to Casting on the Creators Club page.</span></li>
+      </ul>
+      <div class="button-row"><button class="button" data-action="pitch">Pitch an idea</button></div>
+    </section>
+  </div>
 
-  <section class="crew-band" aria-labelledby="crew-title">
-    <div><h2 id="crew-title">Got a “what if?”</h2><p>It doesn’t need to be perfect. Pitch it and the Squad can help shape it.</p></div>
-    <div class="button-row"><button class="button light" data-action="pitch">Pitch an idea</button></div>
-  </section>
+  <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
 
   <footer><span>Tot Squad Creators Club</span><span>Drafts stay on this device until you share them in Disco.</span></footer>
 </main>

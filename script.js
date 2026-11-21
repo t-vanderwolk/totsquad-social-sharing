@@ -184,14 +184,12 @@ const SERIES_ART = {'game-shows':['buzzer','trophy','mic'],'reels':['phone','cla
 const artKey = i => { const hit = ART_RULES.find(([re]) => re.test(i.title||'')) || ART_RULES.find(([re]) => re.test(i.summary||'')); if (hit) return hit[1]; const pool = SERIES_ART[i.series] || SERIES_ART.hub; const n = [...String(i.id)].reduce((a,c) => a + c.charCodeAt(0), 0); return pool[n % pool.length]; };
 const ideaArt = i => { const img = imageUrl(i.image); return `<div class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(SPARKS+ART[artKey(i)])}</div>`; };
 function ideaCard(i) {
-  const s = seriesById(i.series); const stage = stageKey(i.stage);
-  return `<article class="idea-card tint-${tintFor(i)}">${ideaArt(i)}
-    <div class="idea-top"><span class="chip series">${escapeHTML(s ? s.label : 'Idea')}</span>${isNew(i.date) ? '<span class="chip new">New</span>' : ''}</div>
-    <h3>${escapeHTML(i.title)}</h3>${i.titleNote ? `<p class="idea-note">${escapeHTML(i.titleNote)}</p>` : ''}
-    <p>${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</p>
-    <div class="idea-meta"><span class="stage stage-${stage}">${STAGES[stage]}</span>${byline(i) ? `<span>${escapeHTML(byline(i))}</span>` : ''}</div>
-    <button class="text-button" data-action="idea" data-id="${escapeHTML(i.id)}">Open idea</button>
-  </article>`;
+  const img = imageUrl(i.image);
+  const art = `<span class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(ART[artKey(i)])}</span>`;
+  return `<button type="button" class="idea-tile tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}">${art}
+    <span class="idea-body"><strong>${escapeHTML(i.title)}</strong><span class="idea-sum">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</span>
+    <span class="reel-card-meta">${[isNew(i.date) ? '<span class="new">New</span>' : '', i.lead ? `Led by ${escapeHTML(i.lead)}` : '', byline(i) ? escapeHTML(byline(i)) : ''].filter(Boolean).join(' · ')}</span></span>
+  </button>`;
 }
 function renderIdeas() {
   const all = ideas();
@@ -200,9 +198,13 @@ function renderIdeas() {
   $('#idea-summary').textContent = all.length ? `${all.length} ideas from ${people.size} specialists.` : '';
   if (ideaFilter !== 'all' && !count(ideaFilter)) ideaFilter = 'all';
   const filters = [{id:'all',label:'All'}, ...SERIES.filter(s => count(s.id))];
-  $('#idea-filters').innerHTML = all.length ? filters.map(f => `<button type="button" class="filter" data-filter="${escapeHTML(f.id)}" aria-pressed="${ideaFilter === f.id}">${escapeHTML(f.label)} <span class="count">${count(f.id)}</span></button>`).join('') : '';
-  const shown = ideaFilter === 'all' ? all : all.filter(i => i.series === ideaFilter);
-  $('#idea-grid').innerHTML = shown.length ? shown.map(ideaCard).join('') : emptyState('The Idea Bank is open.','Pitch an idea and it can appear here once the team has reviewed it.','<button class="button" data-action="pitch">Pitch an idea</button>', ICON.bulb);
+  $('#idea-filters').innerHTML = all.length ? filters.map(f => `<button type="button" data-filter="${escapeHTML(f.id)}" aria-pressed="${ideaFilter === f.id}">${escapeHTML(f.label)} <span class="count">${count(f.id)}</span></button>`).join('') : '';
+  const groups = (ideaFilter === 'all' ? SERIES : SERIES.filter(s => s.id === ideaFilter)).map(s => ({ s, list: all.filter(i => i.series === s.id) })).filter(g => g.list.length);
+  const other = ideaFilter === 'all' ? all.filter(i => !seriesById(i.series)) : [];
+  if (other.length) groups.push({ s: { id: 'other', label: 'More ideas' }, list: other });
+  $('#idea-grid').innerHTML = groups.length
+    ? groups.map(({s, list}) => `<section class="idea-group tint-${tintFor(list[0])}" aria-label="${escapeHTML(s.label)}"><h2><span class="dot" aria-hidden="true"></span>${escapeHTML(s.label)}<span class="count">${list.length}</span></h2>${s.description ? `<p class="quiet">${escapeHTML(s.description)}</p>` : ''}<div class="idea-list">${list.map(ideaCard).join('')}</div></section>`).join('')
+    : emptyState('The Idea Bank is open.','Pitch an idea and it can appear here once the team has reviewed it.','<button class="button" data-action="pitch">Pitch an idea</button>', ICON.bulb);
 }
 
 function productionItems() {
