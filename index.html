@@ -5,7 +5,6 @@
 <title>Creators Club · Tot Squad</title>
 <meta name="description" content="Tot Squad Creators Club: pitch ideas, join Reels and share what the Squad makes.">
 <link rel="stylesheet" href="styles.css">
-<style>html:not(.unlocked) body>*:not(#gate){visibility:hidden}</style>
 <script>try{if(localStorage.getItem('totsquad-mentor-key'))document.documentElement.classList.add('unlocked')}catch(e){}</script>
 </head>
 <body>
@@ -23,7 +22,8 @@
     <div class="hero-copy">
       <h1 id="title">Tot Squad Creators Club</h1>
       <p>Where specialists turn what they know into Reels families love. Pitch an idea, join a shoot, and share what the Squad makes.</p>
-      <div class="button-row"><button class="button" data-action="pitch">Pitch an idea</button><a class="button secondary" id="hero-secondary" href="ideas.html">Browse the Idea Bank</a></div>
+      <div class="button-row" data-mentor><button class="button" data-action="pitch">Pitch an idea</button><a class="button secondary" id="hero-secondary" href="ideas.html">Browse the Idea Bank</a></div>
+      <div class="button-row" data-public><a class="button" href="#mentor-signin">Creator sign in</a><a class="button secondary" href="#made">Watch our Reels</a></div>
     </div>
     <div class="hero-reels" id="hero-reels"></div>
   </section>
@@ -31,14 +31,24 @@
   <nav class="section-nav" aria-label="On this page">
     <ul>
       <li><a href="#casting">Casting</a></li>
-      <li><a href="ideas.html">Idea Bank</a></li>
+      <li data-mentor><a href="ideas.html">Idea Bank</a></li>
       <li><a href="#made">Made by the Squad</a></li>
       <li><a href="#squad">Meet the Squad</a></li>
-      <li><a href="#week">This week</a></li>
+      <li data-mentor><a href="#week">This week</a></li>
+      <li data-public><a href="#mentor-signin">Creator sign in</a></li>
     </ul>
   </nav>
 
-  <section class="path" aria-labelledby="path-title">
+  <section class="mentor-signin" id="mentor-signin" aria-labelledby="signin-title" data-public>
+    <div><h2 id="signin-title">Tot Squad creator?</h2><p>Sign in to pitch ideas, join a Reel, upload clips and use the toolkit.</p></div>
+    <form id="signin-form" novalidate>
+      <label for="signin-key">Creator password</label>
+      <div class="signin-row"><input id="signin-key" type="password" autocomplete="current-password" required><button class="button" type="submit" id="signin-go">Sign in</button></div>
+      <p class="gate-note" id="signin-note" role="alert"></p>
+    </form>
+  </section>
+
+  <section class="path" aria-labelledby="path-title" data-mentor>
     <h2 id="path-title">How a Reel comes together</h2>
     <ol>
       <li><button type="button" data-action="pitch"><strong>Pitch an idea</strong><span>Share a concept. The team adds it to the Idea Bank.</span></button></li>
@@ -55,12 +65,12 @@
     <div id="casting-projects"></div>
   </section>
 
-  <section class="section" id="production" aria-labelledby="production-title" hidden>
+  <section class="section" id="production" aria-labelledby="production-title" hidden data-mentor>
     <div class="section-head"><div><h2 id="production-title">In production</h2><p>From planning to filming to editing.</p></div></div>
     <div id="production-board"></div>
   </section>
 
-  <div class="info-row">
+  <div class="info-row" data-mentor>
     <section class="sidebox" id="week" aria-labelledby="week-title">
       <h2 id="week-title">This week</h2>
       <div id="week-events"></div>
@@ -88,7 +98,7 @@
     <div class="squad-grid" id="squad-grid"></div>
   </section>
 
-  <section class="crew-band" aria-labelledby="crew-title">
+  <section class="crew-band" aria-labelledby="crew-title" data-mentor>
     <div><h2 id="crew-title">There’s a place for your voice.</h2><p>You don’t need a perfect pitch or a polished video. Start with something you care about.</p></div>
     <div class="button-row"><button class="button light" data-action="pitch">Pitch an idea</button><a class="button outline-light" href="ideas.html">Browse the Idea Bank</a></div>
   </section>

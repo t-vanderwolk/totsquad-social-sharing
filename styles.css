@@ -528,3 +528,19 @@ body.embed .gate-card{box-shadow:none;border:1px solid var(--line-soft)}
 .gate-card label{margin:var(--s3) 0 0}
 .gate-card .button{margin-top:var(--s3);justify-self:start}
 .gate-note{min-height:1.4em;font-size:14px;font-weight:600;color:#a3485a;margin:0}
+
+/* Landing page: open to everyone; mentor-only parts appear after sign-in */
+html:not(.unlocked) [data-mentor]{display:none!important}
+html.unlocked [data-public]{display:none!important}
+.mentor-signin{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--s6);align-items:center;margin:var(--s5) 0;padding:var(--s8) var(--s10);border:1px solid var(--line-soft);border-radius:28px;background:var(--white)}
+.mentor-signin h2{font:800 30px/1.05 var(--serif);letter-spacing:-.02em;color:var(--plum-ink);margin:0 0 var(--s2)}
+.mentor-signin p{margin:0;color:var(--body)}
+.mentor-signin label{display:block;margin:0 0 var(--s2)}
+.signin-row{display:flex;gap:var(--s3)}
+.signin-row input{flex:1;min-width:0}
+.mentor-signin .gate-note{margin-top:var(--s2)}
+.mentor-signin.nudge{animation:nudge .4s ease}
+@keyframes nudge{0%,100%{transform:none}30%{transform:translateX(-6px)}60%{transform:translateX(6px)}}
+@media (prefers-reduced-motion:reduce){.mentor-signin.nudge{animation:none}}
+@media (max-width:720px){.mentor-signin{grid-template-columns:1fr;padding:var(--s6)}.signin-row{flex-direction:column}.signin-row .button{align-self:start}}
+.gate-back{font-size:14px;font-weight:700;color:var(--plum);justify-self:start}

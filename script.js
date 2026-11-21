@@ -822,7 +822,7 @@ function openUpload(d={}) {
 }
 async function uploadRequest(payload) {
   const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ ...payload, key: mentorKey() }) });
-  const data = await res.json(); if (data && data.locked) data.error = 'The mentor password on this device is out of date. Ask Taylor for the new one.';
+  const data = await res.json(); if (data && data.locked) data.error = 'The creator password on this device is out of date. Ask Taylor for the new one.';
   return data;
 }
 function putFile(url, file, onProgress) {
@@ -926,15 +926,38 @@ $('#modal .close').onclick = () => modal.close();
 modal.addEventListener('cancel', stash);
 modal.addEventListener('close', () => { stash(); opener?.focus(); });
 modal.addEventListener('click', e => { if (e.target === modal) { const r = modal.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) modal.close(); } });
-/* ---------- Mentor password screen ----------
-   The page stays hidden until a mentor enters the password (checked against mentorPasswordHash in content.js).
-   It's remembered on the device and sent with pitches, which the script checks against MENTOR_PASSCODE. */
+/* ---------- Mentor password ----------
+   The landing page is open to everyone; its mentor-only parts ([data-mentor]) appear after sign-in.
+   The other pages stay behind the password screen. The password is checked against mentorPasswordHash
+   in content.js, remembered on the device, and sent with pitches (checked against MENTOR_PASSCODE). */
 const MENTOR_KEY = 'totsquad-mentor-key';
 let mentorMemory = '';
 function mentorKey() { return mentorMemory || storageGet(MENTOR_KEY) || ''; }
 const GATE_ON = () => /^[a-f0-9]{64}$/.test(content.mentorPasswordHash || '');
+const LANDING = () => !!(document.getElementById && document.getElementById('mentor-signin'));
+const LOCKED = () => GATE_ON() && !mentorKey();
 async function mentorHash(key) { const bytes = new TextEncoder().encode(String(key).trim().toLowerCase()); const buf = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
 function unlock() { document.documentElement?.classList.add('unlocked'); document.getElementById?.('gate')?.remove(); }
+// Wires a password form. Returns nothing; on a match it saves the key, unlocks and re-renders.
+function passwordForm(form, input, note$, go, label) {
+  form.onsubmit = async ev => {
+    ev.preventDefault();
+    const key = input.value.trim(); if (!key) { note$.textContent = 'Enter the creator password.'; return; }
+    go.disabled = true; go.textContent = 'Checking…'; note$.textContent = '';
+    try {
+      if (await mentorHash(key) !== content.mentorPasswordHash) { note$.textContent = 'That password doesn’t match. Check it with Taylor.'; input.select(); }
+      else { mentorMemory = key; storageSet(MENTOR_KEY, key); unlock(); renderContent(); toast('You’re signed in.'); return; }
+    } catch { note$.textContent = 'This browser couldn’t check the password. Try Chrome or Safari.'; }
+    go.disabled = false; go.textContent = label;
+  };
+}
+function askSignin(note = 'Sign in as a creator to do that.') {
+  const box = document.getElementById('mentor-signin'); if (!box) return;
+  document.getElementById('signin-note').textContent = note;
+  box.scrollIntoView?.({ block: 'center', behavior: matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  box.classList.remove('nudge'); void box.offsetWidth; box.classList.add('nudge');
+  document.getElementById('signin-key')?.focus({ preventScroll: true });
+}
 function showGate(note = '') {
   if (!document.body || !document.body.append || document.getElementById('gate')) return;
   document.body.classList.toggle('embed', EMBED);
@@ -942,25 +965,24 @@ function showGate(note = '') {
   gate.innerHTML = `<form class="gate-card" id="gate-form" novalidate>
     <img class="gate-logo" src="https://cdn.prod.website-files.com/5f4a9ffd91010361e130f380/68407ea76a2d0b8be6420f9e_Tot-Squad-Logo-NEW-REG.png" alt="Tot Squad">
     <h1 id="gate-title">Creators Club</h1>
-    <p>For Tot Squad mentors. Enter the mentor password to come in.</p>
-    <label for="gate-key">Mentor password</label>
+    <p>This page is for Tot Squad creators. Enter the creator password to come in.</p>
+    <label for="gate-key">Creator password</label>
     <input id="gate-key" type="password" autocomplete="current-password" required>
     <button class="button" type="submit" id="gate-go">Come in</button>
     <p class="gate-note" id="gate-note" role="alert">${escapeHTML(note)}</p>
+    <a class="gate-back" href="${escapeHTML(pageUrl('index.html'))}">Back to the Creators Club</a>
   </form>`;
   document.body.append(gate);
-  const input = gate.querySelector('#gate-key'), note$ = gate.querySelector('#gate-note'), go = gate.querySelector('#gate-go');
+  const input = gate.querySelector('#gate-key');
   setTimeout(() => input.focus(), 0);
-  gate.querySelector('#gate-form').onsubmit = async ev => {
-    ev.preventDefault();
-    const key = input.value.trim(); if (!key) { note$.textContent = 'Enter the mentor password.'; return; }
-    go.disabled = true; go.textContent = 'Checking…'; note$.textContent = '';
-    try {
-      if (await mentorHash(key) !== content.mentorPasswordHash) { note$.textContent = 'That password doesn’t match. Check it with Taylor.'; input.select(); }
-      else { mentorMemory = key; storageSet(MENTOR_KEY, key); unlock(); renderContent(); return; }
-    } catch { note$.textContent = 'This browser couldn’t check the password. Try Chrome or Safari.'; }
-    go.disabled = false; go.textContent = 'Come in';
-  };
+  passwordForm(gate.querySelector('#gate-form'), input, gate.querySelector('#gate-note'), gate.querySelector('#gate-go'), 'Come in');
 }
+// Signed-out visitors on the landing page: actions other than sharing a published Reel ask for the password.
+document.addEventListener('click', e => {
+  if (!LANDING() || !LOCKED()) return;
+  const a = e.target.closest && e.target.closest('[data-action],[data-reel]');
+  if (a && a.dataset.action !== 'reel-share') { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
+}, true);
 if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); }
+else if (LANDING()) { renderContent(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
 else showGate();
