@@ -39,6 +39,7 @@ function doPost(e) {
     if (req.action === 'upload-done') return uploadDone(req); // logs finished uploads for What's new
     if (!isMentor(req.key)) return locked(); // everything else needs the creator password
     if (req.action === 'idea-save') return saveIdea(req);
+    if (req.action === 'idea-build') return buildOnIdea(req);
     if (req.action === 'ideas-seed') return seedIdeas(req);
     if (req.action === 'check') return reply({ ok: true });
     if (req.action !== 'start') return reply({ ok: false, error: 'Unknown request.' });
@@ -167,7 +168,7 @@ function ideasSheet() {
 }
 function cleanIdea(raw, base) {
   const i = Object.assign({}, base || {}), r = raw || {};
-  ['title','series','stage','lead','summary','titleNote','date','status','basedOn'].forEach(k => { if (k in r) i[k] = text(r[k]).slice(0, 1500); });
+  ['title','series','stage','lead','summary','concept','titleNote','date','status','basedOn'].forEach(k => { if (k in r) i[k] = text(r[k]).slice(0, 1500); });
   IDEA_LISTS.forEach(k => { if (k in r) i[k] = (Array.isArray(r[k]) ? r[k] : String(r[k] || '').split('\n')).map(x => text(x).slice(0, 500)).filter(Boolean).slice(0, 30); });
   if ('credit' in r) i.credit = (Array.isArray(r.credit) ? r.credit : String(r.credit || '').split(',')).map(clean).filter(Boolean).slice(0, 10);
   if (['idea','casting','filming','editing','published'].indexOf(i.stage) < 0) i.stage = 'idea';
@@ -179,7 +180,7 @@ function readIdeas() {
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r]; if (!row[col('id')]) continue;
     let i = {}; try { i = JSON.parse(row[col('json')] || '{}'); } catch (e) {}
-    ['id','title','series','stage','lead','summary','status'].forEach(k => { i[k] = String(row[col(k)] || ''); });
+    ['id','title','series','stage','lead','summary','status'].forEach(k => { i[k] = String(row[col(k)] || '').trim(); });
     i.credit = String(row[col('credit')] || '').split(',').map(s => s.trim()).filter(Boolean);
     const d = row[col('date')]; i.date = d instanceof Date ? Utilities.formatDate(d, 'UTC', 'yyyy-MM-dd') : String(d || '');
     out.push(i);
@@ -198,6 +199,26 @@ function saveIdea(req) {
     if (at > 0) sheet.getRange(at + 1, 1, 1, IDEA_COLUMNS.length).setValues([ideaRow(idea, by)]);
     else sheet.appendRow(ideaRow(idea, by));
     logActivity('edit', by, 'updated “' + idea.title + '”', 'idea:' + idea.id);
+    return reply({ ok: true, idea: idea });
+  } finally { lock.releaseLock(); }
+}
+/* "Build on this idea": any creator adds notes on top of the original concept (the concept itself is never changed),
+   and can take the lead. A second person to take the lead becomes a co-lead. */
+function buildOnIdea(req) {
+  const by = clean(req.name); if (!by) return reply({ ok: false, error: 'Choose your name first.' });
+  const note = text(req.note).slice(0, 1500); if (!note) return reply({ ok: false, error: 'Add your notes first.' });
+  const id = String(req.id || '').replace(/[^\w-]/g, '').slice(0, 80);
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sheet = ideasSheet(), ids = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).getValues().map(r => String(r[0]));
+    const at = id ? ids.indexOf(id) : -1; if (at < 1) return reply({ ok: false, error: 'That idea wasn’t found. Refresh the page and try again.' });
+    const idea = readIdeas().find(x => x.id === id);
+    const leads = String(idea.lead || '').split(/\s*&\s*/).map(s => s.trim()).filter(Boolean);
+    const lead = !!req.lead && leads.indexOf(by) < 0;
+    if (lead) { leads.push(by); idea.lead = leads.join(' & '); }
+    idea.buildOns = (Array.isArray(idea.buildOns) ? idea.buildOns : []).concat([{ name: by, note: note, date: new Date().toISOString(), lead: lead }]).slice(-50);
+    sheet.getRange(at + 1, 1, 1, IDEA_COLUMNS.length).setValues([ideaRow(idea, by)]);
+    logActivity('build', by, (lead ? (leads.length > 1 ? 'is co-leading “' : 'is leading “') : 'built on “') + idea.title + '”', 'idea:' + id);
     return reply({ ok: true, idea: idea });
   } finally { lock.releaseLock(); }
 }

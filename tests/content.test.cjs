@@ -335,3 +335,17 @@ console.log('PASS: open casting call');
   assert.match(t8.html('#activity-list'), /A new creator application came in/); assert.doesNotMatch(t8.html('#activity-list'), /drive\.google/);
 }
 console.log('PASS: what’s new feed');
+
+// Idea Bank: expanded concepts, example Reels, Squad build-ons and leads.
+{
+  const t9 = boot();
+  t9.run(`liveIdeas = [{ id:'gotta-have', title:'Gotta Have', series:'reels', stage:'idea', summary:'Sort baby gear into three friendly tiers.', credit:[], date:'', lead:'Kristin',
+    buildOns:[{ name:'Kristin', note:'Start with car seats.', date:'2026-11-20T18:00:00Z', lead:true }, { name:'Lora', note:'Add a lightning round.', date:'2026-11-21T18:00:00Z', lead:true }] }]; renderIdeas();`);
+  assert.match(t9.html('#idea-grid'), /2 build-ons/);
+  t9.run("openPanel('idea',{id:'gotta-have'})"); const d = t9.html('#modal-body');
+  assert.match(d, /Original concept/); assert.match(d, /Could Survive Without/); // expanded concept from content.js
+  assert.match(d, /class="example-reel" href="https:\/\/www\.instagram\.com\/reel\/DeuxzYWTQhv\/"/);
+  assert.ok(d.indexOf('Add a lightning round') < d.indexOf('Start with car seats'), 'newest build-on first');
+  assert.match(d, /id="build-form"/); assert.match(d, /Co-lead this idea with Kristin/);
+}
+console.log('PASS: idea concepts, examples, build-ons');

@@ -82,7 +82,14 @@ const openProjects = () => content.activeCollaborations.filter(p => p.status ===
 const publishedProjects = () => allProjects.filter(isPublished);
 /* Ideas come live from the Creators Club ideas sheet once a creator is signed in (loadIdeas); content.js is the fallback. */
 let liveIdeas = null;
-const ideas = () => liveIdeas || content.ideas || [];
+// Expanded concepts from content.js fill in whatever an idea doesn't have yet (edits in the app always win).
+const withConcept = i => { const x = (content.ideaConcepts || {})[i.id]; if (!x) return i; const o = {...i};
+  if (!o.concept && x.concept) o.concept = x.concept;
+  if (!o.example && x.example) o.example = x.example;
+  ['howItWorks','guidance'].forEach(k => { if (!(Array.isArray(o[k]) && o[k].length) && Array.isArray(x[k])) o[k] = x[k]; });
+  return o; };
+const ideas = () => (liveIdeas || content.ideas || []).map(withConcept);
+const leadsOf = i => String(i.lead || '').split(/\s*&\s*/).map(s => s.trim()).filter(Boolean);
 const seriesById = id => SERIES.find(s => s.id === id);
 const tintOf = color => TINTS.includes(color) ? color : 'linen';
 const tintFor = idea => tintOf(seriesById(idea.series)?.color);
@@ -145,7 +152,7 @@ const chatLink = (url, cls = 'text-button') => externalLink(publicUrl(url) || co
 function renderCasting() {
   const casting = openProjects();
   $('#casting-projects').innerHTML = casting.length ? casting.map(p => `<article class="casting">
-    <div class="casting-art">${imageUrl(p.thumbnail) ? `<img src="${escapeHTML(imageUrl(p.thumbnail))}" alt="">` : ICON.people}</div>
+    ${publicUrl(p.exampleReelUrl) && imageUrl(p.thumbnail) ? `<a class="casting-art" href="${escapeHTML(publicUrl(p.exampleReelUrl))}" target="_blank" rel="noopener noreferrer" aria-label="Watch the example Reel on Instagram"><img src="${escapeHTML(imageUrl(p.thumbnail))}" alt=""><span class="play">${ICON.play}</span></a>` : `<div class="casting-art">${imageUrl(p.thumbnail) ? `<img src="${escapeHTML(imageUrl(p.thumbnail))}" alt="">` : ICON.people}</div>`}
     <div class="casting-copy"><span class="chip casting-chip">Casting now</span><h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
@@ -190,7 +197,7 @@ function ideaCard(i) {
   const art = `<span class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(ART[artKey(i)])}</span>`;
   return `<button type="button" class="idea-tile tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}">${art}
     <span class="idea-body"><strong>${escapeHTML(i.title)}</strong><span class="idea-sum">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</span>
-    <span class="reel-card-meta">${[i.status === 'Pitched' ? '<span class="new">Just pitched</span>' : isNew(i.date) ? '<span class="new">New</span>' : '', i.lead ? `Led by ${escapeHTML(i.lead)}` : '', byline(i) ? escapeHTML(byline(i)) : ''].filter(Boolean).join(' · ')}</span></span>
+    <span class="reel-card-meta">${[i.status === 'Pitched' ? '<span class="new">Just pitched</span>' : isNew(i.date) ? '<span class="new">New</span>' : '', i.lead ? `Led by ${escapeHTML(i.lead)}` : '', (i.buildOns || []).length ? `💬 ${(i.buildOns || []).length} ${(i.buildOns || []).length === 1 ? 'build-on' : 'build-ons'}` : '', byline(i) ? escapeHTML(byline(i)) : ''].filter(Boolean).join(' · ')}</span></span>
   </button>`;
 }
 function renderIdeas() {
@@ -230,7 +237,9 @@ function renderProduction() {
 
 function poster(p,label) {
   const src = imageUrl(p.thumbnail);
-  return `<div class="poster">${src ? `<img src="${escapeHTML(src)}" alt="" loading="lazy">` : `<span class="play">${ICON.play}</span>`}<span class="chip">${escapeHTML(label)}</span></div>`;
+  const url = isPublished(p) ? publicUrl(p.publishedReelUrl) : '';
+  const inner = `${src ? `<img src="${escapeHTML(src)}" alt="" loading="lazy">` : ''}${url || !src ? `<span class="play">${ICON.play}</span>` : ''}<span class="chip">${escapeHTML(label)}</span>`;
+  return url ? `<a class="poster" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHTML('Watch '+p.title+' on Instagram')}">${inner}</a>` : `<div class="poster">${inner}</div>`;
 }
 function renderGallery() {
   const gallery = content.completedCollaborations;
@@ -534,6 +543,13 @@ function openTracker() {
   showModal();
 }
 
+// A published Squad Reel that shows the idea in action, linked straight to its Instagram video.
+function exampleReel(i) {
+  const p = allProjects.find(x => x.id === i.example); const url = p && isPublished(p) ? publicUrl(p.publishedReelUrl) : '';
+  if (!url) return '';
+  const src = imageUrl(p.thumbnail);
+  return `<a class="example-reel" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${src ? `<img src="${escapeHTML(src)}" alt="" loading="lazy">` : ''}<span><small>See a Squad example</small><strong>${escapeHTML(p.title)}</strong><em>Watch on Instagram ↗</em></span></a>`;
+}
 function openIdea(id) {
   const i = ideas().find(x => x.id === id); if (!i) return;
   const s = seriesById(i.series); const stage = stageKey(i.stage);
@@ -542,10 +558,17 @@ function openIdea(id) {
   const variations = (i.variations || []).map(v => `<li><strong>${escapeHTML(v.title)}</strong>${v.text ? ' — '+escapeHTML(v.text) : ''}${byline(v) ? ` <span class="quiet">(${escapeHTML(byline(v))})</span>` : ''}</li>`).join('');
   const project = allProjects.find(p => p.ideaId === i.id);
   title.textContent = i.title;
+  const leads = leadsOf(i), builds = (i.buildOns || []).slice().reverse();
+  const names = squadNames(), savedName = storageGet(UPLOAD_NAME_KEY) || '';
   body.innerHTML = `<div class="detail tint-${tintFor(i)}">
-    <div class="detail-meta"><span class="chip series">${escapeHTML(s ? s.label : 'Idea')}</span><span class="stage stage-${stage}">${STAGES[stage]}</span>${i.status === 'Pitched' ? '<span class="chip new">Just pitched</span>' : ''}${byline(i) ? `<span>${escapeHTML(byline(i))}</span>` : ''}</div>
+    <div class="detail-meta"><span class="chip series">${escapeHTML(s ? s.label : 'Idea')}</span><span class="stage stage-${stage}">${STAGES[stage]}</span>${i.status === 'Pitched' ? '<span class="chip new">Just pitched</span>' : ''}${leads.length ? `<span class="chip lead">${leads.length > 1 ? 'Co-led' : 'Led'} by ${escapeHTML(leads.join(' & '))}</span>` : ''}</div>
     ${i.titleNote ? `<p class="idea-note">${escapeHTML(i.titleNote)}</p>` : ''}
-    <p class="lede">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</p>
+    <section class="concept-base" aria-label="Original concept">
+      <p class="concept-label">Original concept${byline(i) ? ` · ${escapeHTML(byline(i))}` : ''}</p>
+      <p class="lede">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</p>
+      ${i.concept && i.concept !== i.summary ? `<p class="concept-text">${escapeHTML(i.concept)}</p>` : ''}
+      ${exampleReel(i)}
+    </section>
     ${has(i.howItWorks) ? '<h3>How it works</h3>'+list(i.howItWorks,'ol') : ''}
     ${has(i.guidance) ? `<h3>Before you film</h3><div class="guidance">${i.guidance.map(escapeHTML).join('<br>')}</div>` : ''}
     ${variations ? `<h3>Variations</h3><ul>${variations}</ul>` : ''}
@@ -553,9 +576,43 @@ function openIdea(id) {
     ${has(i.altNames) ? `<h3>Other names considered</h3><p>${escapeHTML(i.altNames.join(' · '))}</p>` : ''}
     ${has(i.questions) ? `<h3>Question bank</h3>${i.questions.map(q => `<div class="question"><span>${escapeHTML(q)}</span><button type="button" class="text-button" data-copy="${escapeHTML(q)}">Copy</button></div>`).join('')}` : ''}
     ${project ? `<h3>On this page</h3><p>${escapeHTML(project.title)} is in Made by the Squad${isPublished(project) ? ' and has a published Reel' : '; details are coming'}.</p>` : ''}
-    <p class="quiet">${i.lead ? 'Lead: '+escapeHTML(i.lead) : 'No lead yet. One lead per idea keeps things moving.'}</p>
-    <div class="button-row"><button class="button" data-action="pitch" data-idea="${escapeHTML(i.id)}">${i.lead ? 'Build on this idea' : 'Build on it or lead it'}</button>${liveIdeas ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
+    <section class="buildons" aria-labelledby="bo-title">
+      <h3 id="bo-title">Built on by the Squad${builds.length ? ` <span class="quiet">${builds.length}</span>` : ''}</h3>
+      ${builds.length ? builds.map(n => `<div class="buildon"><div class="buildon-head"><strong>${escapeHTML(n.name)}</strong>${n.lead ? '<span class="chip lead">Took the lead</span>' : ''}<time datetime="${escapeHTML(n.date || '')}">${escapeHTML(timeAgo(n.date))}</time></div><p>${escapeHTML(n.note)}</p></div>`).join('')
+        : `<p class="quiet">No notes yet. ${leads.length ? 'Add yours below.' : 'Be the first to build on it, and take the lead if you’d like.'}</p>`}
+    </section>
+    ${liveIdeas ? `<form id="build-form" class="build-form" novalidate>
+      <h3>Build on this idea</h3>
+      <p class="quiet">Add your take: a twist, a hook, a shot idea, who you’d film with. The original concept stays as it is.</p>
+      <label for="bo-name">Your name</label>
+      <select id="bo-name" required><option value="">Choose your name</option>${names.map(n => `<option${n === savedName ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
+      <label for="bo-note">Your notes</label>
+      <textarea id="bo-note" maxlength="1500" required placeholder="What would you add or change?"></textarea>
+      <label class="check" id="bo-lead-row"><input type="checkbox" id="bo-lead"${leads.length ? '' : ' checked'}><span>${leads.length ? `Co-lead this idea with ${escapeHTML(leads.join(' & '))}` : 'Make me the lead on this idea'}</span></label>
+      <div class="form-actions"><button class="button" type="submit" id="bo-go">Add my notes</button></div>
+    </form>` : '<p class="quiet">Building on ideas works when the Idea Bank is connected. Try again in a moment.</p>'}
+    <div class="button-row">${liveIdeas ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
   </div>`;
+  const form = body.querySelector ? body.querySelector('#build-form') : null; // (has() is shadowed in this function)
+  if (form) {
+    const nameSel = $('#bo-name'), leadRow = $('#bo-lead-row');
+    const syncLead = () => { leadRow.hidden = leads.includes(nameSel.value); };
+    nameSel.onchange = syncLead; syncLead();
+    form.onsubmit = async ev => {
+      ev.preventDefault();
+      const name = nameSel.value, note = $('#bo-note').value.trim();
+      if (!name) { status.textContent = 'Choose your name first.'; return nameSel.focus(); }
+      if (!note) { status.textContent = 'Add your notes first.'; return $('#bo-note').focus(); }
+      const go = $('#bo-go'); go.disabled = true; go.textContent = 'Adding…'; status.textContent = '';
+      try {
+        const res = await uploadRequest({ action:'idea-build', id: i.id, name, note, lead: !leadRow.hidden && $('#bo-lead').checked });
+        if (!res.ok) throw new Error(res.error || '');
+        storageSet(UPLOAD_NAME_KEY, name); upsertIdea(res.idea); openIdea(res.idea.id);
+        status.textContent = leadsOf(res.idea).includes(name) && !leads.includes(name) ? `Added. You’re ${leadsOf(res.idea).length > 1 ? 'co-leading' : 'leading'} this idea now!` : 'Added. Thanks for building on it!';
+        loadActivity();
+      } catch (err) { status.textContent = err.message || 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = 'Add my notes'; }
+    };
+  }
   showModal();
 }
 
@@ -1047,6 +1104,8 @@ function openIdeaEdit(id) {
       <select id="ie-lead"><option value="">No lead yet</option>${[...new Set([...names, i.lead].filter(Boolean))].map(n => `<option${n === i.lead ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
       <label for="ie-summary">The idea</label>
       <textarea id="ie-summary" maxlength="1500">${escapeHTML(i.summary || '')}</textarea>
+      <label for="ie-concept">The concept, expanded</label>
+      <textarea id="ie-concept" maxlength="1500">${escapeHTML(i.concept || '')}</textarea>
       <label for="ie-how">How it works <span class="quiet">(one step per line)</span></label>
       <textarea id="ie-how" maxlength="4000">${lines(i.howItWorks)}</textarea>
       <label for="ie-guidance">Before you film <span class="quiet">(one per line)</span></label>
@@ -1061,7 +1120,7 @@ function openIdeaEdit(id) {
     ev.preventDefault();
     const val = id => document.getElementById(id).value;
     const name = val('ie-name'); if (!name) { status.textContent = 'Choose your name first.'; return document.getElementById('ie-name').focus(); }
-    const idea = { id: i.id, title: val('ie-title').trim(), series: val('ie-series'), stage: val('ie-stage'), lead: val('ie-lead'), summary: val('ie-summary').trim(),
+    const idea = { id: i.id, title: val('ie-title').trim(), series: val('ie-series'), stage: val('ie-stage'), lead: val('ie-lead'), summary: val('ie-summary').trim(), concept: val('ie-concept').trim(),
       howItWorks: val('ie-how'), guidance: val('ie-guidance'), notes: val('ie-notes'), questions: val('ie-questions') };
     if (!idea.title) { status.textContent = 'Give the idea a title.'; return document.getElementById('ie-title').focus(); }
     const go = document.getElementById('ie-save'); go.disabled = true; go.textContent = 'Saving…'; status.textContent = '';
@@ -1163,7 +1222,7 @@ async function sendCast(p) {
 
 /* ---------- What's new (creators only): apps-script ?action=activity ---------- */
 const SEEN_KEY = 'totsquad-activity-seen';
-const ACTIVITY_ICON = { pitch:'💡', edit:'✏️', video:'🎬', broll:'🎞️', review:'📬', apply:'👋' };
+const ACTIVITY_ICON = { build:'🧱', pitch:'💡', edit:'✏️', video:'🎬', broll:'🎞️', review:'📬', apply:'👋' };
 function uploadDone(fileId) { if (fileId && UPLOAD_ON()) uploadRequest({ action:'upload-done', fileId }).catch(() => {}); }
 function timeAgo(iso) {
   const t = Date.parse(iso); if (!t) return '';
