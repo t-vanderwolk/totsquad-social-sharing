@@ -132,9 +132,21 @@ function saveApplication(req) {
   try {
     const row = APPLY_COLUMNS.map(([key]) => key === 'submitted' ? new Date() : key === 'status' ? 'New' : key === 'notes' ? '' : key === 'agreed' ? 'Yes' : text(a[key]).slice(0, 1000));
     applySheet().appendRow(row);
-    logActivity('apply', '', 'A new creator application came in', '');
+    logActivity('apply', text(a.name).slice(0, 80), 'applied to join the Creators Club', '');
     return reply({ ok: true });
   } finally { lock.releaseLock(); }
+}
+// For signed-in creators: newest applications first. Declined ones and the Notes column stay private.
+function readApplications() {
+  const rows = applySheet().getDataRange().getValues(), col = k => APPLY_COLUMNS.findIndex(c => c[0] === k), out = [];
+  for (let r = rows.length - 1; r >= 1 && out.length < 60; r--) {
+    const row = rows[r], get = k => String(row[col(k)] == null ? '' : row[col(k)]).trim(), status = get('status') || 'New';
+    if (!get('name') || /declin/i.test(status)) continue;
+    const s = row[col('submitted')];
+    out.push({ submitted: s instanceof Date ? s.toISOString() : get('submitted'), name: get('name'), region: get('region'), instagram: get('instagram'),
+      roles: get('roles'), camera: get('camera'), why: get('why'), example: get('example'), status: status });
+  }
+  return out;
 }
 function applySheet() {
   const props = PropertiesService.getScriptProperties();
@@ -328,6 +340,7 @@ function doGet(e) {
   if (action === 'gate') return reply({ ok: true });
   if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() });
   if (action === 'activity') return reply({ ok: true, activity: readActivity() });
+  if (action === 'applications') return reply({ ok: true, applications: readApplications() });
   if (action === 'drivemap') { const all = PropertiesService.getScriptProperties().getProperties(), map = {}; Object.keys(all).filter(k => k.indexOf('C_') === 0).forEach(k => { map[k.slice(2)] = all[k]; }); return reply({ ok: true, map: map }); } // old Drive ID -> copy, for scripts/relink-drive.cjs
   if (action === 'brief') return briefReply(String(e.parameter.id || ''));
   if (action !== 'reels') return reply({ ok: true, service: 'Tot Squad Creators Club uploads' });

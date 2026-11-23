@@ -369,7 +369,7 @@ function renderDeadlines() {
   $('#deadlines').innerHTML = unique.length ? unique.map(d => `<div class="deadline-item"><strong>${escapeHTML(d.title)}</strong><time datetime="${d.date}">${dateLabel(d.date)} · ${escapeHTML(content.timeZone)}</time>${externalLink(d.url,'View details','text-button')}</div>`).join('') : '<p class="quiet">No deadlines have been announced. New dates show up here first.</p>';
 }
 
-const TOOL_ICON = { palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝', bulb:'💡' };
+const TOOL_ICON = { palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝', bulb:'💡', wave:'👋' };
 // Toolkit: everything opens inside the Creators Club (panels or pages in this site), never an outside link.
 function toolkitItems() {
   return [
@@ -379,6 +379,7 @@ function toolkitItems() {
     ...(UPLOAD_ON() ? [{ label:'Upload clips', action:'upload', dest:'collab', desc:'Send footage straight to the Squad’s Drive', icon:'upload' }] : []),
     { label:'Idea Bank', page:'ideas.html', desc:'Every Squad idea, ready to lead or build on', icon:'bulb' },
     { label:'B-roll library', page:'b-roll.html', desc:'Short clips anyone can reuse', icon:'film' },
+    ...(UPLOAD_ON() ? [{ label:'New applications', action:'applications', desc:'Meet the creators who want to join', icon:'wave' }] : []),
     ...(content.resources || []).filter(r => r && r.label && (r.page || r.action)),
     { label:'My drafts', action:'drafts', desc:'Pitches saved on this device', icon:'draft' }
   ];
@@ -1113,6 +1114,7 @@ function openPanel(action,data={}) {
   if (action === 'tracker') return openTracker();
   if (action === 'reel') return openReel(data.reel);
   if (action === 'brief') return openBrief(data.doc, data.project);
+  if (action === 'applications') return openApplications();
   if (action === 'reel-share') return openReelShare(data.project);
   if (action === 'upload') return openUpload(data);
   if (action === 'apply') return openApply();
@@ -1122,6 +1124,28 @@ function openPanel(action,data={}) {
   if (flows[action]) return openFlow(action,data);
   const item = info[action]; if (!item) return;
   title.textContent = item[0]; body.innerHTML = item[1]; showModal();
+}
+
+/* New applications: every creator can see who has applied (from the "Creators Club applications" sheet).
+   The script leaves out declined applications and the Notes column. */
+async function openApplications() {
+  title.textContent = 'New applications';
+  body.innerHTML = '<p class="quiet">Loading applications…</p>'; showModal();
+  let list = null;
+  try { const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=applications&key=${encodeURIComponent(mentorKey())}`); const data = await res.json(); if (data.ok && Array.isArray(data.applications)) list = data.applications; } catch {}
+  if (title.textContent !== 'New applications') return; // they opened something else meanwhile
+  if (!list) { body.innerHTML = '<p>Applications couldn’t load right now. Try again in a minute.</p>'; return; }
+  body.innerHTML = `<p>Specialists who asked to join the Creators Club, newest first. Say hi in Disco and help them find their first Reel.</p>`
+    + (list.length ? `<ul class="app-list">${list.map(applicationCard).join('')}</ul>` : emptyState('No applications yet.','New applications show up here as soon as they come in.','',ICON.people));
+}
+function applicationCard(a) {
+  const when = Date.parse(a.submitted) ? new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric'}).format(new Date(a.submitted)) : '';
+  const approved = /approv/i.test(a.status || '');
+  const facts = [a.region, a.camera ? 'On camera: '+a.camera : ''].filter(Boolean).map(escapeHTML).join(' · ');
+  return `<li class="app-card"><div class="app-top"><strong>${escapeHTML(a.name)}</strong><span class="stage ${approved ? 'stage-published' : 'stage-casting'}">${approved ? 'Welcome aboard' : 'New'}</span></div>
+    <span class="trk-meta">${[when ? 'Applied '+escapeHTML(when) : '', facts].filter(Boolean).join(' · ')}</span>
+    ${a.roles ? `<p class="app-roles">${escapeHTML(a.roles)}</p>` : ''}${a.why ? `<p>${escapeHTML(a.why)}</p>` : ''}
+    <div class="trk-links">${instagramLink(a.instagram)}${publicUrl(a.example) ? externalLink(a.example,'See their work','text-button') : ''}</div></li>`;
 }
 
 /* "Apply to join": open to everyone. Sends to the "Creators Club applications" sheet (apps-script/upload.gs). */
@@ -1344,7 +1368,7 @@ function renderActivity() {
   box.innerHTML = activityItems.length ? `<ul class="activity">${shown.map(a => {
     const idea = /^idea:/.test(a.link) ? a.link.slice(5) : '';
     const what = `${a.who ? `<strong>${escapeHTML(a.who)}</strong> ` : ''}${escapeHTML(a.what)}`;
-    const open = idea ? `<button type="button" class="text-button" data-action="idea" data-id="${escapeHTML(idea)}">Open</button>` : publicUrl(a.link) ? externalLink(a.link,'Watch','text-button') : '';
+    const open = idea ? `<button type="button" class="text-button" data-action="idea" data-id="${escapeHTML(idea)}">Open</button>` : a.type === 'apply' ? `<button type="button" class="text-button" data-action="applications">See it</button>` : publicUrl(a.link) ? externalLink(a.link,'Watch','text-button') : '';
     return `<li class="${Date.parse(a.when) > seen ? 'fresh' : ''}"><span class="activity-icon" aria-hidden="true">${ACTIVITY_ICON[a.type] || '•'}</span><span class="activity-text">${what}<time datetime="${escapeHTML(a.when)}">${timeAgo(a.when)}</time></span>${open}</li>`;
   }).join('')}</ul>${activityItems.length > 6 ? `<button type="button" class="text-button" data-activity-more>${activityAll ? 'Show less' : `Show all ${activityItems.length}`}</button>` : ''}`
     : '<p class="quiet">Nothing yet. New pitches, videos and idea updates will show up here.</p>';

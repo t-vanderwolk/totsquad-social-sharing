@@ -362,3 +362,15 @@ console.log('PASS: idea concepts, examples, build-ons');
   t10.run("openPanel('brand')"); assert.equal(t10.run('toolOpen'), false); assert.doesNotMatch(t10.html('#modal-body'), /tool-frame/);
 }
 console.log('PASS: toolkit panel keeps your place');
+
+// New applications: visible to signed-in creators, escaped, linked from What's new.
+{
+  const t11 = boot();
+  assert.match(t11.html('#resource-links'), /data-action="applications"/);
+  const card = t11.run(`applicationCard({ submitted:'2026-11-22T18:00:00Z', name:'Ana <b>', region:'West', instagram:'@ana.babygear', roles:'Be on camera, Film B-roll', camera:'Yes', why:'I love helping families.', example:'javascript:alert(1)', status:'Approved' })`);
+  assert.match(card, /Ana &lt;b&gt;/); assert.match(card, /Welcome aboard/); assert.match(card, /instagram\.com\/ana\.babygear/);
+  assert.doesNotMatch(card, /javascript:/);
+  t11.run(`activityItems = [{ when: new Date().toISOString(), type:'apply', who:'Ana', what:'applied to join the Creators Club', link:'' }]; renderActivity();`);
+  assert.match(t11.html('#activity-list'), /data-action="applications">See it/);
+}
+console.log('PASS: new applications');
