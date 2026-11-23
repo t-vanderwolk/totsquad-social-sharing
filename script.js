@@ -410,8 +410,22 @@ function setupMenu() {
   const setOpen = open => { menu.hidden = !open; btn.setAttribute('aria-expanded', String(open)); btn.classList.toggle('open', open); };
   btn.addEventListener('click', e => { e.stopPropagation(); const open = menu.hidden; setOpen(open); if (open) menu.querySelector('a:not([hidden]),button')?.focus({preventScroll:true}); });
   menu.addEventListener('click', e => { if (e.target.closest('a,button')) setOpen(false); });
-  document.addEventListener('click', e => { if (!menu.hidden && !e.target.closest('.menu-wrap')) setOpen(false); });
+  document.addEventListener('click', e => { if (!menu.hidden && !e.target.closest('.menu-wrap')) setOpen(false); }, true); // capture: the bell stops its own clicks
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { setOpen(false); btn.focus(); } });
+}
+// Bell: What's new drops down from the nav. Opening it marks everything as seen; new items keep their dot until it closes.
+function setupBell() {
+  const btn = document.getElementById && document.getElementById('bell-btn'), panel = document.getElementById && document.getElementById('bell-panel');
+  if (!btn || !panel || btn.dataset.ready) return; btn.dataset.ready = '1';
+  const setOpen = open => {
+    panel.hidden = !open; btn.setAttribute('aria-expanded', String(open)); btn.classList.toggle('open', open);
+    if (open) markActivitySeen();
+    else renderActivity();
+  };
+  btn.addEventListener('click', e => { e.stopPropagation(); setOpen(panel.hidden); });
+  panel.addEventListener('click', e => { if (e.target.closest('[data-action],a[href]')) setOpen(false); });
+  document.addEventListener('click', e => { if (!panel.hidden && !e.target.closest('.bell-wrap')) setOpen(false); }, true); // capture: the menu button stops its own clicks
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) { setOpen(false); btn.focus(); } });
 }
 
 function renderContent() {
@@ -1349,6 +1363,12 @@ async function sendCast(p) {
 
 /* ---------- What's new (creators only): apps-script ?action=activity ---------- */
 const SEEN_KEY = 'totsquad-activity-seen';
+let bellSeen = false; // opened this visit: the badge clears, the dots stay until the panel closes
+function markActivitySeen() {
+  bellSeen = true;
+  const nb = document.getElementById ? document.getElementById('nav-new') : null; if (nb) nb.hidden = true;
+  if (activityItems[0]) storageSet(SEEN_KEY, activityItems[0].when);
+}
 const ACTIVITY_ICON = { build:'🧱', pitch:'💡', edit:'✏️', video:'🎬', broll:'🎞️', review:'📬', apply:'👋' };
 function uploadDone(fileId) { if (fileId && UPLOAD_ON()) uploadRequest({ action:'upload-done', fileId }).catch(() => {}); }
 function timeAgo(iso) {
@@ -1360,10 +1380,10 @@ function timeAgo(iso) {
 let activityItems = [], activityAll = false;
 function renderActivity() {
   if (!has('#activity-list')) return; const box = $('#activity-list');
-  const seen = Date.parse(storageGet(SEEN_KEY) || '') || 0;
+  const seen = Date.parse(storageGet(SEEN_KEY) || '') || Date.now() - 7 * 864e5; // first visit: only the last week counts as new
   const fresh = activityItems.filter(a => Date.parse(a.when) > seen).length;
-  const badge = has('#activity-new') ? $('#activity-new') : null; if (badge) { badge.textContent = fresh ? `${fresh} new` : ''; badge.hidden = !fresh; }
-  const navBadge = has('#nav-new') ? $('#nav-new') : null; if (navBadge) { navBadge.textContent = fresh || ''; navBadge.hidden = !fresh; }
+  const navBadge = has('#nav-new') ? $('#nav-new') : null; if (navBadge) { navBadge.textContent = fresh > 9 ? '9+' : fresh || ''; navBadge.hidden = !fresh || bellSeen; }
+  const bell = document.getElementById ? document.getElementById('bell-btn') : null; if (bell) bell.setAttribute('aria-label', fresh && !bellSeen ? `What’s new, ${fresh} new` : 'What’s new');
   const shown = activityAll ? activityItems : activityItems.slice(0, 6);
   box.innerHTML = activityItems.length ? `<ul class="activity">${shown.map(a => {
     const idea = /^idea:/.test(a.link) ? a.link.slice(5) : '';
@@ -1379,8 +1399,8 @@ async function loadActivity() {
     const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=activity&key=${encodeURIComponent(mentorKey())}`); const data = await res.json();
     if (!data.ok || !Array.isArray(data.activity)) return;
     activityItems = data.activity; renderActivity();
-    // Mark as seen a few seconds after it's been shown, so the "new" dots stay for this visit.
-    if (activityItems[0]) setTimeout(() => storageSet(SEEN_KEY, activityItems[0].when), 4000);
+    // The bell shows how many are new; opening it marks them seen.
+    if (document.getElementById && document.getElementById('bell-panel')?.hidden === false) markActivitySeen();
   } catch {}
 }
 
@@ -1489,6 +1509,7 @@ document.addEventListener('click', e => {
   if (a && !['reel-share','apply','cast',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
 }, true);
 setupMenu();
+setupBell();
 watchScreen();
 if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); }
 else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }

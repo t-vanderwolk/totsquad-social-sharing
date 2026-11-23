@@ -374,3 +374,12 @@ console.log('PASS: toolkit panel keeps your place');
   assert.match(t11.html('#activity-list'), /data-action="applications">See it/);
 }
 console.log('PASS: new applications');
+
+// What's new lives in the bell: the badge counts unseen items, and opening it clears the badge.
+{
+  const t12 = boot();
+  t12.run(`activityItems = [{ when: new Date().toISOString(), type:'pitch', who:'Lora', what:'pitched x', link:'' }, { when: new Date(Date.now()-3600e3).toISOString(), type:'apply', who:'Ana', what:'applied', link:'' }]; renderActivity();`);
+  assert.equal(t12.el('#nav-new').textContent, 2); assert.equal(t12.el('#nav-new').hidden, false);
+  t12.run('markActivitySeen(); renderActivity();'); assert.equal(t12.el('#nav-new').hidden, true);
+}
+console.log('PASS: bell badge');
