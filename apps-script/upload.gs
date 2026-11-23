@@ -11,7 +11,7 @@
  *      signs in with; not case-sensitive). Uploads, pitches and the Reels data all use it.
  *   2. Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone.
  *   3. Put the web app URL in content.js as uploadEndpoint.
- * Uploads are owned by, and use the storage of, the account that deploys this script.
+ * Uploads land in the Tot Squad shared drive, so Tot Squad owns them and they use its storage.
  *
  * The Reels page reads the Reels – Status Report sheet through doGet (?action=reels),
  * and each Reel's brief doc through doGet (?action=brief&id=…), limited to docs linked in that sheet.
@@ -20,11 +20,12 @@
  * Applications ("Apply to join", no password) go to the "Creators Club applications" sheet, created the same way.
  */
 // Everything was copied into Creators Club (For Baby Specialists) on Nov 21, 2026. moved() swaps an original ID for its copy.
+// On Nov 23, 2026 everything moved (same IDs) into the Tot Squad shared drive "Creators Club (for Baby Specialists)"; new uploads land there too.
 function moved(id) { return PropertiesService.getScriptProperties().getProperty('C_' + id) || id; }
 function movedUrl(u) { return String(u || '').replace(/[-\w]{25,}/g, id => moved(id)); }
 const ROOTS = {
   broll: moved('1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS'),  // B-Roll Library
-  collab: moved('1tc9a6ur6K3QKAreSI_z0JYpG9ZHEmuKd')   // Content submission folder (now Creators Club (For Baby Specialists))
+  collab: '0ADqEscN50JTEUk9PVA'   // Creators Club (for Baby Specialists) shared drive, owned by Tot Squad (moved in on Nov 23, 2026)
 };
 const ORIGINS = ['https://t-vanderwolk.github.io', 'http://localhost:4174'];
 const MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB per file
