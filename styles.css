@@ -272,6 +272,17 @@ dialog p{font-size:14px}
 .close{float:right;width:36px;height:36px;flex-shrink:0;border:0;border-radius:50%;background:var(--lavender);font-size:20px;line-height:1;color:var(--plum-ink)}
 .close:hover{background:var(--line)}
 #status{min-height:var(--s6);font-size:12px;font-weight:600;color:var(--teal-dark);margin:0;padding:var(--s2) 0 var(--s6)}
+/* Toolkit panel: Idea Bank, B-roll, Reels tracker and calendar open over the page (openTool in script.js). */
+dialog.wide{width:min(1180px,calc(100% - 24px));height:calc(100dvh - 24px);padding:0;overflow:hidden;background:#fff}
+dialog.wide[open]{display:flex;flex-direction:column}
+dialog.wide .close{position:absolute;top:12px;right:12px;z-index:2;float:none;box-shadow:0 2px 10px #3b213926}
+dialog.wide .eyebrow,dialog.wide #modal-title,dialog.wide #status{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0;padding:0}
+dialog.wide #modal-body{flex:1;min-height:0;display:flex}
+.tool-frame{flex:1;width:100%;min-height:0;border:0;display:block;background:#fff}
+.screen-probe{position:fixed;left:0;width:1px;pointer-events:none;visibility:hidden}
+body.embed.panel main{padding:var(--s5) var(--s6) var(--s4)}
+body.panel .page-hero .button.secondary[href^="index.html"]{display:none}
+body.panel .page-hero{padding-right:calc(var(--s10) + 32px)}
 .flow-nav{display:flex;flex-wrap:wrap;gap:6px;margin:var(--s4) 0}
 .flow-tab{min-height:40px;border:1px solid var(--line);border-radius:100px;padding:var(--s2) var(--s3);background:var(--white);color:var(--plum-ink);font-size:12px;font-weight:600}
 .flow-tab.selected{background:var(--lavender);border-color:var(--plum)}
@@ -744,3 +755,6 @@ a.casting-art .play svg{width:24px;height:24px;margin-left:3px}
 .example-reel strong{font-size:14px}
 .example-reel em{font-style:normal;font-size:12px;font-weight:600;color:var(--plum)}
 @media (prefers-reduced-motion:reduce){a.poster .play,a.casting-art .play{transition:none}}
+
+/* Toolkit panel on phones: room for the close button. */
+@media (max-width:700px){body.embed.panel main{padding:var(--s3) 14px var(--s4)}body.panel .page-hero{padding-right:60px}dialog.wide{width:calc(100% - 12px)}}

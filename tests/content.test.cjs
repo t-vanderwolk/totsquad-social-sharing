@@ -147,9 +147,9 @@ t = boot();
 assert.match(t.html('#resource-links'), /reels\.html\?view=calendar/); // calendar and tracker live on the Reels page
 t.run("openPanel('tracker')");
 const trk = t.html('#modal-body');
-assert.match(trk, /In progress/); assert.match(trk, /Daddy’s Home/); assert.match(trk, /Read the brief/);
+assert.match(trk, /In progress/); assert.match(trk, /Daddy’s Home/);
 assert.match(trk, /Intros passing the sunshine toy/); assert.match(trk, /Upload your clips/);
-assert.match(trk, /data-action="calendar"/); assert.match(trk, /Edit in Google Sheets/);
+assert.match(trk, /data-action="calendar"/); assert.doesNotMatch(trk, /Edit in Google Sheets|docs\.google|drive\.google/); // Tot Squad's Drive is private
 t.run("openPanel('calendar')");
 const cal = t.html('#modal-body');
 assert.ok(cal.indexOf('Up next') < cal.indexOf('Posted') && cal.indexOf('Posted') < cal.indexOf('Future ideas'));
@@ -200,7 +200,7 @@ t.run("brollPerson='Kristin';renderBroll()"); assert.match(t.html('#broll-grid')
 assert.ok(validate({ ...load(), brollFolders: [{ name: '' }] }).some(e => /needs a name/.test(e)));
 // Upload form: falls back to Drive links when uploadEndpoint is blank.
 t = boot({ uploadEndpoint: '' });
-assert.match(t.run('submissionHelp()'), /href="https:\/\/drive\.google\.com\/drive\/folders\/1vDAjuYxPu2mreRracyxlm7Phbp0VKXka"/);
+assert.match(t.run('submissionHelp()'), /href="https:\/\/drive\.google\.com\/drive\/folders\/0ADqEscN50JTEUk9PVA"/);
 assert.match(t.html('#broll-add'), /href="https:\/\/drive\.google\.com\/drive\/folders\/[\w-]{20,}"/);
 assert.doesNotMatch(t.html('#casting-projects'), /data-action="upload"/);
 const EP = 'https://script.google.com/macros/s/AKfyc-test_123/exec';
@@ -250,7 +250,7 @@ assert.match(t.html('#reels-view'), /October 2026/); assert.match(t.html('#reels
 assert.match(t.html('#reels-view'), /No date yet/); // Brand new Reel has no deadline
 t.run("openPanel('reel',{reel:'r1'})");
 assert.match(t.html('#modal-body'), /In edit/); assert.match(t.html('#modal-body'), /Upload your clips/);
-assert.match(t.html('#modal-body'), /id="brief-body" data-doc="1-EXu39nUOtxi7YvTaoneQRu6n4L-LgeGpCxvcWUAYAM"/); assert.match(t.html('#modal-body'), /Open in Google Docs/); // brief shows in the app
+assert.match(t.html('#modal-body'), /id="brief-body" data-doc="1-EXu39nUOtxi7YvTaoneQRu6n4L-LgeGpCxvcWUAYAM"/); assert.doesNotMatch(t.html("#modal-body"), /Open in Google Docs|Open the folder/); // brief shows in the app
 assert.equal(t.run("briefDocId('https://docs.google.com/document/d/19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA/edit?usp=sharing')"), '19PoztAtuAcvGucJom_4FdvsOs8IAD7axp9e1LTLZgHA');
 assert.equal(t.run("briefDocId('https://example.com/x')"), '');
 t.run("openPanel('reel',{reel:'r0'})"); assert.match(t.html('#modal-body'), /Watch/); assert.match(t.html('#modal-body'), /data-action="reel-share"/);
@@ -349,3 +349,16 @@ console.log('PASS: what’s new feed');
   assert.match(d, /id="build-form"/); assert.match(d, /Co-lead this idea with Kristin/);
 }
 console.log('PASS: idea concepts, examples, build-ons');
+
+// Toolkit pages open in a panel over the page, so nobody loses their place.
+{
+  const t10 = boot();
+  const kit = t10.html('#resource-links');
+  for (const page of ['ideas.html', 'b-roll.html', 'reels.html?view=board', 'reels.html?view=calendar']) assert.ok(kit.includes(`data-tool-page="${page}"`), page);
+  assert.match(t10.html('#nav-menu') + t10.html('#menu-tools'), /data-tool-page="ideas\.html"/);
+  t10.run("location.href = 'https://t-vanderwolk.github.io/totsquad-social-sharing/index.html?embed=1'; openTool('reels.html?view=board','Reels tracker')");
+  assert.match(t10.html('#modal-body'), /class="tool-frame" src="https:\/\/t-vanderwolk\.github\.io\/totsquad-social-sharing\/reels\.html\?view=board&amp;embed=1&amp;panel=1"/);
+  assert.equal(t10.run('toolOpen'), true);
+  t10.run("openPanel('brand')"); assert.equal(t10.run('toolOpen'), false); assert.doesNotMatch(t10.html('#modal-body'), /tool-frame/);
+}
+console.log('PASS: toolkit panel keeps your place');

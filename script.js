@@ -128,7 +128,9 @@ const isNew = d => !!lastVisit && dateValid(d) && d > lastVisit;
 
 /* Two pages share this script: index.html and ideas.html. Links between them keep ?embed=1. */
 const EMBED = new URLSearchParams(location.search).get('embed') === '1';
-const pageUrl = file => file + (EMBED ? (file.includes('?') ? '&' : '?') + 'embed=1' : '');
+// panel=1: this page is open inside the toolkit panel on top of the Creators Club (see openTool).
+const PANEL = new URLSearchParams(location.search).get('panel') === '1';
+const pageUrl = file => file + (EMBED ? (file.includes('?') ? '&' : '?') + 'embed=1' + (PANEL ? '&panel=1' : '') : '');
 const IDEAS_URL = pageUrl('ideas.html');
 const has = sel => !!document.querySelector(sel);
 
@@ -157,7 +159,7 @@ function renderCasting() {
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
     <div class="button-row">${p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">Send your video</button>${messageLead(p.lead)}` : `${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}`}${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
-    : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
+    : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}" data-tool-page="ideas.html" data-label="Idea Bank">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
 }
 
 /* Idea Bank art: one original illustration per series. An idea's own `image` (images/ file) replaces it. */
@@ -232,7 +234,7 @@ function renderProduction() {
   const section = $('#production'); if (section) section.hidden = !items.length;
   $('#production-board').innerHTML = items.length
     ? `<div class="board">${lanes.map(([key,label]) => { const list = items.filter(x => x.stage === key); return `<section class="lane" aria-label="${label}"><h3>${label} <span>${list.length}</span></h3>${list.length ? list.map(laneItem).join('') : '<p class="lane-empty">Nothing here yet.</p>'}</section>`; }).join('')}</div>`
-    : emptyState('Nothing in production yet.','Pick an idea from the Idea Bank and raise your hand to lead it. It will show up here as it moves from planning to filming to editing.',`<a class="button secondary" href="${IDEAS_URL}">Find an idea to lead</a>`);
+    : emptyState('Nothing in production yet.','Pick an idea from the Idea Bank and raise your hand to lead it. It will show up here as it moves from planning to filming to editing.',`<a class="button secondary" href="${IDEAS_URL}" data-tool-page="ideas.html" data-label="Idea Bank">Find an idea to lead</a>`);
 }
 
 function poster(p,label) {
@@ -345,7 +347,7 @@ function renderHero() {
   const covers = publishedProjects().filter(p => imageUrl(p.thumbnail)).slice(0,3);
   $('#hero-reels').innerHTML = covers.map((p,i) => `<a class="hero-reel r${i}" href="${escapeHTML(publicUrl(p.publishedReelUrl))}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHTML('Watch '+p.title+' on Instagram')}"><img src="${escapeHTML(imageUrl(p.thumbnail))}" alt=""></a>`).join('');
   const second = $('#hero-secondary');
-  if (second && openProjects().length) { second.textContent = 'See what’s casting'; second.href = '#casting'; }
+  if (second && openProjects().length) { second.textContent = 'See what’s casting'; second.href = '#casting'; second.removeAttribute?.('data-tool-page'); }
 }
 function renderWeek() {
   const events = content.recurringEvents || [];
@@ -383,7 +385,7 @@ function toolkitItems() {
 }
 function toolTile(r) {
   const inner = `<span class="tool-icon" aria-hidden="true">${TOOL_ICON[r.icon] || '📌'}</span><span class="tool-text"><strong>${escapeHTML(r.label)}</strong>${r.desc ? `<span>${escapeHTML(r.desc)}</span>` : ''}</span>`;
-  return r.page ? `<a class="tool" href="${escapeHTML(pageUrl(r.page))}">${inner}</a>`
+  return r.page ? `<a class="tool" href="${escapeHTML(pageUrl(r.page))}" data-tool-page="${escapeHTML(r.page)}" data-label="${escapeHTML(r.label)}">${inner}</a>`
     : `<button type="button" class="tool" data-action="${escapeHTML(r.action)}"${r.dest ? ` data-dest="${escapeHTML(r.dest)}"` : ''}>${inner}</button>`;
 }
 // The three guides anyone can read on the landing page, no password.
@@ -393,7 +395,7 @@ function renderResources() { $('#resource-links').innerHTML = toolkitItems().map
 // Hamburger menu: every section plus every tool, in one dropdown.
 function menuItem(r) {
   const inner = `<span aria-hidden="true">${TOOL_ICON[r.icon] || '📌'}</span>${escapeHTML(r.label)}`;
-  return r.page ? `<a href="${escapeHTML(pageUrl(r.page))}">${inner}</a>`
+  return r.page ? `<a href="${escapeHTML(pageUrl(r.page))}" data-tool-page="${escapeHTML(r.page)}" data-label="${escapeHTML(r.label)}">${inner}</a>`
     : `<button type="button" data-action="${escapeHTML(r.action)}"${r.dest ? ` data-dest="${escapeHTML(r.dest)}"` : ''}>${inner}</button>`;
 }
 function renderMenu() {
@@ -413,6 +415,7 @@ function setupMenu() {
 
 function renderContent() {
   document.body.classList.toggle('embed', EMBED);
+  document.body.classList.toggle('panel', PANEL);
   if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"], a[href="b-roll.html"], a[href="reels.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
   if (has('#welcome')) $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
   const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources],['#public-guides',renderGuides],['#nav-menu',renderMenu]];
@@ -469,7 +472,85 @@ function shareText(d) {
 }
 
 /* ---------- Dialog panels ---------- */
-function showModal() { if (!modal.open) modal.showModal(); modal.scrollTop = 0; }
+function showModal() { placeModal(); if (!modal.open) modal.showModal(); placeModal(); modal.scrollTop = 0; }
+
+/* ---------- Keep everyone's place ----------
+   In Disco this page sits in a frame as tall as the whole page, and Disco scrolls around it, so a dialog
+   centred in the frame could open thousands of pixels from where someone is reading. This watches which
+   slice of the page is on screen and opens dialogs, the toolkit panel and toasts right there. */
+let toolOpen = false;
+let onScreen = null; // { top, bottom } of the slice on screen, in page pixels; null when the page scrolls itself
+function watchScreen() {
+  if (typeof IntersectionObserver === 'undefined' || !document.createElement || !document.body || !document.body.append) return;
+  // Thin strips down the frame: as Disco scrolls, the strips at the top and bottom edges of the screen change how
+  // much of them shows, which tells us where the screen is (one tall strip would show the same amount everywhere).
+  const STRIP = 80, seen = new Map(), steps = Array.from({ length: 81 }, (_, i) => i / 80);
+  let io = null, strips = [];
+  const update = entries => {
+    entries.forEach(e => seen.set(e.target, e.isIntersecting ? e.intersectionRect : null));
+    let top = Infinity, bottom = -Infinity;
+    seen.forEach(r => { if (r && r.height > 0) { top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom); } });
+    onScreen = bottom > top && bottom - top < innerHeight - 40 ? { top, bottom } : null;
+    if (modal.open) placeModal();
+    placeToast();
+  };
+  const build = () => {
+    if (io) io.disconnect(); strips.forEach(s => s.remove()); seen.clear();
+    io = new IntersectionObserver(update, { threshold: steps });
+    strips = Array.from({ length: Math.ceil(innerHeight / STRIP) }, (_, i) => {
+      const s = document.createElement('div'); s.className = 'screen-probe'; s.setAttribute('aria-hidden', 'true');
+      s.style.top = (i * STRIP) + 'px'; s.style.height = STRIP + 'px';
+      document.body.append(s); io.observe(s); return s;
+    });
+  };
+  build();
+  // Re-centre when a dialog grows or shrinks (next step of a form, a list loading in).
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { if (modal.open && onScreen) placeModal(); }).observe(modal);
+  let last = innerHeight, timer;
+  window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { if (Math.abs(innerHeight - last) > STRIP / 2) { last = innerHeight; build(); } }, 200); });
+}
+function placeModal() {
+  const st = modal.style; if (!st) return;
+  if (!onScreen) { ['margin-top','margin-bottom','max-height','height'].forEach(k => st.removeProperty(k)); return; }
+  const h = Math.max(240, onScreen.bottom - onScreen.top - 24);
+  st.maxHeight = Math.round(h) + 'px'; st.marginBottom = 'auto';
+  if (toolOpen) st.height = Math.round(h) + 'px'; else st.removeProperty('height');
+  // Centred in the part of the page on screen (short dialogs), or pinned to its top (tall ones and the toolkit panel).
+  const own = modal.open && !toolOpen && modal.offsetHeight ? Math.min(modal.offsetHeight, h) : h;
+  st.marginTop = Math.round(onScreen.top + 12 + (h - own) / 2) + 'px';
+}
+function placeToast() {
+  const t = document.getElementById ? document.getElementById('toast') : null; if (!t || !t.style) return;
+  if (onScreen) { t.style.top = Math.round(onScreen.bottom - 72) + 'px'; t.style.bottom = 'auto'; }
+  else { t.style.removeProperty('top'); t.style.removeProperty('bottom'); }
+}
+
+/* Idea Bank, B-roll library, Reels tracker and Content calendar open in a panel on top of the page,
+   so closing it puts people right back where they were. */
+function openTool(page, label) {
+  stash(); activeFlow = null; status.textContent = ''; castProject = '';
+  const u = new URL(page, location.href); u.searchParams.set('embed', '1'); u.searchParams.set('panel', '1');
+  title.textContent = label || 'Creators Club';
+  body.innerHTML = `<iframe class="tool-frame" src="${escapeHTML(u.href)}" title="${escapeHTML(label || 'Creators Club tool')}"></iframe>`;
+  toolOpen = true; modal.classList.toggle('wide', true);
+  showModal();
+}
+function closeTool() { toolOpen = false; modal.classList.toggle('wide', false); if (modal.style) modal.style.removeProperty('height'); if (body.querySelector && body.querySelector('.tool-frame')) body.replaceChildren(); }
+// Inside the panel, "Back to Creators Club" (any link to the landing page) just closes the panel.
+if (PANEL && typeof window !== 'undefined' && window.parent && window.parent !== window) {
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('a[href]'); if (!a || e.defaultPrevented) return;
+    let u; try { u = new URL(a.href, location.href); } catch { return; }
+    if (u.origin !== location.origin || !/(\/|index\.html)$/.test(u.pathname)) return;
+    e.preventDefault(); window.parent.postMessage({ type: 'creators-club-close-tool', hash: u.hash }, location.origin);
+  }, true);
+}
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('message', e => {
+  if (e.origin !== location.origin || !e.data || e.data.type !== 'creators-club-close-tool') return;
+  if (modal.open) modal.close();
+  const target = e.data.hash && e.data.hash.length > 1 && document.getElementById(decodeURIComponent(e.data.hash.slice(1)));
+  if (target && target.scrollIntoView) target.scrollIntoView({ block: 'start' });
+});
 function fieldHTML([id,label,type,req,opts={}]) {
   const required = req === true;
   const hasHint = opts.hint || opts.max;
@@ -524,8 +605,8 @@ function trackerRow(x) {
   const [cls,label] = CAL_STATUS[x.status] || CAL_STATUS.idea;
   const due = dateValid(x.date) ? (x.status === 'posted' ? '' : 'Due ')+fmt(x.date,{month:'short',day:'numeric'}) : (['idea','posted'].includes(x.status) ? '' : 'Date TBD');
   const meta = [x.lead ? 'Led by '+x.lead : '', due].filter(Boolean).join(' · ');
-  const brief = publicUrl(x.briefUrl);
-  const links = [brief ? externalLink(brief,'Read the brief','text-button') : '',
+  const doc = briefDocId(x.briefUrl), synced = doc && syncedReels() && window.HUB_REELS.briefs && window.HUB_REELS.briefs[doc];
+  const links = [synced ? `<button type="button" class="text-button" data-action="brief" data-doc="${escapeHTML(doc)}" data-project="${escapeHTML(x.title)}">Read the brief</button>` : '',
     x.status === 'posted' ? externalLink(x.url,'Watch','text-button') : x.status !== 'idea' ? (UPLOAD_ON() ? `<button type="button" class="text-button" data-action="upload" data-dest="collab" data-project="${escapeHTML(x.title)}">Upload your clips</button>` : externalLink(content.submissionFolderUrl,'Upload your clips','text-button')) : ''].filter(Boolean).join('');
   return `<li class="trk-row"><div class="trk-top"><strong>${escapeHTML(x.title)}</strong><span class="stage stage-${cls}">${label}</span></div>${meta ? `<span class="trk-meta">${escapeHTML(meta)}</span>` : ''}${x.prompt ? `<p class="trk-prompt">${escapeHTML(x.prompt)}</p>` : ''}${links ? `<div class="trk-links">${links}</div>` : ''}</li>`;
 }
@@ -539,7 +620,7 @@ function openTracker() {
   ].filter(([,list]) => list.length);
   title.textContent = 'Reels tracker';
   body.innerHTML = (groups.length ? groups.map(([h,list]) => `<h3 class="cal-head">${h} <span class="quiet">${list.length}</span></h3><ul class="trk-list">${list.map(trackerRow).join('')}</ul>`).join('') : '<p>No Reels are on the tracker yet.</p>')
-    + `<p class="quiet">Every Reel’s clips go in the shared content folder. Dates are deadlines.</p><div class="button-row"><button class="button secondary" type="button" data-action="calendar">See it as a calendar</button>${externalLink(content.reelsTrackerUrl,'Edit in Google Sheets','text-button')}</div>`;
+    + `<p class="quiet">Upload each Reel’s clips right here in the Creators Club. Dates are deadlines.</p><div class="button-row"><button class="button secondary" type="button" data-action="calendar">See it as a calendar</button></div>`;
   showModal();
 }
 
@@ -624,7 +705,7 @@ function openFlow(action,data) {
   const nav = flowNav(action);
   if ((action === 'collab' && !openProjects().length) || (action === 'share' && !publishedProjects().length)) {
     const collab = action === 'collab';
-    body.innerHTML = nav+emptyState(collab ? 'Something fun is in the works!' : 'Good things are worth sharing.', collab ? 'No collaborations are accepting participants right now. Check back soon, or browse the Idea Bank for one to lead.' : 'Shareable messages will be available when a completed project has a verified published Reel link.', collab ? `<a class="button secondary" href="${IDEAS_URL}">Browse the Idea Bank</a>` : '')+'<div id="previous-draft"></div>';
+    body.innerHTML = nav+emptyState(collab ? 'Something fun is in the works!' : 'Good things are worth sharing.', collab ? 'No collaborations are accepting participants right now. Check back soon, or browse the Idea Bank for one to lead.' : 'Shareable messages will be available when a completed project has a verified published Reel link.', collab ? `<a class="button secondary" href="${IDEAS_URL}" data-tool-page="ideas.html" data-label="Idea Bank">Browse the Idea Bank</a>` : '')+'<div id="previous-draft"></div>';
     const saved = loadDraft(action);
     if (hasDraft(action,saved)) { const area = $('#previous-draft'); const p = document.createElement('p'); p.textContent = 'You have an earlier local draft. You can download it for your records.'; const b = document.createElement('button'); b.className = 'button secondary'; b.textContent = 'Download earlier draft'; b.onclick = () => downloadText(draftText(action,saved),'tot-squad-'+action+'-draft.txt'); area.append(p,b); }
     showModal(); return;
@@ -817,9 +898,9 @@ function renderReels() {
   ['calendar','board','list'].forEach(v => { const t = document.getElementById ? document.getElementById('tab-'+v) : null; if (t) { t.setAttribute('aria-selected', String(v === reelsView)); t.tabIndex = v === reelsView ? 0 : -1; } });
   const live = list.filter(r => !['posted','idea'].includes(r.status)).length;
   if (has('#reels-summary')) $('#reels-summary').textContent = list.length ? `${live} in progress, ${list.filter(r => r.status === 'posted').length} posted.` : '';
-  if (has('#reels-sheet')) $('#reels-sheet').innerHTML = externalLink(content.reelsTrackerUrl,'Edit in Google Sheets','button');
+  if (has('#reels-sheet')) $('#reels-sheet').innerHTML = UPLOAD_ON() ? uploadButton('Upload your clips','collab') : '';
   if (has('#reels-source')) $('#reels-source').textContent = reelsLive ? `From the Reels tracker${reelsUpdated ? ' · copied '+new Date(reelsUpdated).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}` : '';
-  $('#reels-view').innerHTML = !list.length ? emptyState('No Reels yet.','Add a Reel to the Status Report sheet and it shows up here.', externalLink(content.reelsTrackerUrl,'Open the sheet'), ICON.play)
+  $('#reels-view').innerHTML = !list.length ? emptyState('No Reels yet.','New Reels show up here as soon as Sarah and Taylor add them.', '', ICON.play)
     : reelsView === 'calendar' ? reelsCalendar(list) : reelsView === 'list' ? reelsList(list) : reelsBoard(list);
 }
 /* Briefs: the Google Doc linked in the sheet, shown in the Reel's details (apps-script/upload.gs → ?action=brief). */
@@ -828,17 +909,30 @@ function briefLink(href) {
   try { const u = new URL(href); if (u.hostname === 'www.google.com' && u.pathname === '/url' && u.searchParams.get('q')) return publicUrl(u.searchParams.get('q')); } catch {}
   return publicUrl(href);
 }
+// Upload folders named in a brief: Tot Squad's Drive is private, so they become the in-app upload button.
+const DRIVE_FOLDER_RE = /(https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/[\w-]+\S*)/;
+const isDriveFolder = href => !!href && /^https:\/\/drive\.google\.com\/drive\/(u\/\d+\/)?folders\//.test(href);
+function briefUpload(project) {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'text-button'; b.textContent = 'Upload your clips here';
+  b.dataset.action = 'upload'; b.dataset.dest = 'collab'; if (project) b.dataset.project = project; return b;
+}
 // Rebuild the exported doc with a short list of safe elements; everything else is dropped or unwrapped.
-function renderBrief(target, html) {
+function renderBrief(target, html, project = '') {
   target.replaceChildren();
   if (typeof DOMParser === 'undefined') { const p = document.createElement('p'); p.textContent = String(html).replace(/<style[\s\S]*?<\/style>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(); target.append(p); return; }
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const MAP = { H1:'h3', H2:'h3', H3:'h4', H4:'h4', H5:'h4', H6:'h4', P:'p', UL:'ul', OL:'ol', LI:'li', BR:'br', STRONG:'strong', B:'strong', EM:'em', I:'em', TABLE:'table', TBODY:'tbody', THEAD:'thead', TR:'tr', TD:'td', TH:'th', HR:'hr' };
   const walk = (node, out) => {
     for (const n of [...node.childNodes]) {
-      if (n.nodeType === 3) { if (n.textContent) out.append(document.createTextNode(n.textContent)); continue; }
+      if (n.nodeType === 3) {
+        if (!n.textContent) continue;
+        const parts = UPLOAD_ON() ? n.textContent.split(DRIVE_FOLDER_RE) : [n.textContent]; // pasted folder links too
+        parts.forEach((part, i) => { if (i % 2) out.append(briefUpload(project)); else if (part) out.append(document.createTextNode(part)); });
+        continue;
+      }
       if (n.nodeType !== 1 || ['SCRIPT','STYLE','HEAD','META','TITLE','IFRAME','OBJECT','FORM','INPUT','BUTTON','SVG'].includes(n.tagName)) continue;
       const style = (n.getAttribute('style') || '').toLowerCase();
+      if (n.tagName === 'A' && UPLOAD_ON() && isDriveFolder(briefLink(n.getAttribute('href')))) { out.append(briefUpload(project)); continue; }
       if (n.tagName === 'A') { const href = briefLink(n.getAttribute('href')); if (href) { const a = document.createElement('a'); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; walk(n, a); out.append(a); } else walk(n, out); continue; }
       if (n.tagName === 'IMG') { const src = n.getAttribute('src') || ''; if (/^https:\/\/[\w.-]*googleusercontent\.com\//.test(src)) { const img = document.createElement('img'); img.src = src; img.alt = ''; img.loading = 'lazy'; img.className = 'brief-img'; out.append(img); } continue; }
       if (n.tagName === 'SPAN' && /font-weight:\s*(700|bold)/.test(style)) { const b = document.createElement('strong'); walk(n, b); out.append(b); continue; }
@@ -857,10 +951,18 @@ function loadBrief(r) {
   const id = briefDocId(r.briefUrl), box = document.getElementById ? document.getElementById('brief-body') : null;
   if (!id || !box) return;
   const brief = syncedReels() && window.HUB_REELS.briefs && window.HUB_REELS.briefs[id];
-  if (brief) renderBrief(box, brief.html);
-  else box.innerHTML = `<p class="quiet">This brief hasn’t been copied in yet. ${externalLink(r.briefUrl,'Open it in Google Docs','text-button')}</p>`;
+  if (brief) renderBrief(box, brief.html, r.title);
+  else box.innerHTML = `<p class="quiet">The brief is on its way. ${r.lead ? 'Ask '+escapeHTML(r.lead)+' in Disco if you need it sooner.' : ''}</p>`;
 }
 
+// A Reel's brief, read in the app (the doc itself is in Tot Squad's private Drive).
+function openBrief(doc, project) {
+  const brief = syncedReels() && window.HUB_REELS.briefs && window.HUB_REELS.briefs[doc]; if (!brief) return;
+  title.textContent = project || brief.title || 'The brief';
+  body.innerHTML = `<div class="brief-body" id="brief-body"></div><div class="button-row"><button type="button" class="button secondary" data-action="tracker">Back to the Reels tracker</button></div>`;
+  renderBrief(document.getElementById('brief-body'), brief.html, project);
+  showModal();
+}
 function openReel(id) {
   const r = (reelsData || []).find(x => x.id === id); if (!r) return;
   title.textContent = r.title;
@@ -870,8 +972,8 @@ function openReel(id) {
     <p class="reel-detail-meta"><span class="stage stage-${REEL_STAGE_CLASS[r.status]}">${reelStageLabel(r.status)}</span>${r.lead ? `<span>Led by ${escapeHTML(r.lead)}</span>` : ''}${due ? `<span>${escapeHTML(due)}</span>` : ''}</p>
     ${r.prompt ? `<h3 class="cal-head">The prompt</h3><p>${escapeHTML(r.prompt)}</p>` : ''}
     ${r.people.length ? `<h3 class="cal-head">Featuring</h3><p>${escapeHTML(r.people.join(', '))}</p>` : ''}
-    <div class="button-row">${r.status === 'posted' && r.url ? externalLink(r.url,'Watch','button') : ''}${r.lead && r.status !== 'posted' ? messageLead(r.lead) : ''}${r.projectId ? `<button type="button" class="button secondary" data-action="reel-share" data-project="${escapeHTML(r.projectId)}">Share</button>` : ''}${live ? uploadButton('Upload your clips','collab',r.title) : ''}${r.briefUrl && !briefDocId(r.briefUrl) ? externalLink(r.briefUrl,'Read the brief','button secondary') : ''}${live && r.folderUrl ? externalLink(r.folderUrl,'Open the folder','button secondary') : ''}</div>
-    ${r.briefUrl && briefDocId(r.briefUrl) ? `<section class="reel-brief" aria-labelledby="brief-head"><div class="reel-brief-top"><h3 class="cal-head" id="brief-head">The brief</h3>${externalLink(r.briefUrl,'Open in Google Docs','text-button')}</div><div class="brief-body" id="brief-body" data-doc="${escapeHTML(briefDocId(r.briefUrl))}"><p class="quiet">Loading the brief…</p></div></section>` : ''}`;
+    <div class="button-row">${r.status === 'posted' && r.url ? externalLink(r.url,'Watch','button') : ''}${r.lead && r.status !== 'posted' ? messageLead(r.lead) : ''}${r.projectId ? `<button type="button" class="button secondary" data-action="reel-share" data-project="${escapeHTML(r.projectId)}">Share</button>` : ''}${live ? uploadButton('Upload your clips','collab',r.title) : ''}${!UPLOAD_ON() && live && r.folderUrl ? externalLink(r.folderUrl,'Open the folder','button secondary') : ''}</div>
+    ${r.briefUrl && briefDocId(r.briefUrl) ? `<section class="reel-brief" aria-labelledby="brief-head"><div class="reel-brief-top"><h3 class="cal-head" id="brief-head">The brief</h3></div><div class="brief-body" id="brief-body" data-doc="${escapeHTML(briefDocId(r.briefUrl))}"><p class="quiet">Loading the brief…</p></div></section>` : ''}`;
   if (r.briefUrl) loadBrief(r);
   showModal();
 }
@@ -896,7 +998,7 @@ async function sendPitch(d, onSent) {
     if (!res.ok) { status.textContent = res.error || 'That didn’t send. Try again in a minute.'; btn.disabled = false; btn.textContent = 'Send pitch'; return; }
     storageSet(UPLOAD_NAME_KEY, name);
     if (res.idea) upsertIdea(res.idea);
-    btn.textContent = 'Sent'; status.innerHTML = `Pitch sent! It’s in the Idea Bank now. ${has('#idea-grid') ? '' : `<a class="text-button" href="${escapeHTML(IDEAS_URL)}">See it in the Idea Bank</a> `}${chatLink(content.discoUrl)}`;
+    btn.textContent = 'Sent'; status.innerHTML = `Pitch sent! It’s in the Idea Bank now. ${has('#idea-grid') ? '' : `<a class="text-button" href="${escapeHTML(IDEAS_URL)}" data-tool-page="ideas.html" data-label="Idea Bank">See it in the Idea Bank</a> `}${chatLink(content.discoUrl)}`;
     onSent && onSent();
   } catch { status.textContent = 'That didn’t send. Check your connection and try again.'; btn.disabled = false; btn.textContent = 'Send pitch'; }
 }
@@ -966,7 +1068,7 @@ async function runUpload() {
   if (bad) { status.textContent = `${bad.name} can’t be uploaded. Use videos or photos up to 2 GB.`; return; }
   go.disabled = true; go.textContent = 'Uploading…';
   list.innerHTML = files.map((f,i) => `<li id="up-${i}"><span>${escapeHTML(f.name)} <small>${sizeLabel(f.size)}</small></span><progress max="1" value="0"></progress><small class="up-state">Waiting</small></li>`).join('');
-  let done = 0, folderUrl = '';
+  let done = 0;
   const chatFor = (content.activeCollaborations || []).find(p => p.title === destVal || p.id === destVal)?.discussionUrl || content.discoUrl;
   for (const [i,f] of files.entries()) {
     const row = $('#up-'+i), bar = row.querySelector('progress'), state = row.querySelector('.up-state');
@@ -974,7 +1076,7 @@ async function runUpload() {
       state.textContent = 'Starting';
       const start = await uploadRequest({ action:'start', name, dest: destVal === 'broll' ? 'broll' : 'collab', project: destVal === 'broll' ? '' : destVal, fileName:f.name, type:f.type, size:f.size, origin: location.origin });
       if (!start.ok) { state.textContent = start.error || 'Couldn’t start'; row.classList.add('failed'); if (start.locked) break; continue; }
-      storageSet(UPLOAD_NAME_KEY, name); folderUrl = start.folderUrl || folderUrl;
+      storageSet(UPLOAD_NAME_KEY, name);
       uploadDone(await putFile(start.uploadUrl, f, p => { bar.value = p; state.textContent = Math.round(p*100)+'%'; }));
       bar.value = 1; state.textContent = 'Uploaded'; row.classList.add('done'); done++;
     } catch { state.textContent = 'Upload stopped. Check your connection and try again.'; row.classList.add('failed'); }
@@ -982,7 +1084,7 @@ async function runUpload() {
   go.disabled = false; go.textContent = 'Upload more';
   if (done) {
     $('#up-files').value = '';
-    status.innerHTML = `${done === files.length ? 'All set!' : `${done} of ${files.length} uploaded.`} ${done === 1 ? 'Your file is' : 'Your files are'} in the Squad’s Drive.${destVal === 'broll' ? ' New B-roll shows in the library once Taylor adds it.' : ''} ${folderUrl ? externalLink(folderUrl,'Open the folder','text-button') : ''} ${chatLink(chatFor)}`;
+    status.innerHTML = `${done === files.length ? 'All set!' : `${done} of ${files.length} uploaded.`} ${done === 1 ? 'Your file is' : 'Your files are'} in the Squad’s Drive.${destVal === 'broll' ? ' New B-roll shows in the library once Taylor adds it.' : ''} ${chatLink(chatFor)}`;
   }
 }
 
@@ -1005,11 +1107,12 @@ function openReelShare(id) {
   showModal();
 }
 function openPanel(action,data={}) {
-  stash(); activeFlow = null; status.textContent = ''; body.replaceChildren(); castProject = '';
+  stash(); activeFlow = null; status.textContent = ''; body.replaceChildren(); castProject = ''; closeTool();
   if (action === 'drafts') return openDrafts();
   if (action === 'calendar') return openCalendar();
   if (action === 'tracker') return openTracker();
   if (action === 'reel') return openReel(data.reel);
+  if (action === 'brief') return openBrief(data.doc, data.project);
   if (action === 'reel-share') return openReelShare(data.project);
   if (action === 'upload') return openUpload(data);
   if (action === 'apply') return openApply();
@@ -1260,6 +1363,8 @@ async function loadActivity() {
 /* ---------- Events ---------- */
 document.addEventListener('click', e => {
   const t = e.target;
+  const tp = t.closest('a[data-tool-page]');
+  if (tp && !PANEL && !e.defaultPrevented && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.button) { e.preventDefault(); if (!modal.open) opener = tp; openTool(tp.dataset.toolPage, tp.dataset.label); return; }
   if (t.closest('[data-activity-more]')) { activityAll = !activityAll; renderActivity(); return; }
   const cs = t.closest('[data-cast-step]');
   if (cs && castProject) { status.textContent = ''; openCast(castProject, +cs.dataset.castStep); return; }
@@ -1287,7 +1392,12 @@ document.addEventListener('click', e => {
 });
 $('#modal .close').onclick = () => modal.close();
 modal.addEventListener('cancel', stash);
-modal.addEventListener('close', () => { stash(); opener?.focus(); });
+modal.addEventListener('close', () => {
+  stash(); closeTool();
+  // Back to whatever opened the dialog, without scrolling. A tool picked from the closed menu returns to the menu button.
+  const back = opener && opener.offsetParent !== null ? opener : document.getElementById && document.getElementById('menu-btn');
+  back?.focus({ preventScroll: true });
+});
 modal.addEventListener('click', e => { if (e.target === modal) { const r = modal.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) modal.close(); } });
 /* ---------- Mentor password ----------
    The landing page is open to everyone; its mentor-only parts ([data-mentor]) appear after sign-in.
@@ -1355,6 +1465,7 @@ document.addEventListener('click', e => {
   if (a && !['reel-share','apply','cast',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
 }, true);
 setupMenu();
+watchScreen();
 if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); }
 else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
 else showGate();
