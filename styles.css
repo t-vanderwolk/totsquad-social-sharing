@@ -869,3 +869,18 @@ dialog.coord{width:min(1000px,calc(100% - 24px))}
 
 /* Coordinator tools only show for people who signed in with the coordinator password. */
 html:not(.coordinator) [data-coordinator]{display:none!important}
+/* Coordinators: add, edit and delete Reels on the tracker and calendar */
+.reel-form .form-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+.reel-form .form-row .quiet{display:block;font-size:12px;margin-top:2px}
+@media (max-width:520px){.reel-form .form-row{grid-template-columns:1fr}}
+.text-button.danger{color:var(--error)}
+.button.danger{background:var(--error);border-color:var(--error);color:var(--white)}
+.button.danger:hover{background:#8a2b23;border-color:#8a2b23}
+.coord-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s4);margin-top:var(--s4);padding-top:var(--s3);border-top:1px dashed var(--line)}
+.coord-row .quiet{font-size:12px;font-weight:700}
+.cal-day{display:flex;align-items:center;justify-content:space-between}
+.cal-add{width:22px;height:22px;border:0;border-radius:50%;background:none;color:var(--muted);font:700 15px/1 var(--sans);cursor:pointer;opacity:0;transition:opacity .15s}
+.cal-cell:hover .cal-add,.cal-add:focus-visible{opacity:1}.cal-add:hover{background:var(--lavender);color:var(--plum)}
+@media (hover:none){.cal-add{opacity:.6}}
+.col-add{display:block;margin:0 0 var(--s2);font-size:13px;text-align:left}
+@media (max-width:720px){.cal-add{display:none}}

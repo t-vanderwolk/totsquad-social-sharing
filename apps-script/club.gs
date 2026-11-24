@@ -248,6 +248,7 @@ function adminReply(req) {
   try {
     let savedId = '';
     if (req.action === 'admin-check') return reply({ ok: true });
+    if (req.action === 'admin-reel') return reply(adminReel(req)); // Reels tracker + content calendar
     if (req.action === 'admin-app') adminApplication(req, who);
     else if (req.action === 'admin-member') adminMember(req, who);
     else if (req.action === 'admin-seed') adminSeed(req, who);
@@ -346,4 +347,74 @@ function adminSettings(req) {
     const r = rows.find(x => x.key === k);
     if (r) writeRow(sheet, cols, { value: text(v) }, r._row); else writeRow(sheet, cols, { key: k, value: text(v), about: about }, 0);
   });
+}
+
+/* Reels tracker and content calendar (reels.html): coordinators add, edit, move and delete Reels right on the
+   Reels – Status Report sheet. Columns: Title | Lead | Prompt (linked to the brief doc) | Deadline | Status | Folder.
+   Rows under the "Future ideas" row are ideas. Only the cells that changed are written, so a coordinator's edit
+   never overwrites someone else's formatting or links in the other cells. */
+const REEL_STATUS_TEXT = { casting: 'CASTING', filming: 'FILMING', editing: 'IN EDIT', upcoming: 'SCHEDULED', posted: 'POSTED', idea: 'IDEA' };
+function reelsSheet() { return SpreadsheetApp.openById(REELS_SHEET_ID).getSheets()[0]; }
+function reelIdeasRow(sheet) {
+  const last = sheet.getLastRow(); if (last < 2) return 0;
+  const v = sheet.getRange(1, 1, last, 1).getDisplayValues();
+  for (let i = 1; i < v.length; i++) if (/^future ideas/i.test(String(v[i][0]).trim())) return i + 1;
+  return 0;
+}
+function httpsUrl(u) { const s = String(u || '').trim(); return /^https:\/\/[^\s"<>]+$/.test(s) ? s.slice(0, 500) : ''; }
+function reelFields(x) {
+  x = x || {};
+  const status = Object.prototype.hasOwnProperty.call(REEL_STATUS_TEXT, x.status) ? x.status : 'upcoming';
+  const deadline = /^\d{4}-\d{2}-\d{2}$/.test(String(x.deadline || '')) ? x.deadline : text(x.deadline).slice(0, 40);
+  return { title: text(x.title).slice(0, 120), lead: clean(x.lead), status: status, deadline: deadline,
+    prompt: text(x.prompt).slice(0, 600), briefUrl: httpsUrl(x.briefUrl), folderUrl: httpsUrl(x.folderUrl) };
+}
+function writeReelDeadline(range, value) {
+  if (!value) return range.setValue('');
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return range.setValue(value); // free text such as "PAST DUE"
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  const near = Math.abs(d.getTime() - Date.now()) < 150 * 864e5; // the sheet shows "Sunday 11/30"; far-off dates keep their year
+  range.setValue(d).setNumberFormat(near ? 'dddd m/d' : 'dddd m/d/yyyy');
+}
+function adminReel(req) {
+  const op = String(req.op || ''), sheet = reelsSheet();
+  if (['create', 'update', 'delete'].indexOf(op) < 0) throw new Error('Unknown request.');
+  let row = 0;
+  if (op !== 'create') {
+    row = Math.floor(Number(req.row));
+    const now = row > 1 && row <= sheet.getLastRow() ? String(sheet.getRange(row, 1, 1, 1).getDisplayValues()[0][0]).trim() : '';
+    if (!now || now !== String(req.was || '').trim()) throw new Error('That Reel changed on the sheet since this page loaded. Reload and try again.');
+  }
+  if (op === 'delete') { sheet.deleteRow(row); return reelsDone(0); }
+  const next = reelFields(req.reel), was = op === 'create' ? null : reelFields(req.orig);
+  if (!next.title) throw new Error('Give the Reel a title.');
+  if (/^future ideas/i.test(next.title)) throw new Error('Pick a different title.');
+  const ideas = reelIdeasRow(sheet), wasIdea = !!(row && ideas && row > ideas), idea = next.status === 'idea';
+  let fresh = op === 'create';
+  if (row && wasIdea !== idea) { sheet.deleteRow(row); row = 0; fresh = true; } // moving between Reels and Future ideas
+  if (!row) {
+    const marker = reelIdeasRow(sheet);
+    if (idea) {
+      if (!marker) sheet.getRange(sheet.getLastRow() + 1, 1, 1, 1).setValue('Future ideas');
+      row = sheet.getLastRow() + 1;
+    } else if (marker) { sheet.insertRowBefore(marker); row = marker; }
+    else row = Math.max(sheet.getLastRow(), 1) + 1;
+  }
+  const changed = k => fresh || next[k] !== was[k];
+  const cell = c => sheet.getRange(row, c, 1, 1);
+  if (changed('title')) cell(1).setValue(next.title);
+  if (changed('lead')) cell(2).setValue(next.lead);
+  if (changed('prompt') || changed('briefUrl')) {
+    if (next.prompt && next.briefUrl) cell(3).setRichTextValue(SpreadsheetApp.newRichTextValue().setText(next.prompt).setLinkUrl(next.briefUrl).build());
+    else cell(3).setValue(next.prompt || next.briefUrl);
+  }
+  if (changed('deadline')) writeReelDeadline(cell(4), next.deadline);
+  if (changed('status')) cell(5).setValue(REEL_STATUS_TEXT[next.status]);
+  if (changed('folderUrl')) cell(6).setValue(next.folderUrl);
+  return reelsDone(row);
+}
+function reelsDone(row) {
+  CacheService.getScriptCache().remove('reels');
+  return { ok: true, row: row, updated: new Date().toISOString(), reels: readReels() };
 }

@@ -853,7 +853,8 @@ function buildReels(rows, live) {
       folderUrl: publicUrl(r.folderUrl) || (status !== 'idea' ? publicUrl(content.submissionFolderUrl) : ''),
       url: publicUrl(hub && hub.url) || publicUrl(project && project.publishedReelUrl),
       image: imageUrl(project && project.thumbnail), people: (project && project.participatingSpecialists) || [],
-      projectId: project && isPublished(project) ? project.id : ''
+      projectId: project && isPublished(project) ? project.id : '',
+      row: live && r.row ? r.row : 0, raw: live ? r : null // the sheet row, for coordinators' edits
     };
   });
 }
@@ -864,6 +865,91 @@ function loadReels() {
   reelsData = synced ? buildReels(synced.reels, true) : buildReels((content.contentCalendar || []).filter(x => x && x.title), false);
   reelsLive = !!synced; reelsUpdated = synced ? synced.updated || '' : '';
   renderReels();
+  refreshReelsLive();
+}
+// Signed in: swap the copy for the sheet as it is right now (and the row numbers coordinators edit by).
+let reelsFresh = false;
+async function refreshReelsLive() {
+  if (!UPLOAD_ON() || !mentorKey() || !has('#reels-view')) return;
+  try {
+    const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=reels&key=${encodeURIComponent(mentorKey())}`);
+    const data = await res.json();
+    if (data && data.ok && Array.isArray(data.reels)) setLiveReels(data);
+  } catch {}
+}
+function setLiveReels(data) { reelsData = buildReels(data.reels, true); reelsLive = true; reelsFresh = true; reelsUpdated = data.updated || ''; renderReels(); }
+
+/* Coordinators: add, edit, move and delete Reels from the tracker and the calendar (apps-script/club.gs → admin-reel).
+   Every change goes straight into the Reels – Status Report sheet. */
+const isCoord = () => !!storageGet(COORD_CODE_KEY);
+const REEL_FORM_STAGES = [['casting','Casting'],['filming','Filming'],['editing','In edit'],['upcoming','Scheduled'],['posted','Posted'],['idea','Future idea']];
+function reelValues(r) {
+  if (!r) return { title:'', lead:'', status:'upcoming', deadline:'', prompt:'', briefUrl:'', folderUrl:'' };
+  const raw = r.raw || {};
+  return { title: raw.title || r.title, lead: raw.lead || '', status: r.status, deadline: raw.deadline || '', prompt: raw.prompt || '', briefUrl: raw.briefUrl || '', folderUrl: raw.folderUrl || '' };
+}
+function openReelForm(rid, preset = {}) {
+  const r = rid ? (reelsData || []).find(x => x.id === rid) : null;
+  if (rid && (!r || !r.row)) { title.textContent = 'Edit Reel'; body.innerHTML = '<p>This Reel is still loading from the sheet. Close this and try again in a few seconds.</p>'; return showModal(); }
+  const v = reelValues(r), date = r ? r.date : (dateValid(preset.date) ? preset.date : ''), stage = r ? r.status : (REEL_STAGE_CLASS[preset.stage] ? preset.stage : 'upcoming');
+  title.textContent = r ? 'Edit Reel' : 'Add a Reel';
+  body.innerHTML = `<p>${r ? 'Changes go straight into the Reels – Status Report sheet.' : 'It goes straight into the Reels – Status Report sheet and shows on the tracker and the calendar.'}</p>
+    <form id="reel-form" class="reel-form" novalidate>
+      <label for="rf-title">Title</label><input id="rf-title" type="text" maxlength="120" required value="${escapeHTML(v.title)}">
+      <label for="rf-lead">Lead</label><input id="rf-lead" type="text" maxlength="80" list="rf-leads" value="${escapeHTML(v.lead)}"><datalist id="rf-leads">${squadNames().map(n => `<option value="${escapeHTML(n)}">`).join('')}</datalist>
+      <div class="form-row">
+        <div><label for="rf-status">Stage</label><select id="rf-status">${REEL_FORM_STAGES.map(([k,l]) => `<option value="${k}"${k === stage ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div><label for="rf-date">Deadline</label><input id="rf-date" type="date" value="${escapeHTML(date)}">${r && !date && v.deadline ? `<span class="quiet">On the sheet: ${escapeHTML(v.deadline)}</span>` : ''}</div>
+      </div>
+      <label for="rf-prompt">Prompt</label><textarea id="rf-prompt" rows="3" maxlength="600" placeholder="What should specialists film?">${escapeHTML(v.prompt)}</textarea>
+      <label for="rf-brief">Brief (Google Doc link)</label><input id="rf-brief" type="url" inputmode="url" placeholder="https://docs.google.com/document/d/…" value="${escapeHTML(v.briefUrl)}">
+      <label for="rf-folder">Drive folder link <span class="quiet">(optional)</span></label><input id="rf-folder" type="url" inputmode="url" placeholder="https://drive.google.com/drive/folders/…" value="${escapeHTML(v.folderUrl)}">
+      <div class="form-actions"><button class="button" type="submit" id="rf-save">${r ? 'Save changes' : 'Add Reel'}</button>${r ? `<button type="button" class="button secondary" data-reel="${r.id}">Cancel</button><button type="button" class="text-button danger" data-action="reel-delete" data-rid="${r.id}">Delete this Reel</button>` : ''}</div>
+    </form>`;
+  $('#reel-form').onsubmit = ev => { ev.preventDefault(); saveReel(r, date); };
+  showModal();
+  $('#rf-title').focus();
+}
+async function reelRequest(payload) {
+  return uploadRequest({ action:'admin-reel', coordKey: storageGet(COORD_CODE_KEY) || '', coordName: storageGet(UPLOAD_NAME_KEY) || 'Coordinator', ...payload });
+}
+function reelError(res) {
+  if (res && res.coordLocked) return 'Coordinator tools need the coordinator password. Sign out, then sign in again with it.';
+  return (res && res.error) || 'That didn’t save. Try again in a minute.';
+}
+async function saveReel(r, loadedDate) {
+  const val = id => $(id).value.trim(), btn = $('#rf-save');
+  const was = reelValues(r), date = $('#rf-date').value;
+  const next = { title: val('#rf-title'), lead: val('#rf-lead'), status: $('#rf-status').value, prompt: val('#rf-prompt'), briefUrl: val('#rf-brief'), folderUrl: val('#rf-folder'),
+    deadline: r && date === loadedDate ? was.deadline : date }; // an untouched date keeps the sheet's own wording ("PAST DUE", "Sunday 10/18")
+  status.textContent = '';
+  if (!next.title) { status.textContent = 'Give the Reel a title.'; $('#rf-title').focus(); return; }
+  const bad = [['#rf-brief', next.briefUrl], ['#rf-folder', next.folderUrl]].find(([, u]) => u && !/^https:\/\/\S+$/.test(u));
+  if (bad) { status.textContent = 'Links need to start with https://'; $(bad[0]).focus(); return; }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await reelRequest(r ? { op:'update', row: r.row, was: was.title, orig: was, reel: next } : { op:'create', reel: next });
+    if (!res || !res.ok) { status.textContent = reelError(res); btn.disabled = false; btn.textContent = r ? 'Save changes' : 'Add Reel'; return; }
+    setLiveReels(res);
+    const saved = (reelsData || []).find(x => x.row === res.row);
+    if (saved) { openReel(saved.id); status.textContent = r ? 'Saved.' : 'Added to the tracker.'; }
+    else { modal.close(); toast(r ? 'Saved.' : 'Added to the tracker.'); }
+  } catch { status.textContent = 'That didn’t save. Check your connection and try again.'; btn.disabled = false; btn.textContent = r ? 'Save changes' : 'Add Reel'; }
+}
+function openReelDelete(rid) {
+  const r = (reelsData || []).find(x => x.id === rid); if (!r || !r.row) return;
+  title.textContent = 'Delete this Reel?';
+  body.innerHTML = `<p><strong>${escapeHTML(r.title)}</strong> comes off the tracker and the calendar, and its row is removed from the Reels – Status Report sheet. Its brief and Drive folder aren’t touched.</p>
+    <div class="form-actions"><button type="button" class="button danger" id="rd-go">Delete</button><button type="button" class="button secondary" data-reel="${r.id}">Keep it</button></div>`;
+  $('#rd-go').onclick = async () => {
+    const btn = $('#rd-go'); btn.disabled = true; btn.textContent = 'Deleting…'; status.textContent = '';
+    try {
+      const res = await reelRequest({ op:'delete', row: r.row, was: reelValues(r).title });
+      if (!res || !res.ok) { status.textContent = reelError(res); btn.disabled = false; btn.textContent = 'Delete'; return; }
+      setLiveReels(res); modal.close(); toast(`Deleted “${r.title}”.`);
+    } catch { status.textContent = 'That didn’t delete. Check your connection and try again.'; btn.disabled = false; btn.textContent = 'Delete'; }
+  };
+  showModal();
 }
 const dueLabel = r => r.date ? fmt(r.date,{month:'short',day:'numeric'}) : r.pastDue ? 'Past due' : '';
 const overdue = r => r.date && !['posted','idea'].includes(r.status) && !upcoming(r.date);
@@ -887,7 +973,8 @@ function reelsCalendar(list) {
   for (let i = 0; i < first.getDay(); i++) cells.push('<div class="cal-cell empty" aria-hidden="true"></div>');
   for (let d = 1; d <= days; d++) {
     const due = list.filter(r => r.date === iso(d));
-    cells.push(`<div class="cal-cell${iso(d) === todayIso ? ' today' : ''}${due.length ? ' has' : ''}"><span class="cal-day">${d}</span>${due.map(r => reelChip(r)).join('')}</div>`);
+    const add = isCoord() ? `<button type="button" class="cal-add" data-action="reel-new" data-date="${iso(d)}" aria-label="Add a Reel due ${escapeHTML(first.toLocaleDateString('en-US',{month:'long'}))} ${d}">+</button>` : '';
+    cells.push(`<div class="cal-cell${iso(d) === todayIso ? ' today' : ''}${due.length ? ' has' : ''}"><span class="cal-day">${d}${add}</span>${due.map(r => reelChip(r)).join('')}</div>`);
   }
   const monthName = first.toLocaleDateString('en-US',{month:'long',year:'numeric'});
   const inMonth = list.filter(r => r.date && r.date.startsWith(iso(1).slice(0,7))).sort((a,b) => a.date.localeCompare(b.date));
@@ -901,7 +988,7 @@ function reelsBoard(list) {
   const byDate = (a,b) => (a.date || '9999').localeCompare(b.date || '9999');
   return `<div class="reel-board">${REEL_STAGES.map(([k,label]) => {
     const items = list.filter(r => r.status === k).sort(k === 'posted' ? (a,b) => (b.date || '').localeCompare(a.date || '') : byDate);
-    return `<section class="reel-col col-${REEL_STAGE_CLASS[k]}" aria-label="${label}"><h2><span class="stage stage-${REEL_STAGE_CLASS[k]}">${label}</span><span class="count">${items.length}</span></h2>${items.length ? items.map(reelCard).join('') : '<p class="quiet">Nothing here right now.</p>'}</section>`;
+    return `<section class="reel-col col-${REEL_STAGE_CLASS[k]}" aria-label="${label}"><h2><span class="stage stage-${REEL_STAGE_CLASS[k]}">${label}</span><span class="count">${items.length}</span></h2>${isCoord() ? `<button type="button" class="text-button col-add" data-action="reel-new" data-stage="${k}">+ Add a Reel</button>` : ''}${items.length ? items.map(reelCard).join('') : '<p class="quiet">Nothing here right now.</p>'}</section>`;
   }).join('')}</div>`;
 }
 function reelsList(list) {
@@ -917,8 +1004,8 @@ function renderReels() {
   ['calendar','board','list'].forEach(v => { const t = document.getElementById ? document.getElementById('tab-'+v) : null; if (t) { t.setAttribute('aria-selected', String(v === reelsView)); t.tabIndex = v === reelsView ? 0 : -1; } });
   const live = list.filter(r => !['posted','idea'].includes(r.status)).length;
   if (has('#reels-summary')) $('#reels-summary').textContent = list.length ? `${live} in progress, ${list.filter(r => r.status === 'posted').length} posted.` : '';
-  if (has('#reels-sheet')) $('#reels-sheet').innerHTML = UPLOAD_ON() ? uploadButton('Upload your clips','collab') : '';
-  if (has('#reels-source')) $('#reels-source').textContent = reelsLive ? `From the Reels tracker${reelsUpdated ? ' · copied '+new Date(reelsUpdated).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}` : '';
+  if (has('#reels-sheet')) $('#reels-sheet').innerHTML = (isCoord() && UPLOAD_ON() ? '<button type="button" class="button" data-action="reel-new">Add a Reel</button>' : '') + (UPLOAD_ON() ? uploadButton('Upload your clips','collab','','button'+(isCoord() ? ' secondary' : '')) : '');
+  if (has('#reels-source')) $('#reels-source').textContent = reelsFresh ? 'Live from the Reels tracker' : reelsLive ? `From the Reels tracker${reelsUpdated ? ' · copied '+new Date(reelsUpdated).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : ''}` : '';
   $('#reels-view').innerHTML = !list.length ? emptyState('No Reels yet.','New Reels show up here as soon as Sarah and Taylor add them.', '', ICON.play)
     : reelsView === 'calendar' ? reelsCalendar(list) : reelsView === 'list' ? reelsList(list) : reelsBoard(list);
 }
@@ -970,8 +1057,12 @@ function loadBrief(r) {
   const id = briefDocId(r.briefUrl), box = document.getElementById ? document.getElementById('brief-body') : null;
   if (!id || !box) return;
   const brief = syncedReels() && window.HUB_REELS.briefs && window.HUB_REELS.briefs[id];
-  if (brief) renderBrief(box, brief.html, r.title);
-  else box.innerHTML = `<p class="quiet">The brief is on its way. ${r.lead ? 'Ask '+escapeHTML(r.lead)+' in Disco if you need it sooner.' : ''}</p>`;
+  const later = () => { box.innerHTML = `<p class="quiet">The brief is on its way. ${r.lead ? 'Ask '+escapeHTML(r.lead)+' in Disco if you need it sooner.' : ''}</p>`; };
+  if (brief) return renderBrief(box, brief.html, r.title);
+  if (!UPLOAD_ON() || !mentorKey()) return later();
+  // A brief added since the last copy: read it live.
+  fetch(`${publicUrl(content.uploadEndpoint)}?action=brief&id=${encodeURIComponent(id)}&key=${encodeURIComponent(mentorKey())}`).then(res => res.json())
+    .then(d => { if (d && d.ok && d.html) renderBrief(box, d.html, r.title); else later(); }).catch(later);
 }
 
 // A Reel's brief, read in the app (the doc itself is in Tot Squad's private Drive).
@@ -992,6 +1083,7 @@ function openReel(id) {
     ${r.prompt ? `<h3 class="cal-head">The prompt</h3><p>${escapeHTML(r.prompt)}</p>` : ''}
     ${r.people.length ? `<h3 class="cal-head">Featuring</h3><p>${escapeHTML(r.people.join(', '))}</p>` : ''}
     <div class="button-row">${r.status === 'posted' && r.url ? externalLink(r.url,'Watch','button') : ''}${r.lead && r.status !== 'posted' ? messageLead(r.lead) : ''}${r.projectId ? `<button type="button" class="button secondary" data-action="reel-share" data-project="${escapeHTML(r.projectId)}">Share</button>` : ''}${live ? uploadButton('Upload your clips','collab',r.title) : ''}${!UPLOAD_ON() && live && r.folderUrl ? externalLink(r.folderUrl,'Open the folder','button secondary') : ''}</div>
+    ${isCoord() && r.row ? `<div class="coord-row"><span class="quiet">Coordinator</span><button type="button" class="text-button" data-action="reel-edit" data-rid="${r.id}">Edit</button><button type="button" class="text-button danger" data-action="reel-delete" data-rid="${r.id}">Delete</button></div>` : ''}
     ${r.briefUrl && briefDocId(r.briefUrl) ? `<section class="reel-brief" aria-labelledby="brief-head"><div class="reel-brief-top"><h3 class="cal-head" id="brief-head">The brief</h3></div><div class="brief-body" id="brief-body" data-doc="${escapeHTML(briefDocId(r.briefUrl))}"><p class="quiet">Loading the brief…</p></div></section>` : ''}`;
   if (r.briefUrl) loadBrief(r);
   showModal();
@@ -1029,7 +1121,8 @@ const UPLOAD_NAME_KEY = 'totsquad-upload-name';
 function uploadTargets() {
   const live = ['casting','filming','editing','scheduled'];
   const titles = [...content.activeCollaborations.filter(p => p.status !== 'published').map(p => p.title),
-    ...(content.contentCalendar || []).filter(x => x && live.includes(x.status) && x.status !== 'casting').map(x => x.title)];
+    ...(content.contentCalendar || []).filter(x => x && live.includes(x.status) && x.status !== 'casting').map(x => x.title),
+    ...(reelsData || []).filter(r => ['filming','editing','upcoming'].includes(r.status)).map(r => r.title)];
   return [...new Set(titles.filter(Boolean))];
 }
 function squadNames() { return [...new Set([...(content.featuredSpecialists || []).map(p => p && p.name), content.leader && content.leader.name].filter(Boolean))].sort(); }
@@ -1150,6 +1243,9 @@ function openPanel(action,data={}) {
   if (action === 'calendar') return openCalendar();
   if (action === 'tracker') return openTracker();
   if (action === 'reel') return openReel(data.reel);
+  if (action === 'reel-new') return openReelForm('', data);
+  if (action === 'reel-edit') return openReelForm(data.rid);
+  if (action === 'reel-delete') return openReelDelete(data.rid);
   if (action === 'brief') return openBrief(data.doc, data.project);
   if (action === 'applications') return openApplications();
   if (typeof openClubAction === 'function' && /^(club-|coordinator)/.test(action)) return openClubAction(action, data); // club.js

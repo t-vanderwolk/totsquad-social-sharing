@@ -8,11 +8,17 @@ function fakeGoogle(props) {
   const range = (sheet, r, c, nr = 1, nc = 1) => ({
     getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => ((sheet.rows[r - 1 + i] || [])[c - 1 + j] ?? ''))),
     setValues(v) { v.forEach((row, i) => row.forEach((x, j) => sheet.set(r + i, c + j, x))); return this; },
-    setValue(x) { sheet.set(r, c, x); return this; },
+    setValue(x) { sheet.set(r, c, x); delete sheet.links[r + ',' + c]; return this; },
+    getDisplayValues() { return this.getValues().map(row => row.map(v => v instanceof Date ? (sheet.formats[r + ',' + c] || '').includes('yyyy') ? `${v.getMonth() + 1}/${v.getDate()}/${v.getFullYear()}` : `${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][v.getDay()]} ${v.getMonth() + 1}/${v.getDate()}` : String(v))); },
+    getRichTextValues() { return Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => ({ getLinkUrl: () => sheet.links[(r + i) + ',' + (c + j)] || null }))); },
+    setRichTextValue(v) { sheet.set(r, c, v.text); sheet.links[r + ',' + c] = v.link; return this; },
+    setNumberFormat(f) { sheet.formats[r + ',' + c] = f; return this; },
     setFontWeight() { return this; }, setBackground() { return this; }, setDataValidation() { return this; }
   });
   const makeSheet = name => {
-    const sheet = { name, rows: [],
+    const sheet = { name, rows: [], links: {}, formats: {},
+      shift(at, by) { const move = o => Object.fromEntries(Object.entries(o).flatMap(([k, v]) => { const [rr, cc] = k.split(',').map(Number); if (rr < at) return [[k, v]]; if (by < 0 && rr === at) return []; return [[(rr + by) + ',' + cc, v]]; })); this.links = move(this.links); this.formats = move(this.formats); },
+      insertRowBefore(at) { this.shift(at, 1); this.rows.splice(at - 1, 0, []); }, deleteRow(at) { this.shift(at, -1); this.rows.splice(at - 1, 1); },
       set(r, c, x) { while (this.rows.length < r) this.rows.push([]); const row = this.rows[r - 1]; while (row.length < c) row.push(''); row[c - 1] = x; },
       getName() { return this.name; }, setName(x) { this.name = x; },
       getLastRow() { let i = this.rows.length; while (i && !this.rows[i - 1].some(v => v !== '')) i--; return i; },
@@ -33,11 +39,12 @@ function fakeGoogle(props) {
   const store = new Map(Object.entries(props));
   const cache = new Map();
   return { books, made,
-    SpreadsheetApp: { create: makeBook, openById: id => { const b = books.get(id); if (!b) throw Error('missing'); return b; }, newDataValidation: () => validation },
+    SpreadsheetApp: { create: makeBook, openById: id => { const b = books.get(id); if (!b) throw Error('missing'); return b; }, newDataValidation: () => validation,
+      newRichTextValue: () => { const v = {}; return { setText(t) { v.text = t; return this; }, setLinkUrl(l) { v.link = l; return this; }, build: () => v }; } },
     DriveApp: { getFileById: () => ({ moveTo() {} }), getFolderById: id => folder(id) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => store.get(k) ?? null, setProperty: (k, v) => store.set(k, v), getProperties: () => Object.fromEntries(store) }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-    CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v) }) },
+    CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
     Utilities: { formatDate: (d, tz, f) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d).map(x => [x.type, x.value])); return f === 'yyyy-MM-dd' ? `${p.year}-${p.month}-${p.day}` : d.toISOString(); } },
     ContentService: { createTextOutput: s => ({ setMimeType() { return JSON.parse(s); } }), MimeType: { JSON: 'json' } },
     UrlFetchApp: { fetch: (url, opts) => { made.push(JSON.parse(opts.payload).parents[0]); return { getHeaders: () => ({ Location: 'https://upload.example/x' }), getResponseCode: () => 200 }; } }, ScriptApp: { getOAuthToken: () => "" }, Session: {}, console: { log: console.log, error() {} }
@@ -144,4 +151,47 @@ r = t4.post({ action: 'broll-start', name: 'Pat', agreed: true, type: 'video/mp4
 assert.ok(t4.g.made.includes('0ADqEscN50JTEUk9PVA/B-roll to review/Pat')); assert.ok(!t4.g.made.some(id => id.startsWith(vm.runInContext('ROOTS.broll', t4.ctx))));
 r = t4.post({ action: 'start', key, name: 'Kristin', dest: 'broll', type: 'image/jpeg', size: 10, fileName: 'b.jpg' }); assert.equal(r.ok, true);
 assert.ok(t4.g.made.includes('0ADqEscN50JTEUk9PVA/B-roll to review/Kristin'));
+// Reels tracker + content calendar: coordinators create, read, update, move and delete rows on the Reels sheet.
+const t5 = boot();
+const reelsBook = t5.g.SpreadsheetApp.create('Reels – Status Report'); t5.g.books.set(vm.runInContext('REELS_SHEET_ID', t5.ctx), reelsBook);
+const rs = reelsBook.getSheets()[0];
+[['Reel', 'Lead', 'Prompt', 'Deadline', 'Status', 'Folder'], ['Pass the Toy', 'Kristin', 'Intros', 'PAST DUE', 'POSTED', 'Folder'], ['Round Up #3', 'Kristin', 'Weekly recap', 'Sunday 11/8', '', ''],
+ ['Future ideas'], ['Trick or Treat', 'Taylor', '', '', 'IDEA', '']].forEach(row => rs.appendRow(row));
+rs.links['2,6'] = 'https://drive.google.com/drive/folders/abc'; rs.links['3,3'] = 'https://docs.google.com/document/d/BRIEF1234567890abcdefgh/edit';
+const reels = () => t5.get({ action: 'reels', key }).reels;
+const rc = { key, coordKey: 'Coord-123', coordName: 'Taylor' };
+assert.equal(reels().length, 3);
+// Creators can read but not change the tracker.
+assert.equal(t5.post({ action: 'admin-reel', key, op: 'create', reel: { title: 'Nope' } }).coordLocked, true);
+// Create: goes in above "Future ideas" with a real date the sheet shows as "Weekday m/d".
+const soon = new Date(Date.now() + 10 * 864e5), soonIso = iso(soon);
+r = t5.post({ action: 'admin-reel', ...rc, op: 'create', reel: { title: 'Car Seat Check', lead: 'Sarah', status: 'filming', deadline: soonIso, prompt: 'Show the pinch test', briefUrl: 'https://docs.google.com/document/d/NEWBRIEF1234567890abcd/edit' } });
+assert.equal(r.ok, true); assert.equal(r.row, 4);
+let cs = r.reels.find(x => x.title === 'Car Seat Check');
+assert.equal(cs.status, 'FILMING'); assert.equal(cs.prompt, 'Show the pinch test'); assert.equal(cs.briefUrl, 'https://docs.google.com/document/d/NEWBRIEF1234567890abcd/edit'); assert.match(cs.deadline, /^[A-Z][a-z]+day \d{1,2}\/\d{1,2}$/);
+assert.equal(reels().length, 4); // the cached copy was cleared
+// Update: only changed cells are written ("PAST DUE" and the folder's "Folder" link survive a status change).
+const pt = reels().find(x => x.title === 'Pass the Toy');
+r = t5.post({ action: 'admin-reel', ...rc, op: 'update', row: pt.row, was: 'Pass the Toy', orig: { ...pt, status: 'posted' }, reel: { ...pt, status: 'editing', lead: 'Karina' } });
+assert.equal(r.ok, true); assert.equal(rs.rows[1][3], 'PAST DUE'); assert.equal(rs.rows[1][5], 'Folder'); assert.equal(rs.links['2,6'], 'https://drive.google.com/drive/folders/abc');
+assert.equal(r.reels.find(x => x.title === 'Pass the Toy').status, 'IN EDIT'); assert.equal(r.reels.find(x => x.title === 'Pass the Toy').lead, 'Karina');
+// A stale row (someone else changed the sheet) is refused, never written to the wrong Reel.
+assert.equal(t5.post({ action: 'admin-reel', ...rc, op: 'update', row: pt.row, was: 'Something else', orig: pt, reel: pt }).ok, false);
+assert.equal(t5.post({ action: 'admin-reel', ...rc, op: 'create', reel: { title: '' } }).ok, false);
+// Move an idea up into the schedule, and a Reel down into Future ideas.
+const tt = reels().find(x => x.title === 'Trick or Treat');
+r = t5.post({ action: 'admin-reel', ...rc, op: 'update', row: tt.row, was: tt.title, orig: { ...tt, status: 'idea' }, reel: { ...tt, status: 'casting' } });
+assert.equal(r.reels.find(x => x.title === 'Trick or Treat').status, 'CASTING');
+assert.ok(r.reels.findIndex(x => x.title === 'Trick or Treat') < r.reels.findIndex(x => x.status === 'IDEA') || !r.reels.some(x => x.status === 'IDEA'));
+const ru = r.reels.find(x => x.title === 'Round Up #3');
+r = t5.post({ action: 'admin-reel', ...rc, op: 'update', row: ru.row, was: ru.title, orig: { ...ru, status: 'upcoming' }, reel: { ...ru, status: 'idea' } });
+assert.equal(r.reels.find(x => x.title === 'Round Up #3').status, 'IDEA'); assert.equal(r.reels.find(x => x.title === 'Round Up #3').briefUrl, 'https://docs.google.com/document/d/BRIEF1234567890abcdefgh/edit');
+assert.equal(rs.rows.filter(x => x[0] === 'Future ideas').length, 1);
+// Delete.
+cs = r.reels.find(x => x.title === 'Car Seat Check');
+r = t5.post({ action: 'admin-reel', ...rc, op: 'delete', row: cs.row, was: cs.title }); assert.equal(r.ok, true);
+assert.ok(!reels().some(x => x.title === 'Car Seat Check')); assert.equal(reels().length, 3);
+// Formulas and odd links are neutralised.
+r = t5.post({ action: 'admin-reel', ...rc, op: 'create', reel: { title: '=IMPORTXML("x")', status: 'upcoming', folderUrl: 'javascript:alert(1)' } });
+assert.equal(r.reels.find(x => x.title.includes('IMPORTXML')).title[0], "'"); assert.equal(r.reels.find(x => x.title.includes('IMPORTXML')).folderUrl, '');
 console.log('PASS: Creators Club 2.0 backend workflows');
