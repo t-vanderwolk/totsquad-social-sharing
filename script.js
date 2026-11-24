@@ -433,6 +433,7 @@ function setupBell() {
 function renderContent() {
   document.body.classList.toggle('embed', EMBED);
   document.body.classList.toggle('panel', PANEL);
+  (document.querySelectorAll ? [...document.querySelectorAll('[data-squad-chat]')] : []).forEach(a => { const u = publicUrl(content.squadChatUrl); if (u) a.href = u; else a.hidden = true; }); // Instagram group chat invite
   if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"], a[href="b-roll.html"], a[href="reels.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
   if (has('#welcome')) $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
   const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources],['#public-guides',renderGuides],['#nav-menu',renderMenu]];

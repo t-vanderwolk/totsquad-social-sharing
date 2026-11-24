@@ -80,6 +80,7 @@ function renderDashboard() {
       <a href="#toolkit"><span aria-hidden="true">🧰</span><span><strong>Creator resources</strong>Footage, templates and guides</span></a>
       ${clubCircle() ? `<a href="${escapeHTML(clubCircle())}" target="_top"><span aria-hidden="true">🔒</span><span><strong>Creator Circle</strong>Our private channel in Disco</span></a>` : ''}
       <a href="#made"><span aria-hidden="true">🌟</span><span><strong>Community highlights</strong>What the Squad has published</span></a>
+      ${publicUrl(content.squadChatUrl) ? `<a href="${escapeHTML(publicUrl(content.squadChatUrl))}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><span><strong>Squad group chat</strong>Our open Instagram chat</span></a>` : ''}
     </article>
   </div>${(club.upcoming || []).length ? `<p class="quiet club-next">Coming up: ${club.upcoming.map(u => `${escapeHTML(u.title || u.theme)} (${escapeHTML(weekRange(u))})`).join(' · ')}</p>` : ''}`;
 }
