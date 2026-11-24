@@ -913,3 +913,10 @@ html:not(.coordinator) [data-coordinator]{display:none!important}
 .coord-confirm{margin-top:var(--s3);padding:var(--s3) var(--s4);border-radius:var(--r-sm);background:#fbeeee}
 .coord-confirm p{margin:0}
 .brief-preview h3{font:800 24px/1.15 var(--serif);color:var(--plum-ink);margin:var(--s2) 0 var(--s3)}
+/* Coordinator roster: who has claimed their profile */
+.claims .app-top h3{margin:0}
+.claim-list{list-style:none;margin:var(--s3) 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:var(--s2) var(--s4)}
+.claim-list li{display:grid;grid-template-columns:22px auto 1fr;align-items:center;gap:var(--s2);font-size:14px}
+.claim-list li span:first-child{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;border:2px solid var(--line);font-size:12px;color:var(--white)}
+.claim-list li.done span:first-child{background:var(--teal-dark);border-color:var(--teal-dark)}
+.claim-list .quiet{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

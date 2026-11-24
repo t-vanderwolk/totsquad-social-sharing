@@ -333,9 +333,9 @@ function adminMember(req, who) {
 }
 // Adds the current Squad as founding members. Skips anyone already on the roster.
 function adminSeed(req, who) {
-  const sheet = clubSheet('Members'), cols = CLUB_TABS['Members'], have = readTable(sheet, cols);
+  const sheet = clubSheet('Members'), cols = CLUB_TABS['Members'], have = readTable(sheet, cols), claimed = claimedNames();
   (Array.isArray(req.members) ? req.members : []).slice(0, 60).forEach(p => {
-    const name = clean(p && p.name); if (!name || have.some(r => sameName(r.name, name))) return;
+    const name = clean(p && p.name); if (!name || have.some(r => sameName(r.name, name)) || claimed.some(x => sameName(x, name))) return; // claimed names are on the roster by full name
     writeRow(sheet, cols, { name: name, status: 'Active', market: text(p.market).slice(0, 80), instagram: text(p.instagram).slice(0, 60), joined: todayIso(), notes: 'Founding member', updated: new Date(), updatedBy: who }, 0);
     have.push({ name: name });
   });
@@ -464,7 +464,7 @@ function reelsDone(row) {
    their own, then signs in with those. Passwords are never stored, only a salted, stretched hash. Each signed-in
    device gets a random key; only its hash is kept (the last 5 devices). Coordinators can reset a password from the
    Roster tab, and the creator sets a new one with the creator password. Bios show on Meet the Squad. */
-const ACCOUNT_COLS = CLUB_TABS['Accounts'] = [['id', 'Account ID'], ['name', 'Name'], ['bio', 'Bio'], ['bioUpdated', 'Bio updated'], ['hash', 'Password hash'], ['salt', 'Salt'], ['tokens', 'Signed-in devices'], ['created', 'Created'], ['lastSignIn', 'Last sign-in'], ['resetBy', 'Reset by'], ['agreed', 'Agreed to guidelines']];
+const ACCOUNT_COLS = CLUB_TABS['Accounts'] = [['id', 'Account ID'], ['name', 'Name'], ['bio', 'Bio'], ['bioUpdated', 'Bio updated'], ['hash', 'Password hash'], ['salt', 'Salt'], ['tokens', 'Signed-in devices'], ['created', 'Created'], ['lastSignIn', 'Last sign-in'], ['resetBy', 'Reset by'], ['agreed', 'Agreed to guidelines'], ['claimed', 'Claimed Squad name']];
 const BIO_MAX = 400;
 function hexOf(bytes) { return bytes.map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join(''); }
 function sha(s) { return hexOf(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(s), Utilities.Charset.UTF_8)); }
@@ -522,23 +522,41 @@ function passwordProblem(pw, name) {
   return '';
 }
 function accountOut(a, key) {
-  return { ok: true, key: key || undefined, name: String(a.name), bio: String(a.bio || ''), bioSet: !!a.bioUpdated };
+  return { ok: true, key: key || undefined, name: String(a.name), claimed: String(a.claimed || ''), bio: String(a.bio || ''), bioSet: !!a.bioUpdated };
 }
-// POST account-setup { key: the creator password, name, password }
+/* Claiming a name: the current Squad is listed by first name ("Kristin") on the roster, Meet the Squad and older ideas.
+   A member claims theirs while setting up their password and adds their last name. The roster row (and any posts
+   logged under the first name) move to the full name, so the roster ends up with everyone's full name. */
+const claimOf = a => String(a && a.claimed || '').trim();
+function claimedNames() { return allAccountRows().filter(a => a.hash && claimOf(a)).map(claimOf); }
+function syncRoster(full, claim) {
+  const msheet = clubSheet('Members'), cols = CLUB_TABS['Members'], rows = readTable(msheet, cols);
+  const exact = rows.find(r => sameName(r.name, full)), first = claim ? rows.find(r => sameName(r.name, claim)) : null;
+  if (!exact && first) writeRow(msheet, cols, { name: full, updated: new Date(), updatedBy: full }, first._row); // "Kristin" -> "Kristin Smith"
+  else if (!exact && claim) writeRow(msheet, cols, { name: full, status: 'Active', joined: todayIso(), notes: 'Founding member (claimed their profile)', updated: new Date(), updatedBy: full }, 0);
+  if (!claim) return;
+  const ssheet = clubSheet('Submissions'), scols = CLUB_TABS['Submissions'];
+  readTable(ssheet, scols).filter(s => sameName(s.name, claim)).forEach(s => writeRow(ssheet, scols, { name: full }, s._row));
+}
+// POST account-setup { key: the creator password, name (full), claim (their first name on the current Squad list, if any), password }
 function accountSetup(req) {
   if (!sharedPassword(req.key) && !isCoordinator(req.key)) return locked();
-  const name = clean(req.name);
+  const name = clean(req.name), claim = clean(req.claim);
   const nameProblem = fullNameProblem(name); if (nameProblem) return reply({ ok: false, fullName: true, error: nameProblem });
+  if (claim && !sameName(name.split(/\s+/)[0], claim)) return reply({ ok: false, fullName: true, error: 'Your full name should start with ' + claim + '.' });
   if (req.agreed !== true) return reply({ ok: false, error: 'Check the box to agree to the Creators Club guidelines.' });
   const problem = passwordProblem(req.password, name); if (problem) return reply({ ok: false, error: problem });
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
   try {
     const sheet = accountsSheet(); let a = findAccount(name);
     if (a && a.hash) return reply({ ok: false, taken: true, error: a.name + ' already has a password. Sign in with your name and your own password, or ask a coordinator to reset it.' });
-    const salt = Utilities.getUuid(), patch = { salt: salt, hash: pwHash(req.password, salt), tokens: '', resetBy: '', agreed: new Date() };
+    const holder = claim ? allAccountRows().find(x => x.hash && sameName(claimOf(x), claim) && !sameName(x.name, name)) : null;
+    if (holder) return reply({ ok: false, taken: true, error: claim + ' was already claimed by ' + holder.name + '. If that isn’t you, ask a coordinator.' });
+    const salt = Utilities.getUuid(), patch = { salt: salt, hash: pwHash(req.password, salt), tokens: '', resetBy: '', agreed: new Date(), claimed: claim || (a ? claimOf(a) : '') };
     if (a) writeRow(sheet, ACCOUNT_COLS, patch, a._row);
     else writeRow(sheet, ACCOUNT_COLS, Object.assign(patch, { id: 'a' + Utilities.getUuid().replace(/-/g, '').slice(0, 15), name: name, created: new Date() }), 0);
     a = findAccount(name);
+    syncRoster(String(a.name), claimOf(a));
     return reply(accountOut(a, issueKey(a)));
   } finally { lock.releaseLock(); }
 }
@@ -591,12 +609,12 @@ function accountReply(req, name) {
 function readBios() {
   const cache = CacheService.getScriptCache(), hit = cache.get('bios');
   if (hit) return JSON.parse(hit);
-  const out = allAccountRows().filter(a => a.bioUpdated).map(a => ({ name: String(a.name), bio: String(a.bio || '').replace(/^'/, '') }));
+  const out = allAccountRows().filter(a => a.bioUpdated).map(a => ({ name: String(a.name), claimed: claimOf(a), bio: String(a.bio || '').replace(/^'/, '') }));
   cache.put('bios', JSON.stringify(out), 120);
   return out;
 }
 function allAccounts() {
-  return allAccountRows().map(a => ({ name: String(a.name), hasPassword: !!a.hash, bio: String(a.bio || ''), bioSet: !!a.bioUpdated, lastSignIn: isoTime(a.lastSignIn) }));
+  return allAccountRows().map(a => ({ name: String(a.name), claimed: claimOf(a), hasPassword: !!a.hash, bio: String(a.bio || ''), bioSet: !!a.bioUpdated, lastSignIn: isoTime(a.lastSignIn) }));
 }
 // Coordinators: reset a creator's password (they set a new one with the creator password), or take a bio down.
 function adminAccount(req, who) {

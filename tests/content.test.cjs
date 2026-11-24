@@ -3,7 +3,7 @@ const vm = require('node:vm'), fs = require('node:fs'), assert = require('node:a
 const root = require('node:path').join(__dirname, '..');
 const { validate, load } = require('../scripts/validate-content.cjs');
 
-function boot(config, storageFailure = false, stored = new Map([['totsquad-mentor-key','acct.testaccount1.testsecretsecretsecretsecret'],['totsquad-account-name','Taylor Vanderwolk']])) {
+function boot(config, storageFailure = false, stored = new Map([['totsquad-mentor-key','acct.testaccount1.testsecretsecretsecretsecret'],['totsquad-account-name','Taylor Vanderwolk'],['totsquad-account-claim','Taylor']])) {
   const elements = new Map();
   const el = id => { if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, addEventListener() {}, classList: { toggle() {} }, replaceChildren() {}, showModal() { this.open = true; } }); return elements.get(id); };
   const storage = { getItem(k) { if (storageFailure) throw Error('blocked'); return stored.get(k) ?? null; }, setItem(k, v) { if (storageFailure) throw Error('blocked'); stored.set(k, String(v)); }, removeItem(k) { if (storageFailure) throw Error('blocked'); stored.delete(k); } };
@@ -422,14 +422,21 @@ console.log('PASS: Creators Club dashboard and coordinator tools');
   assert.equal(coordDevice.run('mentorKey()'), 'Coord-123'); // coordinators keep their sign-in
   const me = boot(); // signed in as Taylor (see boot)
   assert.equal(me.run('isAccount()'), true); assert.equal(me.run('myName()'), 'Taylor Vanderwolk');
-  me.run(`liveBios = [{ name:'taylor vanderwolk', bio:'Gear nerd <b>' }, { name:'Kristin Smith', bio:'' }, { name:'Ana Lopez', bio:'New in Phoenix.' }, { name:'Bo Peep', bio:'' }]; renderSquad();`);
+  me.run(`liveBios = [{ name:'taylor vanderwolk', claimed:'Taylor', bio:'Gear nerd <b>' }, { name:'Kristin Smith', claimed:'Kristin', bio:'' }, { name:'Ana Lopez', bio:'New in Phoenix.' }, { name:'Bo Peep', bio:'' }]; renderSquad();`);
   const sq = me.html('#squad-grid');
   assert.match(sq, /Gear nerd &lt;b&gt;/); assert.doesNotMatch(sq, /Scottsdale-based baby gear expert/); // Taylor's own bio wins
   assert.doesNotMatch(sq, /Holly Springs/); // Kristin deleted hers
   assert.match(sq, /Ana Lopez/); assert.doesNotMatch(sq, />Bo Peep</); assert.equal(me.run(`isFullName('Kristin')`), false); assert.equal(me.run(`isFullName('Ana Lopez')`), true); // a new creator with a bio gets a card; an empty one doesn't
   assert.equal((sq.match(/data-action="profile"/g) || []).length, 1); assert.match(sq, /Edit my bio/); // only on your own card
-  const out = boot(null, false, new Map()); out.run(`liveBios = [{ name:'Taylor Vanderwolk', bio:'Gear nerd' }]; renderSquad();`);
+  const out = boot(null, false, new Map()); out.run(`liveBios = [{ name:'Taylor Vanderwolk', claimed:'Taylor', bio:'Gear nerd' }]; renderSquad();`);
   assert.match(out.html('#squad-grid'), /Gear nerd/); assert.doesNotMatch(out.html('#squad-grid'), /data-action="profile"/); // public sees bios, no edit
+}
+{
+  const k = boot(null, false, new Map([['totsquad-mentor-key','acct.testaccount1.testsecretsecretsecretsecret'],['totsquad-account-name','Kristin Smith'],['totsquad-account-claim','Kristin']]));
+  k.run(`liveBios = [{ name:'Kristin Smith', claimed:'Kristin', bio:'Claimed bio' }, { name:'Kristin Jones', claimed:'', bio:'Another Kristin' }]; renderSquad();`);
+  const sq = k.html('#squad-grid'); assert.match(sq, /Claimed bio/); assert.match(sq, /Kristin Jones/); // the claim decides whose card it is
+  assert.equal((sq.match(/data-action="profile"/g) || []).length, 1);
+  k.run(`liveIdeas = [{ id:'x', title:'Old', credit:['Kristin'] }];`); assert.equal(k.run(`canEditIdea(ideas()[0])`), true);
 }
 console.log('PASS: own passwords and bios');
 
@@ -442,7 +449,7 @@ console.log('PASS: own passwords and bios');
   for (const part of ['mutual visibility', 'least one reel, carousel, or collab post per month', 'at least one Instagram story each week', 'Every other week', 'Give as much as you take.', 'Authenticity over obligation.', 'Respect different specialties.', 'Keep participation professional.', 'consistency, not perfection', 'Welcome to the Squad!']) assert.ok(html.includes(part), part);
   assert.match(html, /data-action="apply"/); // signed out: a way to apply
   g.run("openApply()"); assert.match(g.html('#modal-body'), /Read the Creators Club guidelines/); assert.match(g.html('#modal-body'), /1 feed post per month/);
-  g.el('#acct-pw').focus = g.el('#acct-name').focus = () => {}; g.run("openAccountSetup('x', 'Ana Lopez')"); assert.match(g.html('#modal-body'), /acct-agree/); assert.match(g.html('#modal-body'), /guide-fold/);
+  ['#acct-pw','#acct-claim','#acct-last'].forEach(id => { g.el(id).focus = () => {}; }); g.run("openAccountSetup('x', 'Ana Lopez')"); assert.match(g.html('#modal-body'), /acct-agree/); assert.match(g.html('#modal-body'), /guide-fold/);
 }
 console.log('PASS: Creators Club guidelines');
 

@@ -278,13 +278,13 @@ function renderSquad() {
   const leader = leaderCard();
   const featured = (content.featuredSpecialists || []).map(p => typeof p === 'string' ? {name:p} : p).filter(p => p && p.name);
   const people = [...featured.map(p => ({ ...p, bio: bioFor(p) })), // bios creators wrote themselves win over content.js
-    ...(liveBios || []).filter(b => b.bio && !featured.some(p => ownsCard(p, b.name)) && !(content.leader && ownsCard(content.leader, b.name))).map(b => ({ name: b.name, bio: b.bio }))];
+    ...(liveBios || []).filter(b => b.bio && !featured.some(p => ownsCard(p, b.name, b.claimed)) && !(content.leader && ownsCard(content.leader, b.name, b.claimed))).map(b => ({ name: b.name, bio: b.bio }))];
   const me = myName();
   $('#squad-grid').innerHTML = people.length || leader ? leader + people.map((p,i) => {
     const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
     return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
       <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio" id="bio-${i}">${escapeHTML(p.bio)}</p>${p.bio.length > 110 ? `<button type="button" class="text-button bio-more" data-bio="bio-${i}" aria-expanded="false" aria-controls="bio-${i}">Read more</button>` : ''}` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-      <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}${ownsCard(p, me) ? `<button type="button" class="text-button" data-action="profile">${p.bio ? 'Edit my bio' : 'Add my bio'}</button>` : ''}</div></article>`;
+      <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}${ownsCard(p, me, myClaim()) ? `<button type="button" class="text-button" data-action="profile">${p.bio ? 'Edit my bio' : 'Add my bio'}</button>` : ''}</div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitBios);
 }
@@ -1393,8 +1393,8 @@ function canEditIdea(i) {
   if (!liveIdeas || LOCKED() || !i) return false;
   if (isCoord()) return true;
   const me = myName(); if (!me) return false;
-  const first = me.trim().split(/\s+/)[0];
-  return (i.credit || []).some(c => sameName(c, me) || (!/\s/.test(String(c).trim()) && sameName(c, first)));
+  const claim = myClaim();
+  return (i.credit || []).some(c => sameName(c, me) || (!!claim && sameName(c, claim)));
 }
 const ideaRequest = payload => uploadRequest({ ...payload, coordKey: storageGet(COORD_CODE_KEY) || '', coordName: storageGet(UPLOAD_NAME_KEY) || '' });
 function openIdeaEdit(id) {
@@ -1652,7 +1652,7 @@ if (storageGet(COORD_CODE_KEY)) document.documentElement?.classList?.add('coordi
 function signOut() {
   if (isAccount() && UPLOAD_ON() && typeof fetch === 'function') { try { fetch(content.uploadEndpoint, { method:'POST', keepalive:true, headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ action:'account-signout', key: mentorKey() }) }).catch(() => {}); } catch (e) {} } // forget this device's key
   mentorMemory = '';
-  try { localStorage.removeItem(MENTOR_KEY); localStorage.removeItem(COORD_CODE_KEY); localStorage.removeItem(ACCOUNT_NAME_KEY); localStorage.removeItem('totsquad-coordinator-name'); } catch (e) {}
+  try { localStorage.removeItem(MENTOR_KEY); localStorage.removeItem(COORD_CODE_KEY); localStorage.removeItem(ACCOUNT_NAME_KEY); localStorage.removeItem(ACCOUNT_CLAIM_KEY); localStorage.removeItem('totsquad-coordinator-name'); } catch (e) {}
   document.documentElement.classList.remove('unlocked', 'coordinator');
   location.href = pageUrl('index.html');
 }
@@ -1692,12 +1692,14 @@ function passwordForm(form, input, note$, go, label, nameEl) {
   };
 }
 /* ---------- Your own account: password and bio (apps-script/club.gs) ---------- */
-const ACCOUNT_NAME_KEY = 'totsquad-account-name';
+const ACCOUNT_NAME_KEY = 'totsquad-account-name', ACCOUNT_CLAIM_KEY = 'totsquad-account-claim';
+const myClaim = () => isAccount() ? storageGet(ACCOUNT_CLAIM_KEY) || '' : '';
 const isAccount = () => /^acct\./.test(mentorKey());
 // Accounts use full names: at least a first and a last name.
 const isFullName = n => String(n || '').trim().split(/\s+/).filter(w => /\p{L}/u.test(w)).length >= 2;
 // Meet the Squad cards may list a first name only. A card with fullName matches exactly; otherwise the first name does.
-const ownsCard = (p, name) => !!name && !!p && (p.fullName ? sameName(p.fullName, name) : sameName(p.name, name) || (!/\s/.test(String(p.name).trim()) && sameName(p.name, String(name).trim().split(/\s+/)[0])));
+// Meet the Squad cards belong to whoever claimed that name (or matches the card's fullName exactly).
+const ownsCard = (p, name, claimed = '') => !!name && !!p && ((!!claimed && sameName(p.name, claimed)) || sameName(p.name, name) || (!!p.fullName && sameName(p.fullName, name)));
 const myName = () => isAccount() ? storageGet(ACCOUNT_NAME_KEY) || '' : '';
 async function accountRequest(payload) {
   const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
@@ -1710,7 +1712,7 @@ function goToDashboard() {
   d.scrollIntoView({ block: 'start' });
 }
 function finishSignin(res) {
-  mentorMemory = res.key; storageSet(MENTOR_KEY, res.key); storageSet(ACCOUNT_NAME_KEY, res.name); storageSet(UPLOAD_NAME_KEY, res.name); setCoordinator('');
+  mentorMemory = res.key; storageSet(MENTOR_KEY, res.key); storageSet(ACCOUNT_NAME_KEY, res.name); storageSet(ACCOUNT_CLAIM_KEY, res.claimed || ''); storageSet(UPLOAD_NAME_KEY, res.name); setCoordinator('');
   if (typeof club !== 'undefined') club = null; // club.js: reload the dashboard for this person
   unlock(); renderContent(); loadIdeas(); loadActivity(); goToDashboard();
   toast(`You’re signed in. Hi, ${String(res.name).split(/\s+/)[0]}!`);
@@ -1719,10 +1721,17 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
   if (!modal.open) opener = document.activeElement;
   status.textContent = '';
   title.textContent = 'Set up your password';
-  body.innerHTML = `<p>${moving ? 'Each creator now has their own password. ' : 'Welcome to the Creators Club! '}Enter your full name and pick a password only you know. You’ll sign in with these from now on, and you can write your own bio for Meet the Squad.</p>
+  const squad = squadNames(), words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  const pre = squad.find(n => sameName(n, words[0])) || '', preLast = pre && words.length > 1 ? words.slice(1).join(' ') : '';
+  body.innerHTML = `<p>${moving ? 'Each creator now has their own password. ' : 'Welcome to the Creators Club! '}Claim your name, add your last name and pick a password only you know. You’ll sign in with these from now on, and you can write your own bio for Meet the Squad.</p>
     <form id="acct-form" novalidate>
-      <label for="acct-name">Your full name</label>
-      <input id="acct-name" type="text" maxlength="80" autocomplete="username" autocapitalize="words" placeholder="First and last name, as in Disco" value="${escapeHTML(isFullName(name) ? name : '')}" required>
+      <label for="acct-claim">Your name on the Squad</label>
+      <select id="acct-claim"><option value="">Choose your name</option>${squad.map(n => `<option value="${escapeHTML(n)}"${n === pre ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}<option value="-">I’m new, my name isn’t here</option></select>
+      <div class="field-pair">
+        <div id="acct-first-row" hidden><label for="acct-first">First name</label><input id="acct-first" type="text" maxlength="40" autocomplete="given-name" autocapitalize="words"></div>
+        <div><label for="acct-last">Last name</label><input id="acct-last" type="text" maxlength="40" autocomplete="family-name" autocapitalize="words" value="${escapeHTML(preLast)}"></div>
+      </div>
+      <p class="quiet" id="acct-preview" aria-live="polite"></p>
       <label for="acct-pw">New password</label>
       <input id="acct-pw" type="password" autocomplete="new-password" minlength="8" required>
       <p class="quiet">At least 8 characters, and not the shared creator password.</p>
@@ -1734,28 +1743,46 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
     </form>`;
   $('#acct-form').onsubmit = async ev => {
     ev.preventDefault();
-    const nm = $('#acct-name').value.trim(), pw = $('#acct-pw').value, pw2 = $('#acct-pw2').value, go = $('#acct-go');
+    const pick = $('#acct-claim').value, claim = pick === '-' ? '' : pick, nm = fullFromForm(), pw = $('#acct-pw').value, pw2 = $('#acct-pw2').value, go = $('#acct-go');
     status.textContent = '';
-    if (!isFullName(nm)) { status.textContent = 'Enter your full name, first and last, as it appears in Disco.'; return $('#acct-name').focus(); }
+    if (!pick) { status.textContent = 'Choose your name, or “I’m new” if it isn’t on the list.'; return $('#acct-claim').focus(); }
+    if (claimedNow.some(n => sameName(n, claim))) { status.textContent = `${claim} has already been claimed. If that isn’t you, ask a coordinator.`; return $('#acct-claim').focus(); }
+    if (!isFullName(nm)) { status.textContent = claim ? 'Add your last name.' : 'Add your first and last name, as they appear in Disco.'; return $(claim ? '#acct-last' : '#acct-first').focus(); }
     if (pw.length < 8) { status.textContent = 'Use at least 8 characters.'; return $('#acct-pw').focus(); }
     if (pw !== pw2) { status.textContent = 'Those passwords don’t match.'; return $('#acct-pw2').focus(); }
     const agree = document.getElementById('acct-agree'); if (agree && !agree.checked) { status.textContent = 'Check the box to agree to the Creators Club guidelines.'; return agree.focus(); }
     go.disabled = true; go.textContent = 'Saving…';
     try {
-      const res = await accountRequest({ action:'account-setup', key: sharedKey, name: nm, password: pw, agreed: true });
-      if (!res || !res.ok) { status.textContent = res && res.locked ? 'The creator password has changed. Ask Sarah or Taylor for the new one.' : (res && res.error) || 'That didn’t save. Try again in a minute.'; go.disabled = false; go.textContent = 'Save my password'; if (res && res.fullName) $('#acct-name').focus(); return; }
+      const res = await accountRequest({ action:'account-setup', key: sharedKey, name: nm, claim, password: pw, agreed: true });
+      if (!res || !res.ok) { status.textContent = res && res.locked ? 'The creator password has changed. Ask Sarah or Taylor for the new one.' : (res && res.error) || 'That didn’t save. Try again in a minute.'; go.disabled = false; go.textContent = 'Save my password'; if (res && res.fullName) $('#acct-last').focus(); return; }
       finishSignin(res);
       title.textContent = 'You’re all set';
-      body.innerHTML = `<p>Next time, sign in with <strong>${escapeHTML(res.name)}</strong> and your new password. Your browser can save it for you.</p>
+      body.innerHTML = `<p>${res.claimed ? `You’ve claimed ${escapeHTML(res.claimed)} and you’re on the roster as <strong>${escapeHTML(res.name)}</strong>. ` : ''}Next time, sign in with <strong>${escapeHTML(res.name)}</strong> and your new password. Your browser can save it for you.</p>
+        <p>Last step: add a sentence or two about yourself for Meet the Squad.</p>
         <div class="button-row"><button class="button" type="button" data-action="profile">${res.bio ? 'Edit my bio' : 'Write my bio'}</button><button class="button secondary" type="button" id="acct-done">Done</button></div>`;
       status.textContent = ''; $('#acct-done').onclick = () => modal.close();
     } catch { status.textContent = 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = 'Save my password'; }
   };
-  showModal(); $(isFullName(name) ? '#acct-pw' : '#acct-name').focus();
+  // Who's who: names already claimed can't be picked again; "I'm new" asks for a first name too.
+  let claimedNow = [];
+  const v = id => String($(id).value || '').trim();
+  const fullFromForm = () => { const pick = v('#acct-claim'), first = pick === '-' ? v('#acct-first') : pick; return [first, v('#acct-last')].filter(Boolean).join(' ').replace(/\s+/g, ' '); };
+  const refresh = () => {
+    const pick = v('#acct-claim'); $('#acct-first-row').hidden = pick !== '-';
+    const nm = fullFromForm(); $('#acct-preview').textContent = isFullName(nm) ? `You’ll sign in as ${nm}.` : '';
+  };
+  ['acct-claim', 'acct-first', 'acct-last'].forEach(id => { const el = $('#' + id); el.oninput = el.onchange = refresh; });
+  refresh();
+  if (UPLOAD_ON() && typeof fetch === 'function') fetch(`${publicUrl(content.uploadEndpoint)}?action=claimed`).then(r => r.json()).then(d => {
+    if (!d || !Array.isArray(d.claimed)) return; claimedNow = d.claimed;
+    [...document.querySelectorAll('#acct-claim option')].forEach(o => { if (o.value && o.value !== '-' && claimedNow.some(n => sameName(n, o.value))) { o.disabled = true; o.textContent = `${o.value} (claimed)`; if (o.selected) $('#acct-claim').value = ''; } });
+    refresh();
+  }).catch(() => {});
+  showModal(); $(pre ? (preLast ? '#acct-pw' : '#acct-last') : '#acct-claim').focus();
 }
 // The bio on someone's Meet the Squad card: theirs if they've written (or deleted) one, otherwise content.js.
 let liveBios = null;
-const bioFor = p => { const b = (liveBios || []).find(x => ownsCard(p, x.name)); return b ? b.bio : p.bio; };
+const bioFor = p => { const b = (liveBios || []).find(x => ownsCard(p, x.name, x.claimed)); return b ? b.bio : p.bio; };
 const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 async function loadBios() {
   if (!UPLOAD_ON() || typeof fetch !== 'function' || !has('#squad-grid')) return;
@@ -1779,7 +1806,7 @@ async function openProfile() {
   renderProfile(a);
 }
 function renderProfile(a, note = '') {
-  const card = (content.featuredSpecialists || []).find(p => p && ownsCard(p, a.name));
+  const card = (content.featuredSpecialists || []).find(p => p && ownsCard(p, a.name, a.claimed));
   const current = a.bioSet ? a.bio : (card && card.bio) || '';
   body.innerHTML = `<p>Signed in as <strong>${escapeHTML(a.name)}</strong>.</p>
     <section class="profile-part" aria-labelledby="bio-head"><h3 class="cal-head" id="bio-head">Your bio</h3>

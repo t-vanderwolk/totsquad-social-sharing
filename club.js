@@ -258,8 +258,8 @@ function coordApps(c) {
 }
 function coordRoster(c) {
   const part = n => c.participation.find(p => p.name === n) || {};
-  const seed = squadNames().filter(n => !c.members.some(m => m.name.toLowerCase() === n.toLowerCase()));
-  return `${seed.length ? `<div class="flow-note"><strong>${c.members.length ? 'Add the rest of the current Squad?' : 'Start the roster'}</strong><p>${escapeHTML(seed.join(', '))} ${seed.length === 1 ? 'isn’t' : 'aren’t'} on the roster yet. Add them as Active founding members?</p><button class="button" type="button" data-coord-seed>Add ${plural(seed.length, 'founding member')}</button></div>` : ''}
+  const seed = squadNames().filter(n => !c.members.some(m => m.name.toLowerCase() === n.toLowerCase()) && !(c.accounts || []).some(a => a.hasPassword && sameName(a.claimed, n)));
+  return `${coordClaims(c)}${seed.length ? `<div class="flow-note"><strong>${c.members.length ? 'Add the rest of the current Squad?' : 'Start the roster'}</strong><p>${escapeHTML(seed.join(', '))} ${seed.length === 1 ? 'isn’t' : 'aren’t'} on the roster yet. Add them as Active founding members?</p><button class="button" type="button" data-coord-seed>Add ${plural(seed.length, 'founding member')}</button></div>` : ''}
     ${c.members.map(m => `<form class="coord-card" data-coord-form="member" data-name="${escapeHTML(m.name)}">
       <div class="app-top"><strong>${escapeHTML(m.name)}</strong><span class="stage ${standingClass(part(m.name).standing)}">${escapeHTML(part(m.name).standing || m.status)}</span></div>
       <p class="quiet">${escapeHTML([m.market, m.roles, m.joined ? 'joined ' + shortDate(m.joined) : ''].filter(Boolean).join(' · '))}</p>
@@ -271,6 +271,15 @@ function coordRoster(c) {
     <p class="quiet">Nobody is removed automatically. Inactive members and alumni keep their history and the open Social & Sharing resources.</p>`;
 }
 // Creators' own passwords and bios: a coordinator can reset a forgotten password or take a bio down.
+// Before launch: who on the current Squad list has claimed their name and set their password.
+function coordClaims(c) {
+  const list = c.accounts || [], squad = squadNames();
+  const holder = n => list.find(a => a.hasPassword && sameName(a.claimed, n));
+  const done = squad.filter(holder).length;
+  return `<div class="coord-card claims"><div class="app-top"><h3>Profiles claimed</h3><span class="stage ${done === squad.length ? 'stage-published' : 'stage-filming'}">${done} of ${squad.length}</span></div>
+    <p class="quiet">Each current Squad member signs in once with the creator password, claims their name, adds their last name and sets a password. Their roster row switches to their full name.</p>
+    <ul class="claim-list">${squad.map(n => { const a = holder(n); return `<li class="${a ? 'done' : ''}"><span aria-hidden="true">${a ? '✓' : ''}</span><strong>${escapeHTML(n)}</strong><span class="quiet">${a ? escapeHTML(a.name) + (a.bioSet && a.bio ? ' · bio added' : ' · no bio yet') : 'Not yet'}</span></li>`; }).join('')}</ul></div>`;
+}
 function coordAccounts(c) {
   const list = c.accounts || []; if (!list.length) return '';
   return `<div class="coord-card"><h3>Passwords and bios</h3><p class="quiet">Creators set up their own password with the creator password. If someone forgets theirs, reset it and they set a new one the same way.</p>

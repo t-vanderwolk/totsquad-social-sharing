@@ -253,10 +253,10 @@ assert.deepEqual(t6.get({ action: 'bios' }).bios, []);
 assert.equal(t6.post({ action: 'bio-save', key: shared, bio: 'Hi' }).noAccount, true); // the shared password alone can't write a bio
 assert.equal(t6.post({ action: 'bio-save', key: kKey, bio: '   ' }).ok, false);
 r = t6.post({ action: 'bio-save', key: kKey, bio: 'Mom of three in Holly Springs, NC.\nFormer TV producer.' }); assert.equal(r.ok, true); assert.equal(r.bio, 'Mom of three in Holly Springs, NC. Former TV producer.');
-assert.deepEqual(t6.get({ action: 'bios' }).bios, [{ name: 'Kristin Smith', bio: 'Mom of three in Holly Springs, NC. Former TV producer.' }]);
+assert.deepEqual(t6.get({ action: 'bios' }).bios, [{ name: 'Kristin Smith', claimed: '', bio: 'Mom of three in Holly Springs, NC. Former TV producer.' }]);
 r = t6.post({ action: 'account-me', key: kKey2 }); assert.equal(r.bio, 'Mom of three in Holly Springs, NC. Former TV producer.'); assert.equal(r.bioSet, true);
 assert.equal(t6.post({ action: 'bio-save', key: kKey2, bio: 'x'.repeat(900) }).bio.length, 400);
-r = t6.post({ action: 'bio-delete', key: kKey }); assert.equal(r.bio, ''); assert.deepEqual(t6.get({ action: 'bios' }).bios, [{ name: 'Kristin Smith', bio: '' }]);
+r = t6.post({ action: 'bio-delete', key: kKey }); assert.equal(r.bio, ''); assert.deepEqual(t6.get({ action: 'bios' }).bios, [{ name: 'Kristin Smith', claimed: '', bio: '' }]);
 // Change password: the other device is signed out.
 assert.equal(t6.post({ action: 'account-password', key: kKey, current: 'nope-nope', password: 'new-password-2' }).ok, false);
 r = t6.post({ action: 'account-password', key: kKey, current: 'sunshine-toy-9', password: 'new-password-2' }); assert.equal(r.ok, true);
@@ -310,5 +310,33 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   // The creator deletes their own idea.
   assert.equal(t7.post({ action: 'idea-delete', key: kris, id: kid }).ok, true); assert.equal(one(kid), undefined);
   assert.equal(t7.post({ action: 'idea-delete', key: kris, id: kid }).ok, false);
+}
+// Before launch: each current Squad member claims their first name, adds their last name and a password; the roster syncs.
+{
+  const t8 = boot(), ck = { key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Taylor' };
+  t8.post({ action: 'admin-seed', ...ck, members: [{ name: 'Kristin', market: 'East' }, { name: 'Lora' }] });
+  vm.runInContext(`writeRow(clubSheet('Submissions'), CLUB_TABS['Submissions'], { id: 'k1', submitted: new Date(), date: todayIso(), name: 'Kristin', kind: 'story', status: 'Submitted' }, 0)`, t8.ctx);
+  const setup = (name, claim, pw = 'squad-pass-1') => t8.post({ action: 'account-setup', agreed: true, key: 'footpop', name, claim, password: pw });
+  assert.deepEqual(t8.get({ action: 'claimed' }).claimed, []); // public: no password needed
+  assert.match(setup('Kris Smith', 'Kristin').error, /start with Kristin/);
+  r = setup('Kristin Smith', 'Kristin'); assert.equal(r.ok, true); assert.equal(r.claimed, 'Kristin'); const kk = r.key;
+  assert.deepEqual(t8.get({ action: 'claimed' }).claimed, ['Kristin']);
+  assert.match(setup('Kristin Jones', 'Kristin').error, /already claimed by Kristin Smith/); // one claim per name
+  // The roster row and her logged story moved to her full name; market and status are kept.
+  r = t8.post({ action: 'admin-data', ...ck });
+  const km = r.members.find(m => m.name === 'Kristin Smith'); assert.ok(km); assert.equal(km.market, 'East'); assert.equal(km.status, 'Active');
+  assert.equal(r.members.some(m => m.name === 'Kristin'), false); assert.equal(r.submissions.find(s => s.id === 'k1').name, 'Kristin Smith');
+  assert.equal(r.accounts.find(a => a.name === 'Kristin Smith').claimed, 'Kristin');
+  r = t8.post({ action: 'admin-seed', ...ck, members: [{ name: 'Kristin' }, { name: 'Atiba' }] }); assert.equal(r.members.some(m => m.name === 'Kristin'), false); assert.ok(r.members.some(m => m.name === 'Atiba')); // no duplicate for a claimed name
+  assert.equal(t8.get({ action: 'club', key: kk }).member.name, 'Kristin Smith'); // her dashboard follows
+  // Someone on the Squad list but not yet on the roster is added as an Active founding member.
+  r = setup('Melissa Grant', 'Melissa'); assert.equal(r.ok, true);
+  assert.equal(t8.post({ action: 'admin-data', ...ck }).members.find(m => m.name === 'Melissa Grant').status, 'Active');
+  // Ideas credited to "Kristin" are hers to edit.
+  const idea = t8.post({ action: 'idea-save', ...ck, idea: { title: 'Old idea', credit: ['Kristin'] } }).idea;
+  assert.equal(t8.post({ action: 'idea-save', key: kk, idea: { id: idea.id, title: 'Old idea, updated' } }).ok, true);
+  // New creators who aren't on the list just use their full name; nothing is claimed.
+  r = setup('Ana Lopez', ''); assert.equal(r.ok, true); assert.equal(r.claimed, '');
+  assert.deepEqual(t8.get({ action: 'claimed' }).claimed.sort(), ['Kristin', 'Melissa']);
 }
 console.log('PASS: Creators Club 2.0 backend workflows');

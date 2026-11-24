@@ -214,9 +214,10 @@ function readIdeas() {
 function ideaEditor(req) {
   if (isCoordinator(req.coordKey)) return { coord: true, name: clean(req.name) || clean(req.coordName) || 'Coordinator' };
   const full = accountName(req.key); if (!full) return null;
-  return { coord: false, name: full, roster: rosterName(full) };
+  return { coord: false, name: full, roster: rosterName(full), claimed: claimOf(findAccount(full)) };
 }
-function creditedTo(idea, ed) { return (idea && idea.credit || []).some(c => sameName(c, ed.name) || sameName(c, ed.roster)); }
+// Credited by full name, roster name, or the first name they claimed ("Kristin" on older ideas).
+function creditedTo(idea, ed) { return (idea && idea.credit || []).some(c => sameName(c, ed.name) || sameName(c, ed.roster) || (ed.claimed && sameName(c, ed.claimed))); }
 function ideaRowAt(id) {
   const sheet = ideasSheet(), ids = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).getValues().map(r => String(r[0]));
   return { sheet: sheet, at: id ? ids.indexOf(id) : -1 };
@@ -403,6 +404,7 @@ const REELS_SHEET_ID = moved('1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg');
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
   if (action === 'bios') return reply({ ok: true, bios: readBios() }); // public: the bios creators wrote for Meet the Squad
+  if (action === 'claimed') return reply({ ok: true, claimed: claimedNames() }); // public: Squad names already claimed (club.gs)
   if (action && !isMentor(e.parameter.key)) return locked();
   if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // creators only
   if (action === 'club') { const me = accountName(e.parameter.key); return reply(clubForCreator(me ? rosterName(me) : clean(e.parameter.name))); }
