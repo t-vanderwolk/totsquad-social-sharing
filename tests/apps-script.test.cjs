@@ -109,7 +109,7 @@ assert.equal(t.post({ action: 'admin-settings', ...coord, settings: { creatorCir
 t.post({ action: 'apply', application: { name: 'Bo', why: 'Hi', agreed: true } });
 r = t.post({ action: 'admin-data', ...coord }); t.post({ action: 'admin-app', ...coord, id: r.applications.find(a => a.name === 'Bo').id, status: 'Waitlisted' });
 assert.deepEqual(t.get({ action: 'applications', key }).applications.map(a => a.name), ['Ana Lopez']);
-assert.equal(t.get({ action: 'ideas' }).ok, true);
+assert.equal(t.get({ action: 'ideas' }).locked, true); assert.equal(t.get({ action: 'ideas', key }).ok, true); // Idea Bank: creators only
 assert.equal(t.post({ action: 'admin-data', ...coord }).briefs.length, 4);
 // Coordinator tools stay off until COORDINATOR_PASSCODE is set.
 assert.equal(boot({ MENTOR_PASSCODE: 'footpop' }).post({ action: 'admin-data', key }).coordLocked, true);

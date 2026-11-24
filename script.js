@@ -391,7 +391,7 @@ function toolTile(r) {
 }
 // The three guides anyone can read on the landing page, no password.
 const PUBLIC_GUIDES = ['brand','guide','checklist'];
-const PUBLIC_PAGES = ['ideas.html','b-roll.html'];
+const PUBLIC_PAGES = ['b-roll.html']; // the Idea Bank is for signed-in creators
 const isPublicTool = r => PUBLIC_GUIDES.includes(r.action) || PUBLIC_PAGES.includes(r.page);
 function renderGuides() { $('#public-guides').innerHTML = toolkitItems().filter(isPublicTool).map(toolTile).join(''); }
 function renderResources() { $('#resource-links').innerHTML = toolkitItems().map(toolTile).join(''); }
@@ -1219,7 +1219,7 @@ function openApply() {
     try {
       const res = await uploadRequest({ action:'apply', application, website: val('ap-website') });
       if (!res.ok) throw new Error(res.error || '');
-      body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. A coordinator will review it and reach out in Disco. In the meantime, the Idea Bank, casting calls and creator resources are open to you.</p>`;
+      body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. A coordinator will review it and reach out in Disco. In the meantime, casting calls and creator resources are open to you.</p>`;
       status.textContent = '';
     } catch (err) { status.textContent = err.message || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send application'; }
   };
@@ -1229,9 +1229,9 @@ function openApply() {
 /* ---------- Live ideas + editing (apps-script/upload.gs: ?action=ideas, idea-save) ---------- */
 function rerenderIdeas() { if (has('#idea-grid')) renderIdeas(); if (has('#production-board')) renderProduction(); }
 async function loadIdeas() {
-  if (!UPLOAD_ON() || typeof fetch !== 'function') return;
+  if (!UPLOAD_ON() || !mentorKey() || typeof fetch !== 'function') return;
   try {
-    const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=ideas`); const data = await res.json(); // open to everyone
+    const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=ideas&key=${encodeURIComponent(mentorKey())}`); const data = await res.json(); // creators only
     if (data.ok && Array.isArray(data.ideas) && data.ideas.length) { liveIdeas = data.ideas; rerenderIdeas(); }
   } catch {}
 }
@@ -1477,8 +1477,8 @@ document.addEventListener('click', e => { if (e.target.closest && e.target.close
 const GATE_ON = () => /^[a-f0-9]{64}$/.test(content.mentorPasswordHash || '');
 const LANDING = () => !!(document.getElementById && document.getElementById('mentor-signin'));
 const LOCKED = () => GATE_ON() && !mentorKey();
-// Open to every specialist without signing in: the landing page, the Idea Bank and the B-roll library.
-const OPEN_PAGE = () => LANDING() || !!(document.getElementById && (document.getElementById('idea-grid') || document.getElementById('broll-grid')));
+// Open to every specialist without signing in: the landing page and the B-roll library. The Idea Bank stays creators-only.
+const OPEN_PAGE = () => LANDING() || !!(document.getElementById && document.getElementById('broll-grid'));
 async function mentorHash(key) { const bytes = new TextEncoder().encode(String(key).trim().toLowerCase()); const buf = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
 function unlock() { document.documentElement?.classList.add('unlocked'); document.getElementById?.('gate')?.remove(); }
 // Wires a password form. Returns nothing; on a match it saves the key, unlocks and re-renders.
@@ -1529,12 +1529,12 @@ function showGate(note = '') {
 document.addEventListener('click', e => {
   if (!OPEN_PAGE() || !LOCKED()) return;
   const a = e.target.closest && e.target.closest('[data-action],[data-reel]');
-  if (a && !['reel-share','apply','cast','idea',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
+  if (a && !['reel-share','apply','cast',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
 }, true);
 setupMenu();
 setupBell();
 watchScreen();
 if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); }
-else if (LANDING()) { renderContent(); loadIdeas(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
-else if (OPEN_PAGE()) { renderContent(); loadIdeas(); }
+else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
+else if (OPEN_PAGE()) renderContent();
 else showGate();

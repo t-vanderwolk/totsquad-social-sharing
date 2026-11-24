@@ -337,8 +337,8 @@ function text(s) { const t = String(s == null ? '' : s).replace(/[\u0000-\u0008\
 const REELS_SHEET_ID = moved('1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg');
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
-  if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // the Idea Bank is open to every specialist
   if (action && !isMentor(e.parameter.key)) return locked();
+  if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // creators only
   if (action === 'club') return reply(clubForCreator(clean(e.parameter.name)));
   if (action === 'gate') return reply({ ok: true });
   if (action === 'activity') return reply({ ok: true, activity: readActivity() });

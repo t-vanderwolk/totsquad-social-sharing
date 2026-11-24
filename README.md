@@ -140,7 +140,7 @@ Everything in this repository and page is public. Idea details and first-name cr
 
 ## Creators Club 2.0 (Nov 2026)
 
-Two levels: **the Squad** (open to every specialist: Idea Bank, casting, resources, B-roll, Made by the Squad, no sign-in) and **the Creators Club** (by application, weekly brief and commitment).
+Two levels: **the Squad** (open to every specialist: casting, guides, B-roll, Made by the Squad, no sign-in; the Idea Bank is for signed-in creators) and **the Creators Club** (by application, weekly brief and commitment).
 
 - **Front end:** `club.js` adds the member dashboard (this week's brief, submit a published link, my week, contributions, pause/rejoin requests) and Coordinator tools (Applications, Roster, Weekly briefs, Content, Participation, Analytics, Settings). The expanded Apply form lives in `script.js`.
 - **Back end:** `apps-script/club.gs` (add it next to `upload.gs` in the same Apps Script project). Data is in the **Creators Club program** spreadsheet in the shared drive (tabs: Members, Weekly briefs, Submissions, Settings), created on first use. Applications stay in **Creators Club applications**; new columns were appended after Notes. Nothing is ever deleted: statuses change, rows stay.
