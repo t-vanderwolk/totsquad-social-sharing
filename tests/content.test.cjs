@@ -307,7 +307,7 @@ console.log('PASS: apply to join, single password');
 // Live ideas: sheet ideas replace content.js, pitched ideas are marked, and signed-in creators get an edit form.
 {
   const t5 = boot();
-  t5.run(`liveIdeas = [{ id:'pitch-1', title:'Car Seat Speed Round', series:'reels', stage:'idea', summary:'Install race.', status:'Pitched', credit:['Lora'], date:'2026-11-21' }]; renderIdeas();`);
+  t5.run(`liveIdeas = [{ id:'pitch-1', title:'Car Seat Speed Round', series:'reels', stage:'idea', summary:'Install race.', status:'Pitched', credit:['Taylor'], date:'2026-11-21' }]; renderIdeas();`);
   assert.match(t5.html('#idea-grid'), /Car Seat Speed Round/); assert.match(t5.html('#idea-grid'), /Just pitched/);
   assert.doesNotMatch(t5.html('#idea-grid'), /Fund or No Fund/);
   t5.run("openPanel('idea',{id:'pitch-1'})"); assert.match(t5.html('#modal-body'), /data-action="idea-edit"/);
@@ -404,6 +404,12 @@ console.log('PASS: bell badge');
   t13.run(`club.application = null; renderDashboard();`); assert.doesNotMatch(t13.html('#club-dash'), /data-action="apply"/); assert.doesNotMatch(t13.html('#club-dash'), /Almost there|club-outside/);
   t13.run(`coord = { applications:[{ id:'a1', name:'Bo', status:'Submitted', notes:'' }], members:[], briefs:[], submissions:[], participation:[], settings:{ requiredPosts:1, requiredStories:1, storyReminderWeeks:2, storyReviewWeeks:4, postReminderMonths:1, postReviewMonths:2, briefEveryWeeks:2 }, analytics:{ activeCreators:0, publishedLinks:0, briefsRun:0, lastWeek:{ met:0, eligible:0, rate:null }, lastMonth:{ month:'2026-10', met:0, eligible:0, rate:null }, thisWeek:{ stories:0, creators:0 }, thisMonth:{ posts:0, creators:0 } }, current:'' };`);
   for (const tab of ['applications','roster','briefs','content','participation','analytics','settings']) { t13.run(`coordTab = '${tab}'; renderCoord();`); assert.ok(t13.html('#modal-body').length > 100, tab); }
+  t13.run(`coord.briefs = [{ id:'b1', status:'Published', title:'Gift <Guide>', theme:'Gifts', audios:'Sound X', weekStart:'2026-11-23', weekEnd:'2026-12-06' }, { id:'b2', status:'Draft', title:'Next one' }]; coord.current = 'b1'; coordTab = 'briefs'; briefView = null; briefDraft = null; renderCoord();`);
+  let bl = t13.html('#modal-body'); assert.match(bl, /data-coord-preview="b1"/); assert.match(bl, /data-coord-brief-del="b2"/); assert.match(bl, /Gift &lt;Guide&gt;/);
+  t13.run(`briefView = { id:'b1', mode:'preview' }; renderCoord();`); bl = t13.html('#modal-body'); assert.match(bl, /Brief preview/); assert.match(bl, /Trending audios/); assert.match(bl, /Sound X/);
+  t13.run(`briefView = { id:'b1', mode:'delete' }; renderCoord();`); bl = t13.html('#modal-body'); assert.match(bl, /Creators stop seeing it right away/); assert.match(bl, /data-coord-brief="delete" data-id="b1"/);
+  t13.run(`briefView = null; briefDraft = { ...coord.briefs[0] }; renderCoord();`); bl = t13.html('#modal-body'); assert.match(bl, /Save changes/); assert.doesNotMatch(bl, /data-publish/); assert.match(bl, /data-coord-brief-del="b1"/);
+  t13.run(`briefDraft = {}; renderCoord();`); bl = t13.html('#modal-body'); assert.match(bl, /Save draft/); assert.match(bl, /data-publish/); assert.doesNotMatch(bl, /data-coord-brief-del/); t13.run('briefDraft = null;');
   t13.run(`coordTab = 'analytics'; renderCoord();`); assert.match(t13.html('#modal-body'), /aren’t tracked yet/); // no invented reach numbers
 }
 console.log('PASS: Creators Club dashboard and coordinator tools');
@@ -439,3 +445,19 @@ console.log('PASS: own passwords and bios');
   g.el('#acct-pw').focus = g.el('#acct-name').focus = () => {}; g.run("openAccountSetup('x', 'Ana Lopez')"); assert.match(g.html('#modal-body'), /acct-agree/); assert.match(g.html('#modal-body'), /guide-fold/);
 }
 console.log('PASS: Creators Club guidelines');
+
+// Idea Bank: Edit and Delete show on ideas credited to you, and on every idea for coordinators.
+{
+  const me = boot(); // signed in as Taylor Vanderwolk
+  me.run(`liveIdeas = [{ id:'a', title:'Mine', credit:['Taylor'] }, { id:'b', title:'Hers', credit:['Kristin'] }, { id:'c', title:'Ours', credit:['Kristin','Taylor Vanderwolk'] }];`);
+  assert.equal(me.run(`canEditIdea(ideas().find(i => i.id === 'a'))`), true); // first-name credit counts
+  assert.equal(me.run(`canEditIdea(ideas().find(i => i.id === 'b'))`), false);
+  assert.equal(me.run(`canEditIdea(ideas().find(i => i.id === 'c'))`), true);
+  me.run(`openIdea('b')`); assert.doesNotMatch(me.html('#modal-body'), /idea-edit|idea-delete/);
+  me.run(`openIdea('a')`); assert.match(me.html('#modal-body'), /data-action="idea-edit"/); assert.match(me.html('#modal-body'), /data-action="idea-delete"/);
+  const co = boot(null, false, new Map([['totsquad-mentor-key', 'Coord-123'], ['totsquad-coordinator-code', 'Coord-123']]));
+  co.run(`liveIdeas = [{ id:'b', title:'Hers', credit:['Kristin'] }];`);
+  assert.equal(co.run(`canEditIdea(ideas()[0])`), true);
+  co.el('#ie-title').focus = () => {}; co.run(`openIdeaEdit('')`); assert.match(co.html('#modal-body'), /Add an idea|ie-credit/); assert.match(co.html('#modal-body'), /id="ie-credit"/);
+}
+console.log('PASS: idea bank permissions');

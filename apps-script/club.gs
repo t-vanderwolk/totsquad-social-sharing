@@ -8,7 +8,7 @@
    sheet directly too: the app reads columns by their header, so adding or reordering columns is safe.
 
    Coordinator-only actions need COORDINATOR_PASSCODE (Project Settings > Script properties) on top of the
-   creator password. Nothing here deletes anything: statuses change, rows stay.
+   creator password. Nothing here deletes anything (statuses change, rows stay), except a brief a coordinator deletes.
    ===================================================================================================== */
 const CLUB_TABS = {
   'Members': [['name','Name'],['status','Status'],['roles','Roles'],['market','Home market'],['instagram','Instagram'],['interests','Content interests'],['joined','Joined'],['request','Request'],['requestUntil','Request until'],['requestNote','Request note'],['notes','Coordinator notes'],['updated','Last updated'],['updatedBy','Updated by']],
@@ -349,6 +349,10 @@ function adminBrief(req, who) {
     const copy = Object.assign({}, src, { id: newId('b'), status: 'Draft', weekStart: shift(src.weekStart), weekEnd: shift(src.weekEnd), updated: new Date(), updatedBy: who });
     writeRow(sheet, cols, copy, 0); return copy.id;
   }
+  if (op === 'delete') { // logged posts keep the brief's title, so their history still reads
+    if (!found) throw new Error('That brief wasn’t found. Refresh and try again.');
+    sheet.deleteRow(found._row); return '';
+  }
   if (op === 'publish' || op === 'archive' || op === 'unpublish') {
     if (!found) throw new Error('That brief wasn’t found.');
     const status = { publish: 'Published', archive: 'Archived', unpublish: 'Draft' }[op];
@@ -361,8 +365,12 @@ function adminBrief(req, who) {
   cols.forEach(([k]) => { if (['id', 'status', 'updated', 'updatedBy'].indexOf(k) < 0 && typeof b[k] === 'string') patch[k] = k === 'weekStart' || k === 'weekEnd' ? isoDay(b[k]) : text(b[k]).slice(0, 3000); });
   if (!found && !patch.title && !patch.theme) throw new Error('Give the brief a title or a theme.');
   patch.updated = new Date(); patch.updatedBy = who;
-  if (found) { writeRow(sheet, cols, patch, found._row); return found.id; }
-  const id = newId('b'); writeRow(sheet, cols, Object.assign({ id: id, status: 'Draft' }, patch), 0); return id;
+  if (req.publish && !(patch.weekStart || (found && isoDay(found.weekStart)))) throw new Error('Add the start date before publishing.');
+  let id = found && found.id;
+  if (found) writeRow(sheet, cols, patch, found._row);
+  else { id = newId('b'); writeRow(sheet, cols, Object.assign({ id: id, status: 'Draft' }, patch), 0); }
+  if (req.publish) return adminBrief({ op: 'publish', brief: { id: id } }, who); // "Save & publish"
+  return id;
 }
 function adminSubmission(req, who) {
   const sheet = clubSheet('Submissions'), cols = CLUB_TABS['Submissions'], s = readTable(sheet, cols).find(r => r.id && r.id === String(req.id || ''));

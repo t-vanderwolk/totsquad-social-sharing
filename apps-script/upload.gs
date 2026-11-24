@@ -46,6 +46,7 @@ function doPost(e) {
     const signedIn = accountName(req.key); if (signedIn) req.name = rosterName(signedIn); // signed in with your own password: you act as yourself
     if (/^(account-(me|password|signout)|bio-(save|delete))$/.test(String(req.action))) return accountReply(req, signedIn); // club.gs
     if (req.action === 'idea-save') return saveIdea(req);
+    if (req.action === 'idea-delete') return deleteIdea(req);
     if (req.action === 'idea-build') return buildOnIdea(req);
     if (req.action === 'club-submit') return saveSubmission(req);
     if (req.action === 'club-request') return saveRequest(req);
@@ -105,7 +106,7 @@ function savePitch(req) {
     // Every pitch also lands in the Idea Bank right away.
     const idea = cleanIdea({ title: p.title, series: p.series, summary: p.idea, credit: [name], date: Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM-dd'), status: 'Pitched', basedOn: p.basedOn,
       howItWorks: String(p.shots || '').split('\n'), notes: [p.hook && 'Hook: ' + p.hook, p.takeaway && 'Takeaway: ' + p.takeaway, p.audience && 'Who it’s for: ' + p.audience, p.format && 'Format: ' + p.format, p.lead && 'Wants to lead: ' + p.lead, p.support && 'Help wanted: ' + p.support].filter(Boolean) });
-    idea.id = 'pitch-' + Date.now().toString(36);
+    idea.id = newId('pitch');
     ideasSheet().appendRow(ideaRow(idea, name));
     logActivity('pitch', name, 'pitched “' + idea.title + '”', 'idea:' + idea.id);
     return reply({ ok: true, idea: idea });
@@ -207,19 +208,50 @@ function readIdeas() {
   }
   return out;
 }
+/* Who can change an idea: coordinators can add, edit and delete any idea; a creator signed in with their own
+   password can edit and delete the ideas credited to them (pitches are credited to whoever sent them). Anyone signed
+   in can still build on any idea (buildOnIdea). */
+function ideaEditor(req) {
+  if (isCoordinator(req.coordKey)) return { coord: true, name: clean(req.name) || clean(req.coordName) || 'Coordinator' };
+  const full = accountName(req.key); if (!full) return null;
+  return { coord: false, name: full, roster: rosterName(full) };
+}
+function creditedTo(idea, ed) { return (idea && idea.credit || []).some(c => sameName(c, ed.name) || sameName(c, ed.roster)); }
+function ideaRowAt(id) {
+  const sheet = ideasSheet(), ids = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).getValues().map(r => String(r[0]));
+  return { sheet: sheet, at: id ? ids.indexOf(id) : -1 };
+}
 function saveIdea(req) {
-  const by = clean(req.name); if (!by) return reply({ ok: false, error: 'Choose your name first.' });
-  const raw = req.idea || {}; if (!text(raw.title)) return reply({ ok: false, error: 'Give the idea a title.' });
+  const ed = ideaEditor(req); if (!ed) return reply({ ok: false, error: 'Sign in with your own name and password to add or edit ideas.' });
+  const raw = Object.assign({}, req.idea || {});
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
-    const sheet = ideasSheet(), ids = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).getValues().map(r => String(r[0]));
-    const id = String(raw.id || '').replace(/[^\w-]/g, '').slice(0, 80), at = id ? ids.indexOf(id) : -1;
-    const idea = cleanIdea(raw, at > 0 ? readIdeas().find(x => x.id === id) : {});
-    idea.id = at > 0 ? id : (id || 'idea-' + Date.now().toString(36));
-    if (at > 0) sheet.getRange(at + 1, 1, 1, IDEA_COLUMNS.length).setValues([ideaRow(idea, by)]);
-    else sheet.appendRow(ideaRow(idea, by));
-    logActivity('edit', by, 'updated “' + idea.title + '”', 'idea:' + idea.id);
+    const id = String(raw.id || '').replace(/[^\w-]/g, '').slice(0, 80), found = ideaRowAt(id), sheet = found.sheet, at = found.at;
+    const before = at > 0 ? readIdeas().find(x => x.id === id) : null;
+    if (before && !ed.coord && !creditedTo(before, ed)) return reply({ ok: false, error: 'You can edit the ideas credited to you. Ask a coordinator about this one.' });
+    if (!ed.coord) { if (before) delete raw.credit; else raw.credit = [ed.roster || ed.name]; } // only coordinators change credit
+    else if (!before && !raw.credit) raw.credit = [ed.name];
+    const idea = cleanIdea(raw, before || {});
+    if (!text(idea.title)) return reply({ ok: false, error: 'Give the idea a title.' });
+    if (!before) { idea.date = idea.date || Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM-dd'); }
+    idea.id = before ? id : newId('idea');
+    if (before) sheet.getRange(at + 1, 1, 1, IDEA_COLUMNS.length).setValues([ideaRow(idea, ed.name)]);
+    else sheet.appendRow(ideaRow(idea, ed.name));
+    logActivity('edit', ed.roster || ed.name, (before ? 'updated “' : 'added “') + idea.title + '”', 'idea:' + idea.id);
     return reply({ ok: true, idea: idea });
+  } finally { lock.releaseLock(); }
+}
+// POST idea-delete { id }: removes the idea's row from the ideas sheet (Google Sheets keeps version history).
+function deleteIdea(req) {
+  const ed = ideaEditor(req); if (!ed) return reply({ ok: false, error: 'Sign in with your own name and password to delete ideas.' });
+  const id = String(req.id || '').replace(/[^\w-]/g, '').slice(0, 80);
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const found = ideaRowAt(id), idea = found.at > 0 ? readIdeas().find(x => x.id === id) : null;
+    if (!idea) return reply({ ok: false, error: 'That idea wasn’t found. Refresh the page and try again.' });
+    if (!ed.coord && !creditedTo(idea, ed)) return reply({ ok: false, error: 'You can delete the ideas credited to you. Ask a coordinator about this one.' });
+    found.sheet.deleteRow(found.at + 1);
+    return reply({ ok: true, id: id });
   } finally { lock.releaseLock(); }
 }
 /* "Build on this idea": any creator adds notes on top of the original concept (the concept itself is never changed),

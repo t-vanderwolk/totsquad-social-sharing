@@ -99,6 +99,15 @@ r = t.post({ action: 'admin-brief', ...coord, brief: { title: 'Stroller Myths', 
 r = t.post({ action: 'admin-brief', ...coord, op: 'publish', brief: { id: cur } }); assert.equal(r.current, cur);
 r = t.post({ action: 'admin-brief', ...coord, op: 'duplicate', brief: { id: cur } }); const extra = r.savedId;
 r = t.post({ action: 'admin-brief', ...coord, op: 'archive', brief: { id: extra } }); assert.equal(r.briefs.find(b => b.id === extra).status, 'Archived');
+// Save & publish in one step (needs a start date), edit a live brief, and delete.
+assert.match(t.post({ action: 'admin-brief', ...coord, publish: true, brief: { title: 'No date yet' } }).error, /start date/);
+assert.equal(t.post({ action: 'admin-data', ...coord }).briefs.find(b => b.title === 'No date yet'), undefined); // nothing half-saved
+r = t.post({ action: 'admin-brief', ...coord, publish: true, brief: { title: 'Holiday gifting', weekStart: day(30) } }); const gift = r.savedId; assert.equal(r.briefs.find(b => b.id === gift).status, 'Published');
+r = t.post({ action: 'admin-brief', ...coord, brief: { id: gift, hooks: 'Gifts under $50' } }); assert.equal(r.briefs.find(b => b.id === gift).hooks, 'Gifts under $50'); assert.equal(r.briefs.find(b => b.id === gift).status, 'Published');
+const before = r.briefs.length; r = t.post({ action: 'admin-brief', ...coord, op: 'delete', brief: { id: gift } });
+assert.equal(r.ok, true); assert.equal(r.briefs.length, before - 1); assert.equal(r.briefs.find(b => b.id === gift), undefined); assert.equal(r.current, cur);
+assert.equal(t.post({ action: 'admin-brief', ...coord, op: 'delete', brief: { id: gift } }).ok, false);
+assert.equal(t.post({ action: 'admin-brief', key, op: 'delete', brief: { id: cur } }).coordLocked, true); // creators can't
 // A creator logs a feed post (link required) and a story (link optional: stories disappear).
 r = t.get({ action: 'club', key, name: 'ana lopez' }); assert.equal(r.brief.id, cur); assert.equal(r.member.status, 'Active'); assert.equal(r.member.notes, undefined); assert.equal(r.settings.requiredStories, 1);
 assert.equal(t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'post', url: 'javascript:alert(1)' }).ok, false);
@@ -269,4 +278,37 @@ r = t6.post({ action: 'account-login', name: 'Kristin Smith', password: 'fresh-s
 // Too many wrong tries are slowed down.
 for (let i = 0; i < 10; i++) t6.post({ action: 'account-login', name: 'Kristin Smith', password: 'guess-' + i });
 assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password: 'fresh-start-3' }).error, /Too many/);
+// Idea Bank: creators edit and delete the ideas credited to them; coordinators add, edit and delete any idea.
+{
+  const t7 = boot(), ck = { key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Sarah' };
+  t7.post({ action: 'admin-seed', ...ck, members: [{ name: 'Kristin' }, { name: 'Lora' }] });
+  const acct = (name, pw) => t7.post({ action: 'account-setup', agreed: true, key: 'footpop', name, password: pw }).key;
+  const kris = acct('Kristin Smith', 'kristin-pass-1'), lora = acct('Lora Jones', 'lora-pass-123'), ana = acct('Ana Lopez', 'ana-pass-1234');
+  r = t7.post({ action: 'pitch', key: kris, name: 'Somebody', pitch: { title: 'Car seat myths', idea: 'Three myths in 30 seconds' } });
+  const kid = r.idea.id; assert.deepEqual(r.idea.credit, ['Kristin']); // credited to the signed-in creator, by roster name
+  const ideasNow = () => t7.get({ action: 'ideas', key: kris }).ideas, one = id => ideasNow().find(i => i.id === id);
+  // Someone else can't change or delete it; the shared password alone can't either.
+  assert.match(t7.post({ action: 'idea-save', key: lora, idea: { id: kid, title: 'Mine now' } }).error, /credited to you/);
+  assert.match(t7.post({ action: 'idea-delete', key: lora, id: kid }).error, /credited to you/);
+  assert.match(t7.post({ action: 'idea-save', key: 'footpop', idea: { id: kid, title: 'x' } }).error, /own name and password/);
+  assert.equal(one(kid).title, 'Car seat myths');
+  // The creator edits their own idea; credit stays as it was.
+  r = t7.post({ action: 'idea-save', key: kris, idea: { id: kid, title: 'Car seat myths, busted', summary: 'Updated', credit: ['Lora'] } });
+  assert.equal(r.ok, true); assert.equal(one(kid).title, 'Car seat myths, busted'); assert.deepEqual(one(kid).credit, ['Kristin']);
+  // A creator adding an idea gets the credit.
+  r = t7.post({ action: 'idea-save', key: ana, idea: { title: 'Registry roast', credit: ['Taylor'] } }); const aid = r.idea.id;
+  assert.deepEqual(one(aid).credit, ['Ana Lopez']); assert.notEqual(aid, '');
+  // Coordinators can edit any idea, including its credit, and add their own.
+  r = t7.post({ action: 'idea-save', ...ck, idea: { id: kid, credit: ['Kristin', 'Lora'], stage: 'casting' } }); assert.equal(r.ok, true);
+  assert.deepEqual(one(kid).credit, ['Kristin', 'Lora']); assert.equal(one(kid).stage, 'casting');
+  assert.equal(t7.post({ action: 'idea-save', key: lora, idea: { id: kid, title: 'Co-credited now' } }).ok, true); // Lora is credited now
+  r = t7.post({ action: 'idea-save', ...ck, idea: { title: 'Holiday gift guide', credit: ['Taylor', 'Sarah'] } }); const cid = r.idea.id;
+  assert.deepEqual(one(cid).credit, ['Taylor', 'Sarah']);
+  assert.equal(t7.post({ action: 'idea-delete', ...ck, id: aid }).ok, true); assert.equal(one(aid), undefined);
+  // Building on an idea stays open to every signed-in creator.
+  assert.equal(t7.post({ action: 'idea-build', key: ana, id: cid, note: 'Add a stocking stuffer round' }).ok, true);
+  // The creator deletes their own idea.
+  assert.equal(t7.post({ action: 'idea-delete', key: kris, id: kid }).ok, true); assert.equal(one(kid), undefined);
+  assert.equal(t7.post({ action: 'idea-delete', key: kris, id: kid }).ok, false);
+}
 console.log('PASS: Creators Club 2.0 backend workflows');

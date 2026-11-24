@@ -695,7 +695,7 @@ function openIdea(id) {
       <label class="check" id="bo-lead-row"><input type="checkbox" id="bo-lead"${leads.length ? '' : ' checked'}><span>${leads.length ? `Co-lead this idea with ${escapeHTML(leads.join(' & '))}` : 'Make me the lead on this idea'}</span></label>
       <div class="form-actions"><button class="button" type="submit" id="bo-go">Add my notes</button></div>
     </form>` : '<p class="quiet">Building on ideas works when the Idea Bank is connected. Try again in a moment.</p>'}
-    <div class="button-row">${liveIdeas && !LOCKED() ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
+    <div class="button-row">${canEditIdea(i) ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button><button class="text-button danger" type="button" data-action="idea-delete" data-id="${escapeHTML(i.id)}">Delete idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
   </div>`;
   const form = body.querySelector ? body.querySelector('#build-form') : null; // (has() is shadowed in this function)
   if (form) {
@@ -1261,6 +1261,8 @@ function openPanel(action,data={}) {
   if (action === 'cast') return openCast(data.project);
   if (action === 'idea') return openIdea(data.id);
   if (action === 'idea-edit') return openIdeaEdit(data.id);
+  if (action === 'idea-new') return openIdeaEdit('');
+  if (action === 'idea-delete') return openIdeaDelete(data.id);
   if (flows[action]) return openFlow(action,data);
   const item = info[action]; if (!item) return;
   title.textContent = item[0]; body.innerHTML = item[1]; showModal();
@@ -1385,18 +1387,30 @@ function upsertIdea(idea) {
   if (at >= 0) list[at] = idea; else list.push(idea);
   liveIdeas = list; rerenderIdeas();
 }
+/* Who can change an idea (the script checks again): coordinators, any idea; creators signed in with their own
+   password, the ideas credited to them. A first-name credit ("Kristin") counts for that creator's full name. */
+function canEditIdea(i) {
+  if (!liveIdeas || LOCKED() || !i) return false;
+  if (isCoord()) return true;
+  const me = myName(); if (!me) return false;
+  const first = me.trim().split(/\s+/)[0];
+  return (i.credit || []).some(c => sameName(c, me) || (!/\s/.test(String(c).trim()) && sameName(c, first)));
+}
+const ideaRequest = payload => uploadRequest({ ...payload, coordKey: storageGet(COORD_CODE_KEY) || '', coordName: storageGet(UPLOAD_NAME_KEY) || '' });
 function openIdeaEdit(id) {
-  const i = ideas().find(x => x.id === id); if (!i) return;
+  const fresh = !id, i = fresh ? { credit: [], stage: 'idea' } : ideas().find(x => x.id === id);
+  if (!i || (fresh ? !isCoord() : !canEditIdea(i))) return;
   const lines = arr => escapeHTML((Array.isArray(arr) ? arr : []).join('\n'));
-  const savedName = storageGet(UPLOAD_NAME_KEY) || '';
-  const names = squadNames();
-  title.textContent = 'Edit idea';
+  const savedName = storageGet(UPLOAD_NAME_KEY) || '', names = squadNames(), coordHere = isCoord(), askName = !isAccount();
+  title.textContent = fresh ? 'Add an idea' : 'Edit idea';
   body.innerHTML = `<form id="idea-edit-form" novalidate>
-      <p class="quiet">Changes save to the Creators Club ideas sheet and show for everyone right away.</p>
-      <label for="ie-name">Who’s editing?</label>
-      <select id="ie-name" required><option value="">Choose your name</option>${names.map(n => `<option${n === savedName ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
+      <p class="quiet">${fresh ? 'It goes straight into the Idea Bank for everyone to see and build on.' : 'Changes save to the Creators Club ideas sheet and show for everyone right away.'}</p>
+      ${askName ? `<label for="ie-name">Who’s editing?</label>
+      <select id="ie-name" required><option value="">Choose your name</option>${names.map(n => `<option${n === savedName ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>` : ''}
       <label for="ie-title">Title</label>
       <input id="ie-title" type="text" maxlength="120" value="${escapeHTML(i.title || '')}" required>
+      ${coordHere ? `<label for="ie-credit">Credited to <span class="quiet">(names, separated by commas)</span></label>
+      <input id="ie-credit" type="text" maxlength="300" value="${escapeHTML((i.credit || []).join(', '))}" placeholder="Kristin, Lora">` : ''}
       <div class="field-pair">
         <div><label for="ie-series">Series</label><select id="ie-series">${SERIES.map(s => `<option value="${escapeHTML(s.id)}"${s.id === i.series ? ' selected' : ''}>${escapeHTML(s.label)}</option>`).join('')}</select></div>
         <div><label for="ie-stage">Stage</label><select id="ie-stage">${Object.entries(STAGES).map(([k,v]) => `<option value="${k}"${k === stageKey(i.stage) ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
@@ -1415,21 +1429,38 @@ function openIdeaEdit(id) {
       <textarea id="ie-notes" maxlength="4000">${lines(i.notes)}</textarea>
       <label for="ie-questions">Question bank <span class="quiet">(one per line)</span></label>
       <textarea id="ie-questions" maxlength="4000">${lines(i.questions)}</textarea>
-      <div class="form-actions"><button class="button" type="submit" id="ie-save">Save changes</button><button class="button secondary" type="button" data-action="idea" data-id="${escapeHTML(i.id)}">Cancel</button></div>
+      <div class="form-actions"><button class="button" type="submit" id="ie-save">${fresh ? 'Add idea' : 'Save changes'}</button>${fresh ? '' : `<button class="button secondary" type="button" data-action="idea" data-id="${escapeHTML(i.id)}">Cancel</button><button class="text-button danger" type="button" data-action="idea-delete" data-id="${escapeHTML(i.id)}">Delete idea</button>`}</div>
     </form>`;
   $('#idea-edit-form').onsubmit = async ev => {
     ev.preventDefault();
     const val = id => document.getElementById(id).value;
-    const name = val('ie-name'); if (!name) { status.textContent = 'Choose your name first.'; return document.getElementById('ie-name').focus(); }
-    const idea = { id: i.id, title: val('ie-title').trim(), series: val('ie-series'), stage: val('ie-stage'), lead: val('ie-lead'), summary: val('ie-summary').trim(), concept: val('ie-concept').trim(),
+    const name = askName ? val('ie-name') : myName(); if (!name) { status.textContent = 'Choose your name first.'; return document.getElementById('ie-name').focus(); }
+    const idea = { id: i.id || '', title: val('ie-title').trim(), series: val('ie-series'), stage: val('ie-stage'), lead: val('ie-lead'), summary: val('ie-summary').trim(), concept: val('ie-concept').trim(),
       howItWorks: val('ie-how'), guidance: val('ie-guidance'), notes: val('ie-notes'), questions: val('ie-questions') };
+    if (coordHere) idea.credit = val('ie-credit').split(',').map(x => x.trim()).filter(Boolean);
     if (!idea.title) { status.textContent = 'Give the idea a title.'; return document.getElementById('ie-title').focus(); }
-    const go = document.getElementById('ie-save'); go.disabled = true; go.textContent = 'Saving…'; status.textContent = '';
+    const go = document.getElementById('ie-save'), label = go.textContent; go.disabled = true; go.textContent = 'Saving…'; status.textContent = '';
     try {
-      const res = await uploadRequest({ action:'idea-save', name, idea });
+      const res = await ideaRequest({ action:'idea-save', name, idea });
       if (!res.ok) throw new Error(res.error || '');
-      storageSet(UPLOAD_NAME_KEY, name); upsertIdea(res.idea); openIdea(res.idea.id); status.textContent = 'Saved.';
-    } catch (err) { status.textContent = err.message || 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = 'Save changes'; }
+      if (askName) storageSet(UPLOAD_NAME_KEY, name);
+      upsertIdea(res.idea); openIdea(res.idea.id); status.textContent = fresh ? 'Added to the Idea Bank.' : 'Saved.';
+    } catch (err) { status.textContent = err.message || 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = label; }
+  };
+  showModal();
+}
+function openIdeaDelete(id) {
+  const i = ideas().find(x => x.id === id); if (!i || !canEditIdea(i)) return;
+  title.textContent = 'Delete this idea?';
+  body.innerHTML = `<p><strong>${escapeHTML(i.title)}</strong> comes out of the Idea Bank for everyone, along with ${(i.buildOns || []).length ? 'the notes the Squad added to it' : 'its details'}. Coordinators can restore it from the ideas sheet’s version history if needed.</p>
+    <div class="form-actions"><button class="button danger" type="button" id="idel-go">Delete idea</button><button class="button secondary" type="button" data-action="idea" data-id="${escapeHTML(i.id)}">Keep it</button></div>`;
+  $('#idel-go').onclick = async () => {
+    const go = $('#idel-go'); go.disabled = true; go.textContent = 'Deleting…'; status.textContent = '';
+    try {
+      const res = await ideaRequest({ action:'idea-delete', id: i.id });
+      if (!res.ok) throw new Error(res.error || '');
+      liveIdeas = ideas().filter(x => x.id !== i.id); rerenderIdeas(); modal.close(); toast(`Deleted “${i.title}”.`);
+    } catch (err) { status.textContent = err.message || 'That didn’t delete. Check your connection and try again.'; go.disabled = false; go.textContent = 'Delete idea'; }
   };
   showModal();
 }
@@ -1652,7 +1683,7 @@ function passwordForm(form, input, note$, go, label, nameEl) {
         if (res && !res.wrong) { note$.textContent = res.error || 'That didn’t work. Try again in a minute.'; return ready(); }
       }
       if (await coordinatorLogin(key)) { // not yours: maybe the coordinator password
-        ready(); input.value = ''; mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(key); unlock(); renderContent(); loadIdeas(); loadActivity(); toast('You’re signed in as a coordinator.'); return;
+        ready(); input.value = ''; mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(key); unlock(); renderContent(); loadIdeas(); loadActivity(); goToDashboard(); toast('You’re signed in as a coordinator.'); return;
       }
       note$.textContent = !name ? 'Enter your full name and your password.' : !isFullName(name) ? 'Use your full name, first and last.' : 'That name and password don’t match. First time here? Use the creator password from Sarah or Taylor to set up your own.';
       (isFullName(name) ? input : nameEl || input).focus(); if (isFullName(name)) input.select();
@@ -1672,10 +1703,16 @@ async function accountRequest(payload) {
   const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
   return res.json();
 }
+// Signed in: the landing page (hero, levels, sign-in) is hidden and the page starts at the dashboard.
+function goToDashboard() {
+  const d = document.getElementById ? document.getElementById('dashboard') : null; if (!d || !d.scrollIntoView) return;
+  if (history.replaceState && /^#(mentor-signin|squad-pitch|guides)?$/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  d.scrollIntoView({ block: 'start' });
+}
 function finishSignin(res) {
   mentorMemory = res.key; storageSet(MENTOR_KEY, res.key); storageSet(ACCOUNT_NAME_KEY, res.name); storageSet(UPLOAD_NAME_KEY, res.name); setCoordinator('');
   if (typeof club !== 'undefined') club = null; // club.js: reload the dashboard for this person
-  unlock(); renderContent(); loadIdeas(); loadActivity();
+  unlock(); renderContent(); loadIdeas(); loadActivity(); goToDashboard();
   toast(`You’re signed in. Hi, ${String(res.name).split(/\s+/)[0]}!`);
 }
 function openAccountSetup(sharedKey, name = '', moving = false) {
@@ -1849,7 +1886,7 @@ watchScreen();
 // A device still signed in with the shared creator password: it no longer signs anyone in, so set up your own password.
 let movingKey = '';
 { const k = storageGet(MENTOR_KEY); if (GATE_ON() && k && !/^acct\./.test(k) && !storageGet(COORD_CODE_KEY)) { movingKey = k; mentorMemory = ''; try { localStorage.removeItem(MENTOR_KEY); } catch (e) {} document.documentElement?.classList?.remove('unlocked'); } }
-if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); }
+if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); if (LANDING() && /^#(mentor-signin|squad-pitch|guides)$/.test(location.hash)) goToDashboard(); }
 else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in', f.querySelector('#signin-name')); }
 else if (OPEN_PAGE()) renderContent();
 else showGate();

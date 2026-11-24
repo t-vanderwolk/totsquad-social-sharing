@@ -3,7 +3,7 @@
    Data comes from apps-script/club.gs through the same web app (content.uploadEndpoint). Creators sign in with
    their own name and password (script.js), so the dashboard is theirs; coordinators sign in with the coordinator
    password, pick their name here, and the script checks the code for every coordinator action. */
-let club = null, clubBusy = false, coord = null, coordTab = 'applications', coordFilter = 'open', briefDraft = null;
+let club = null, clubBusy = false, coord = null, coordTab = 'applications', coordFilter = 'open', briefDraft = null, briefView = null;
 
 const clubName = () => storageGet(UPLOAD_NAME_KEY) || '';
 const firstName = n => String(n || '').split(/\s+/)[0];
@@ -279,18 +279,28 @@ function coordAccounts(c) {
 }
 const standingClass = s => ({ 'On track': 'stage-published', 'Reminder': 'stage-filming', 'Needs review': 'stage-casting stage-alert', 'Paused': 'stage-idea' })[s] || 'stage-idea';
 const BRIEF_FIELDS = [['title', 'Brief title', 'text'], ['theme', 'Theme or concept', 'text'], ['weekStart', 'Starts', 'date'], ['weekEnd', 'Ends (blank = two weeks)', 'date'], ['format', 'Format', 'text', 'Reel, carousel or story'], ['length', 'Length', 'text', 'About 15–30 seconds'], ['window', 'Publishing window', 'text', 'Anytime these two weeks'], ['cta', 'Call to action', 'text', 'Explore the free Baby Concierge service'], ['audios', 'Trending audios', 'textarea'], ['hooks', 'Hooks & talking points', 'textarea'], ['direction', 'Concepts & creative direction', 'textarea'], ['launches', 'Upcoming launches', 'textarea'], ['deliverables', 'Deliverables', 'textarea'], ['resources', 'Assets & resources (links welcome)', 'textarea'], ['guidelines', 'Brand or product guidelines', 'textarea']];
+// Briefs: create, preview, edit, duplicate, publish/unpublish, archive and delete.
+const briefStage = (b, c) => `<span class="stage ${b.status === 'Published' ? 'stage-published' : b.status === 'Draft' ? 'stage-filming' : 'stage-idea'}">${b.id === c.current ? 'Current' : escapeHTML(b.status)}</span>`;
 function coordBriefs(c) {
   if (briefDraft) {
-    const b = briefDraft;
-    return `<form class="coord-card brief-editor" data-coord-form="brief"><h3>${b.id ? 'Edit brief' : 'New brief'}</h3>
+    const b = briefDraft, live = b.status === 'Published';
+    return `<form class="coord-card brief-editor" data-coord-form="brief"><h3>${b.id ? `Edit “${escapeHTML(b.title || b.theme || 'brief')}”` : 'New brief'}</h3>
       <div class="brief-fields">${BRIEF_FIELDS.map(([k, label, type, ph]) => `<label class="${type === 'textarea' ? 'wide' : ''}">${label}${type === 'textarea' ? `<textarea name="${k}" maxlength="3000">${escapeHTML(b[k] || '')}</textarea>` : `<input name="${k}" type="${type}" maxlength="300" value="${escapeHTML(b[k] || '')}"${ph ? ` placeholder="${escapeHTML(ph)}"` : ''}>`}</label>`).join('')}</div>
-      <p class="quiet">Same strategy, room for each creator’s voice: give direction, not a script.</p>
-      <div class="form-actions"><button class="button" type="submit">Save draft</button><button class="button secondary" type="button" data-coord-cancel>Cancel</button></div></form>`;
+      <p class="quiet">Same strategy, room for each creator’s voice: give direction, not a script.${live ? ' This brief is live: changes show to creators as soon as you save.' : ''}</p>
+      <div class="form-actions"><button class="button" type="submit">${live ? 'Save changes' : 'Save draft'}</button>${live ? '' : '<button class="button secondary" type="submit" data-publish>Save &amp; publish</button>'}<button class="button secondary" type="button" data-coord-cancel>Cancel</button>${b.id ? `<button class="text-button danger" type="button" data-coord-brief-del="${escapeHTML(b.id)}">Delete</button>` : ''}</div></form>`;
   }
+  const v = briefView && c.briefs.find(b => b.id === briefView.id);
+  if (v && briefView.mode === 'preview') return `<div class="coord-card brief-preview"><div class="app-top"><p class="club-kicker">${escapeHTML(weekRange(v) || 'No dates yet')} · Brief preview</p>${briefStage(v, c)}</div>
+      <h3>${escapeHTML(v.title || v.theme || 'Untitled')}</h3>${briefSections(v) || '<p class="quiet">Nothing in this brief yet.</p>'}
+      <div class="button-row"><button class="button" type="button" data-coord-edit="${escapeHTML(v.id)}">Edit</button><button class="button secondary" type="button" data-coord-back>Back to briefs</button></div></div>`;
   return `<div class="button-row"><button class="button" type="button" data-coord-new-brief>New brief</button></div>
-    ${c.briefs.length ? `<ul class="coord-list">${c.briefs.map(b => `<li class="coord-card"><div class="app-top"><strong>${escapeHTML(b.title || b.theme || 'Untitled')}</strong><span class="stage ${b.status === 'Published' ? 'stage-published' : b.status === 'Draft' ? 'stage-filming' : 'stage-idea'}">${b.id === c.current ? 'Current' : escapeHTML(b.status)}</span></div>
+    ${c.briefs.length ? `<ul class="coord-list">${c.briefs.map(b => {
+      const confirm = briefView && briefView.mode === 'delete' && briefView.id === b.id;
+      return `<li class="coord-card"><div class="app-top"><strong>${escapeHTML(b.title || b.theme || 'Untitled')}</strong>${briefStage(b, c)}</div>
       <p class="quiet">${escapeHTML([weekRange(b) || 'No dates yet', b.format, b.updatedBy ? 'updated by ' + b.updatedBy : ''].filter(Boolean).join(' · '))}</p>
-      <div class="trk-links"><button class="text-button" type="button" data-coord-edit="${escapeHTML(b.id)}">Edit</button><button class="text-button" type="button" data-coord-brief="duplicate" data-id="${escapeHTML(b.id)}">Duplicate for the next brief</button>${b.status === 'Published' ? `<button class="text-button" type="button" data-coord-brief="unpublish" data-id="${escapeHTML(b.id)}">Unpublish</button>` : `<button class="text-button" type="button" data-coord-brief="publish" data-id="${escapeHTML(b.id)}">Publish</button>`}${b.status !== 'Archived' ? `<button class="text-button" type="button" data-coord-brief="archive" data-id="${escapeHTML(b.id)}">Archive</button>` : ''}</div></li>`).join('')}</ul>`
+      ${confirm ? `<div class="coord-confirm"><p><strong>Delete “${escapeHTML(b.title || b.theme || 'this brief')}”?</strong> It comes out of the app and the program sheet.${b.status === 'Published' ? ' Creators stop seeing it right away.' : ''} Posts already logged for it keep its name.</p>
+        <div class="button-row"><button class="button danger" type="button" data-coord-brief="delete" data-id="${escapeHTML(b.id)}">Delete</button><button class="button secondary" type="button" data-coord-back>Keep it</button></div></div>`
+      : `<div class="trk-links"><button class="text-button" type="button" data-coord-preview="${escapeHTML(b.id)}">Preview</button><button class="text-button" type="button" data-coord-edit="${escapeHTML(b.id)}">Edit</button><button class="text-button" type="button" data-coord-brief="duplicate" data-id="${escapeHTML(b.id)}">Duplicate for the next brief</button>${b.status === 'Published' ? `<button class="text-button" type="button" data-coord-brief="unpublish" data-id="${escapeHTML(b.id)}">Unpublish</button>` : `<button class="text-button" type="button" data-coord-brief="publish" data-id="${escapeHTML(b.id)}">Publish</button>`}${b.status !== 'Archived' ? `<button class="text-button" type="button" data-coord-brief="archive" data-id="${escapeHTML(b.id)}">Archive</button>` : ''}<button class="text-button danger" type="button" data-coord-brief-del="${escapeHTML(b.id)}">Delete</button></div>`}</li>`; }).join('')}</ul>`
       : emptyState('No briefs yet.', 'Create the first brief: trending audios, hooks, concepts or upcoming launches. One every other week; it stays a draft until you publish it.', '', ICON.spark)}
     <p class="quiet">You can also edit briefs right in the “Creators Club program” sheet in the shared drive.</p>`;
 }
@@ -343,18 +353,20 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (t.matches && t.matches('[data-coord-sub]')) refreshCoord('admin-sub', { id: t.dataset.coordSub, status: t.value }, 'Saved.');
   });
   document.addEventListener('click', e => {
-    const t = e.target.closest && e.target.closest('[data-coord-tab],[data-coord-filter],[data-coord-seed],[data-coord-request],[data-coord-new-brief],[data-coord-edit],[data-coord-brief],[data-coord-cancel],[data-coord-account]');
+    const t = e.target.closest && e.target.closest('[data-coord-tab],[data-coord-filter],[data-coord-seed],[data-coord-request],[data-coord-new-brief],[data-coord-edit],[data-coord-brief],[data-coord-cancel],[data-coord-account],[data-coord-preview],[data-coord-brief-del],[data-coord-back]');
     if (!t || !coord) return;
     const d = t.dataset;
-    if (d.coordTab) { coordTab = d.coordTab; briefDraft = null; status.textContent = ''; renderCoord(); return; }
+    if (d.coordTab) { coordTab = d.coordTab; briefDraft = null; briefView = null; status.textContent = ''; renderCoord(); return; }
     if (d.coordFilter) { coordFilter = d.coordFilter; renderCoord(); return; }
     if ('coordSeed' in d) { const people = [content.leader, ...(content.featuredSpecialists || [])].filter(p => p && p.name).map(p => ({ name: p.name, market: p.region || '', instagram: p.instagram || '' })); refreshCoord('admin-seed', { members: people }, 'Roster updated.'); return; }
     if ('coordRequest' in d) { refreshCoord('admin-member', { name: d.coordRequest, ...(d.to ? { status: d.to } : {}), ...('keep' in d ? {} : { clearRequest: true }) }, 'Saved.'); return; }
-    if ('coordNewBrief' in d) { briefDraft = {}; renderCoord(); return; }
-    if (d.coordEdit) { briefDraft = { ...(coord.briefs.find(b => b.id === d.coordEdit) || {}) }; renderCoord(); return; }
-    if ('coordCancel' in d) { briefDraft = null; renderCoord(); return; }
+    if ('coordNewBrief' in d) { briefDraft = {}; briefView = null; renderCoord(); return; }
+    if (d.coordEdit) { briefDraft = { ...(coord.briefs.find(b => b.id === d.coordEdit) || {}) }; briefView = null; renderCoord(); return; }
+    if ('coordCancel' in d || 'coordBack' in d) { briefDraft = null; briefView = null; status.textContent = ''; renderCoord(); return; }
+    if (d.coordPreview) { briefView = { id: d.coordPreview, mode: 'preview' }; renderCoord(); return; }
+    if (d.coordBriefDel) { briefDraft = null; briefView = { id: d.coordBriefDel, mode: 'delete' }; renderCoord(); return; }
     if (d.coordAccount) { refreshCoord('admin-account', { name: d.name, op: d.coordAccount }, d.coordAccount === 'reset' ? `Password reset. ${d.name} can set a new one with the creator password.` : 'Bio taken down.'); return; }
-    if (d.coordBrief) { refreshCoord('admin-brief', { op: d.coordBrief, brief: { id: d.id } }, { duplicate: 'Copied as a draft for the next week.', publish: 'Published. Creators see it now.', unpublish: 'Back to draft.', archive: 'Archived.' }[d.coordBrief]); return; }
+    if (d.coordBrief) { briefView = null; refreshCoord('admin-brief', { op: d.coordBrief, brief: { id: d.id } }, { duplicate: 'Copied as a draft for the next brief.', publish: 'Published. Creators see it now.', unpublish: 'Back to draft.', archive: 'Archived.', delete: 'Brief deleted.' }[d.coordBrief]); return; }
   });
   document.addEventListener('submit', async e => {
     const f = e.target.closest && e.target.closest('[data-coord-form]'); if (!f) return;
@@ -363,7 +375,9 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (kind === 'member') refreshCoord('admin-member', { name: f.dataset.name, status: v.status, notes: v.notes }, 'Saved.');
     if (kind === 'member-new') refreshCoord('admin-member', { name: v.name, status: 'Active' }, 'Added.');
     if (kind === 'settings') refreshCoord('admin-settings', { settings: v }, 'Settings saved.');
-    if (kind === 'brief') { const res = await refreshCoord('admin-brief', { op: 'save', brief: { ...v, id: briefDraft && briefDraft.id || '' } }, 'Saved as a draft. Publish it from the list when it’s ready.'); if (res) { briefDraft = null; renderCoord(); } }
+    if (kind === 'brief') { const publish = !!(e.submitter && 'publish' in e.submitter.dataset), live = briefDraft && briefDraft.status === 'Published';
+      const res = await refreshCoord('admin-brief', { op: 'save', publish, brief: { ...v, id: briefDraft && briefDraft.id || '' } }, publish ? 'Saved and published. Creators see it now.' : live ? 'Saved. Creators see the changes now.' : 'Saved as a draft. Publish it when it’s ready.');
+      if (res) { briefDraft = null; briefView = null; renderCoord(); } }
   });
 }
 if (typeof modal !== 'undefined' && modal.addEventListener) modal.addEventListener('close', () => modal.classList.toggle('coord', false));
