@@ -37,6 +37,7 @@ function doPost(e) {
     if (req.action === 'apply') return saveApplication(req); // open to anyone: it's how people ask to join
     if (req.action === 'squad-pitch') return saveSquadPitch(req); // open to anyone: ideas for Sarah to review
     if (req.action === 'cast-start') return startCastUpload(req); // open casting calls: video only, no password
+    if (req.action === 'broll-start') return startBrollUpload(req); // B-roll from any specialist, no password: lands in "B-roll to review"
     if (req.action === 'upload-done') return uploadDone(req); // logs finished uploads for What's new
     if (req.action === 'coord-login') return coordLogin(req); // sign-in with the coordinator password (club.gs)
     if (!isMentor(req.key)) return locked(); // everything else needs the creator password
@@ -59,7 +60,7 @@ function doPost(e) {
     if (!/^(video|image)\//.test(type)) return reply({ ok: false, error: 'Only videos and photos can be uploaded here.' });
     if (!(size > 0 && size <= MAX_BYTES)) return reply({ ok: false, error: 'Files can be up to 2 GB each.' });
 
-    let folder = DriveApp.getFolderById(ROOTS[dest]);
+    let folder = dest === 'broll' ? brollReviewFolder() : DriveApp.getFolderById(ROOTS[dest]); // B-roll waits for review before it joins the library
     if (dest === 'collab') folder = childFolder(folder, project);
     folder = childFolder(folder, name);
 
@@ -300,6 +301,32 @@ function startCastUpload(req) {
   if (res.getResponseCode() !== 200 || !uploadUrl) return reply({ ok: false, error: 'Drive didn’t accept the upload. Try again in a minute.' });
   return reply({ ok: true, uploadUrl: uploadUrl }); // no folder link: submissions stay private
 }
+/* B-roll uploads, from creators and from any specialist, land in "B-roll to review" (private to the shared drive's
+   members). The B-Roll Library itself is link-viewable, so clips only move there once a coordinator has checked them
+   for faces, client details and permission. */
+const BROLL_REVIEW = 'B-roll to review';
+function brollReviewFolder() { return childFolder(DriveApp.getFolderById(ROOTS.collab), BROLL_REVIEW); }
+function startBrollUpload(req) {
+  const name = clean(req.name), type = String(req.type || ''), size = Number(req.size);
+  if (!name) return reply({ ok: false, error: 'Add your name first.' });
+  if (req.agreed !== true) return reply({ ok: false, error: 'Check the permission box first.' });
+  if (!/^(video|image)\//.test(type)) return reply({ ok: false, error: 'Only videos and photos can be uploaded here.' });
+  if (!(size > 0 && size <= MAX_BYTES)) return reply({ ok: false, error: 'Files can be up to 2 GB each.' });
+  const cache = CacheService.getScriptCache(), count = Number(cache.get('broll-count') || 0);
+  if (count >= 120) return reply({ ok: false, error: 'Lots of clips are coming in right now. Try again in an hour.' });
+  cache.put('broll-count', String(count + 1), 3600);
+  const folder = childFolder(brollReviewFolder(), name);
+  const origin = ORIGINS.indexOf(req.origin) >= 0 ? req.origin : ORIGINS[0];
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true', {
+    method: 'post', contentType: 'application/json; charset=UTF-8',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'X-Upload-Content-Type': type, 'X-Upload-Content-Length': String(size), Origin: origin },
+    payload: JSON.stringify({ name: cleanFile(req.fileName), parents: [folder.getId()], description: 'B-roll from ' + name + ' (sent from the B-roll library page, not yet reviewed)' }),
+    muteHttpExceptions: true
+  });
+  const headers = res.getHeaders(), uploadUrl = headers.Location || headers.location;
+  if (res.getResponseCode() !== 200 || !uploadUrl) return reply({ ok: false, error: 'Drive didn’t accept the upload. Try again in a minute.' });
+  return reply({ ok: true, uploadUrl: uploadUrl }); // no folder link: clips stay private until reviewed
+}
 /* Activity feed ("What's new" in the app, creators only): one row per event in "Creators Club activity". */
 function activitySheet() {
   const props = PropertiesService.getScriptProperties(), id = props.getProperty('ACTIVITY_SHEET_ID');
@@ -327,6 +354,7 @@ function uploadDone(req) {
   const up = person.getParents().hasNext() ? person.getParents().next() : null; if (!up) return reply({ ok: false });
   const top = up.getParents().hasNext() ? up.getParents().next() : null;
   if (up.getId() === ROOTS.broll) logActivity('broll', person.getName(), 'added B-roll: ' + file.getName(), file.getUrl());
+  else if (up.getName() === BROLL_REVIEW && top && top.getId() === ROOTS.collab) logActivity('broll', person.getName(), 'sent B-roll for review: ' + file.getName(), ''); // private until reviewed
   else if (top && top.getId() === ROOTS.collab) logActivity('video', person.getName(), 'sent a video for ' + up.getName(), file.getUrl());
   else return reply({ ok: false });
   return reply({ ok: true });

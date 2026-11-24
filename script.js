@@ -1045,6 +1045,22 @@ function openUpload(d={}) {
   const project = d.project ? (allProjects.find(p => p.id === d.project) || {}).title || d.project : '';
   const dest = d.dest === 'collab' ? (project || targets[0] || '') : 'broll';
   const savedName = storageGet(UPLOAD_NAME_KEY) || '';
+  if (LOCKED()) { // any specialist, no password: B-roll only
+    body.innerHTML = `<p>Share clips any specialist can drop into a Squad Reel. A coordinator checks every clip before it joins the library.</p>
+      <form id="upload-form" novalidate>
+        <label for="up-name">Your name, as it appears in Disco</label>
+        <input id="up-name" type="text" autocomplete="name" maxlength="80" value="${escapeHTML(savedName)}" required>
+        <input id="up-dest" type="hidden" value="broll">
+        <label for="up-files">Videos or photos</label>
+        <input id="up-files" type="file" accept="video/*,image/*" multiple required>
+        <p class="quiet">Vertical (9:16), 3 to 15 seconds, no talking or music. Up to 2 GB per file.</p>
+        <label class="check agree"><input type="checkbox" id="up-agree">Everyone on camera said yes, and there are no babies’ faces, client names, registries or order details.</label>
+        <ul class="upload-list" id="upload-list" aria-live="polite"></ul>
+        <div class="form-actions"><button class="button" type="submit" id="up-go">Upload</button></div>
+      </form>`;
+    $('#upload-form').onsubmit = ev => { ev.preventDefault(); runUpload(); };
+    return showModal();
+  }
   body.innerHTML = `<p>Your clips go straight into the Squad’s Google Drive, in a folder with your name. No Drive link needed.</p>
     <form id="upload-form" novalidate>
       <label for="up-name">Who’s uploading?</label>
@@ -1081,7 +1097,9 @@ async function runUpload() {
   const files = [...($('#up-files').files || [])];
   const list = $('#upload-list'), go = $('#up-go');
   status.textContent = '';
-  if (!name) { status.textContent = 'Choose your name first.'; $('#up-name').focus(); return; }
+  if (!name.trim()) { status.textContent = LOCKED() ? 'Add your name first.' : 'Choose your name first.'; $('#up-name').focus(); return; }
+  const agree = document.getElementById ? document.getElementById('up-agree') : null;
+  if (agree && !agree.checked) { status.textContent = 'Check the permission box first.'; agree.focus(); return; }
   if (!files.length) { status.textContent = 'Choose at least one video or photo.'; $('#up-files').focus(); return; }
   const bad = files.find(f => !/^(video|image)\//.test(f.type) || f.size > 2*1024**3);
   if (bad) { status.textContent = `${bad.name} can’t be uploaded. Use videos or photos up to 2 GB.`; return; }
@@ -1093,7 +1111,8 @@ async function runUpload() {
     const row = $('#up-'+i), bar = row.querySelector('progress'), state = row.querySelector('.up-state');
     try {
       state.textContent = 'Starting';
-      const start = await uploadRequest({ action:'start', name, dest: destVal === 'broll' ? 'broll' : 'collab', project: destVal === 'broll' ? '' : destVal, fileName:f.name, type:f.type, size:f.size, origin: location.origin });
+      const start = await uploadRequest(LOCKED() ? { action:'broll-start', name: name.trim(), agreed: true, fileName:f.name, type:f.type, size:f.size, origin: location.origin }
+        : { action:'start', name, dest: destVal === 'broll' ? 'broll' : 'collab', project: destVal === 'broll' ? '' : destVal, fileName:f.name, type:f.type, size:f.size, origin: location.origin });
       if (!start.ok) { state.textContent = start.error || 'Couldn’t start'; row.classList.add('failed'); if (start.locked) break; continue; }
       storageSet(UPLOAD_NAME_KEY, name);
       uploadDone(await putFile(start.uploadUrl, f, p => { bar.value = p; state.textContent = Math.round(p*100)+'%'; }));
@@ -1103,7 +1122,7 @@ async function runUpload() {
   go.disabled = false; go.textContent = 'Upload more';
   if (done) {
     $('#up-files').value = '';
-    status.innerHTML = `${done === files.length ? 'All set!' : `${done} of ${files.length} uploaded.`} ${done === 1 ? 'Your file is' : 'Your files are'} in the Squad’s Drive.${destVal === 'broll' ? ' New B-roll shows in the library once Taylor adds it.' : ''} ${chatLink(chatFor)}`;
+    status.innerHTML = `${done === files.length ? 'All set!' : `${done} of ${files.length} uploaded.`} ${done === 1 ? 'Your file is' : 'Your files are'} in the Squad’s Drive.${destVal === 'broll' ? ' A coordinator will check it, and it shows in the library once it’s added.' : ''} ${chatLink(chatFor)}`;
   }
 }
 
@@ -1545,7 +1564,8 @@ function showGate(note = '') {
 document.addEventListener('click', e => {
   if (!OPEN_PAGE() || !LOCKED()) return;
   const a = e.target.closest && e.target.closest('[data-action],[data-reel]');
-  if (a && !['reel-share','apply','cast',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
+  const brollUpload = a && a.dataset.action === 'upload' && a.dataset.dest === 'broll'; // anyone can send B-roll
+  if (a && !brollUpload && !['reel-share','apply','cast',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
 }, true);
 setupMenu();
 setupBell();

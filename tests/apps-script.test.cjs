@@ -25,18 +25,22 @@ function fakeGoogle(props) {
   const makeBook = title => { const id = 'book' + (++n), book = { id, title, sheets: [makeSheet('Sheet1')],
     getId: () => id, getSheets() { return this.sheets; }, getSheetByName(x) { return this.sheets.find(s => s.name === x) || null; },
     insertSheet(x) { const s = makeSheet(x); this.sheets.push(s); return s; }, setSpreadsheetTimeZone() {} }; books.set(id, book); return book; };
+  const folders = new Map(), made = [];
+  const folder = (id, name = id) => { if (!folders.has(id)) folders.set(id, { id, name, kids: new Map(), getId() { return this.id; }, getName() { return this.name; }, getUrl() { return 'https://drive.google.com/drive/folders/' + this.id; },
+    getParents: () => ({ hasNext: () => false }), getFoldersByName(n) { const f = this.kids.get(n); return { hasNext: () => !!f, next: () => f }; },
+    createFolder(n) { const f = folder(this.id + '/' + n, n); this.kids.set(n, f); made.push(f.id); return f; } }); return folders.get(id); };
   const validation = { requireValueInList() { return this; }, setAllowInvalid() { return this; }, build() { return {}; } };
   const store = new Map(Object.entries(props));
   const cache = new Map();
-  return { books,
+  return { books, made,
     SpreadsheetApp: { create: makeBook, openById: id => { const b = books.get(id); if (!b) throw Error('missing'); return b; }, newDataValidation: () => validation },
-    DriveApp: { getFileById: () => ({ moveTo() {} }), getFolderById: () => ({ getParents: () => ({ hasNext: () => false }) }) },
+    DriveApp: { getFileById: () => ({ moveTo() {} }), getFolderById: id => folder(id) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => store.get(k) ?? null, setProperty: (k, v) => store.set(k, v), getProperties: () => Object.fromEntries(store) }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v) }) },
     Utilities: { formatDate: (d, tz, f) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d).map(x => [x.type, x.value])); return f === 'yyyy-MM-dd' ? `${p.year}-${p.month}-${p.day}` : d.toISOString(); } },
     ContentService: { createTextOutput: s => ({ setMimeType() { return JSON.parse(s); } }), MimeType: { JSON: 'json' } },
-    UrlFetchApp: {}, ScriptApp: { getOAuthToken: () => "" }, Session: {}, console: { log: console.log, error() {} }
+    UrlFetchApp: { fetch: (url, opts) => { made.push(JSON.parse(opts.payload).parents[0]); return { getHeaders: () => ({ Location: 'https://upload.example/x' }), getResponseCode: () => 200 }; } }, ScriptApp: { getOAuthToken: () => "" }, Session: {}, console: { log: console.log, error() {} }
   };
 }
 function boot(props = { MENTOR_PASSCODE: 'footpop', COORDINATOR_PASSCODE: 'Coord-123' }) {
@@ -132,4 +136,12 @@ assert.equal(t.get({ action: 'ideas', key: 'Coord-123' }).ok, true); // coordina
 assert.equal(t.post({ action: 'admin-data', key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Sarah' }).ok, true);
 for (let i = 0; i < 25; i++) t.post({ action: 'coord-login', code: 'guess' + i });
 assert.match(t.post({ action: 'coord-login', code: 'Coord-123' }).error || '', /Too many tries/);
+// B-roll from any specialist (no password) and from creators both land in "B-roll to review", never straight in the library.
+const t4 = boot();
+assert.equal(t4.post({ action: 'broll-start', name: 'Pat', type: 'video/mp4', size: 1000, fileName: 'a.mp4' }).ok, false); // needs the permission box
+assert.equal(t4.post({ action: 'broll-start', name: 'Pat', agreed: true, type: 'application/pdf', size: 1000, fileName: 'a.pdf' }).ok, false);
+r = t4.post({ action: 'broll-start', name: 'Pat', agreed: true, type: 'video/mp4', size: 1000, fileName: 'a.mp4' }); assert.equal(r.ok, true); assert.equal(r.folderUrl, undefined);
+assert.ok(t4.g.made.includes('0ADqEscN50JTEUk9PVA/B-roll to review/Pat')); assert.ok(!t4.g.made.some(id => id.startsWith(vm.runInContext('ROOTS.broll', t4.ctx))));
+r = t4.post({ action: 'start', key, name: 'Kristin', dest: 'broll', type: 'image/jpeg', size: 10, fileName: 'b.jpg' }); assert.equal(r.ok, true);
+assert.ok(t4.g.made.includes('0ADqEscN50JTEUk9PVA/B-roll to review/Kristin'));
 console.log('PASS: Creators Club 2.0 backend workflows');
