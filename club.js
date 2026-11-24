@@ -102,9 +102,10 @@ function subRow(s) {
 function outsiderCard(m) {
   const a = club.application;
   if (m) return `<div class="club-card club-outside"><h3>Welcome back anytime</h3><p>You’re listed as ${escapeHTML(m.status.toLowerCase())}. Your history is saved, and the Idea Bank, casting calls and resources are always open to you.</p><div class="button-row">${m.request ? `<p class="quiet">Your rejoin request is with the coordinators.</p>` : `<button class="button" type="button" data-action="club-request" data-type="rejoin">Ask to rejoin</button>`}</div></div>`;
-  const line = !a ? 'You’re part of the open Squad: casting calls, the Idea Bank and creator resources are all yours. Want to post on the shared weekly theme with a smaller group? Apply to join the Creators Club.'
-    : { 'Submitted': 'Your application is in. A coordinator will review it soon.', 'Under Review': 'Your application is being reviewed. A coordinator will reach out in Disco.', 'Waitlisted': 'You’re on the waitlist. We’ll reach out as soon as a spot opens.', 'Declined': 'Your application wasn’t approved this round. You’re always welcome in the open Squad, and you can apply again later.', 'Approved': 'You’re approved! Your dashboard appears as soon as you’re on the roster.' }[a.status] || '';
-  return `<div class="club-card club-outside"><p class="club-kicker">${a ? `Application · ${escapeHTML(a.status)}` : 'The open Squad'}</p><p>${escapeHTML(line)}</p><div class="button-row">${!a || a.status === 'Declined' ? `<button class="button" type="button" data-action="apply">Apply to join</button>` : ''}<a class="button secondary" href="#guides">Creator resources</a></div></div>`;
+  // Signed in with the creator password, so no "Apply to join" here: just where they stand.
+  const line = !a ? 'You’re not on the Creators Club roster yet. Double-check the name you picked, or ask a coordinator to add you.'
+    : { 'Submitted': 'Your application is in. A coordinator will review it soon.', 'Under Review': 'Your application is being reviewed. A coordinator will reach out in Disco.', 'Waitlisted': 'You’re on the waitlist. We’ll reach out as soon as a spot opens.', 'Declined': 'Your application wasn’t approved this round. Reach out to a coordinator anytime.', 'Approved': 'You’re approved! Your dashboard appears as soon as a coordinator adds you to the roster.' }[a.status] || '';
+  return `<div class="club-card club-outside"><p class="club-kicker">${a ? `Application · ${escapeHTML(a.status)}` : 'Almost there'}</p><p>${escapeHTML(line)}</p><div class="button-row"><a class="button secondary" href="#casting">Casting calls</a><a class="button secondary" href="#toolkit">Toolkit</a></div></div>`;
 }
 
 /* ---------- Brief, submissions and requests ---------- */

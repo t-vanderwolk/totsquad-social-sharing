@@ -397,6 +397,8 @@ console.log('PASS: bell badge');
   assert.match(d, /tot-squad-hub\.disco\.co\/channel\/Q2hhdENoYW5uZWw6MjM0ODYw/); // Creator Circle falls back to content.js
   t13.run(`club.member = null; club.application = { status:'Waitlisted' }; renderDashboard();`);
   assert.match(t13.html('#club-dash'), /on the waitlist/); assert.doesNotMatch(t13.html('#club-dash'), /club-submit/);
+  assert.doesNotMatch(t13.html('#club-dash'), /data-action="apply"/); // signed-in creators never see Apply to join
+  t13.run(`club.application = null; renderDashboard();`); assert.doesNotMatch(t13.html('#club-dash'), /data-action="apply"/); assert.match(t13.html('#club-dash'), /not on the Creators Club roster yet/);
   t13.run(`coord = { applications:[{ id:'a1', name:'Bo', status:'Submitted', notes:'' }], members:[], briefs:[], submissions:[], participation:[], settings:{ requiredThemed:1, requiredFlexible:1, reminderAfter:1, reviewAfter:2 }, analytics:{ activeCreators:0, publishedLinks:0, repeatCreators:0, weeksRun:0, lastWeek:null, thisWeek:null }, current:'' };`);
   for (const tab of ['applications','roster','briefs','content','participation','analytics','settings']) { t13.run(`coordTab = '${tab}'; renderCoord();`); assert.ok(t13.html('#modal-body').length > 100, tab); }
   t13.run(`coordTab = 'analytics'; renderCoord();`); assert.match(t13.html('#modal-body'), /aren’t tracked yet/); // no invented reach numbers
