@@ -884,3 +884,15 @@ html:not(.coordinator) [data-coordinator]{display:none!important}
 @media (hover:none){.cal-add{opacity:.6}}
 .col-add{display:block;margin:0 0 var(--s2);font-size:13px;text-align:left}
 @media (max-width:720px){.cal-add{display:none}}
+/* Your own account: sign-in name, profile and bio */
+.mentor-signin .signin-name{width:100%;margin-bottom:var(--s3)}
+.profile-part{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line-soft)}
+.profile-part textarea{width:100%}
+.bio-count{font-size:12px;margin:var(--s1) 0 0}
+#bio-actions span{font-weight:600;color:var(--plum-ink)}
+.club-who .text-button{margin-left:var(--s1)}
+.acct-list{list-style:none;margin:var(--s3) 0 0;padding:0;display:grid;gap:var(--s3)}
+.acct-list li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:var(--s2) var(--s4);padding-top:var(--s3);border-top:1px solid var(--line-soft)}
+.acct-list li>span:first-child{display:grid;gap:2px;min-width:0;flex:1 1 260px}
+.acct-list .quiet{font-size:12px}.acct-bio{font-size:13px;color:var(--body)}
+.acct-actions{display:flex;gap:var(--s3);align-items:center}

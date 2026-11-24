@@ -33,7 +33,9 @@ const MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB per file
 function doPost(e) {
   try {
     const req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    if (req.action === 'pitch') return isMentor(req.key) ? savePitch(req) : locked(); // pitches need the mentor password, not the upload passcode
+    if (req.action === 'pitch') { if (!isMentor(req.key)) return locked(); const by = accountName(req.key); if (by) req.name = by; return savePitch(req); } // pitches need a creator sign-in
+    if (req.action === 'account-setup') return accountSetup(req); // creator password -> your own password (club.gs)
+    if (req.action === 'account-login') return accountLogin(req); // your name + your own password (club.gs)
     if (req.action === 'apply') return saveApplication(req); // open to anyone: it's how people ask to join
     if (req.action === 'squad-pitch') return saveSquadPitch(req); // open to anyone: ideas for Sarah to review
     if (req.action === 'cast-start') return startCastUpload(req); // open casting calls: video only, no password
@@ -41,6 +43,8 @@ function doPost(e) {
     if (req.action === 'upload-done') return uploadDone(req); // logs finished uploads for What's new
     if (req.action === 'coord-login') return coordLogin(req); // sign-in with the coordinator password (club.gs)
     if (!isMentor(req.key)) return locked(); // everything else needs the creator password
+    const signedIn = accountName(req.key); if (signedIn) req.name = signedIn; // signed in with your own password: you act as yourself
+    if (/^(account-(me|password|signout)|bio-(save|delete))$/.test(String(req.action))) return accountReply(req, signedIn); // club.gs
     if (req.action === 'idea-save') return saveIdea(req);
     if (req.action === 'idea-build') return buildOnIdea(req);
     if (req.action === 'club-submit') return saveSubmission(req);
@@ -366,9 +370,10 @@ function text(s) { const t = String(s == null ? '' : s).replace(/[\u0000-\u0008\
 const REELS_SHEET_ID = moved('1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg');
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
+  if (action === 'bios') return reply({ ok: true, bios: readBios() }); // public: the bios creators wrote for Meet the Squad
   if (action && !isMentor(e.parameter.key)) return locked();
   if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // creators only
-  if (action === 'club') return reply(clubForCreator(clean(e.parameter.name)));
+  if (action === 'club') return reply(clubForCreator(accountName(e.parameter.key) || clean(e.parameter.name)));
   if (action === 'gate') return reply({ ok: true });
   if (action === 'activity') return reply({ ok: true, activity: readActivity() });
   if (action === 'applications') return reply({ ok: true, applications: readApplications() });
@@ -438,7 +443,7 @@ function readReels() {
 function isMentor(key) {
   const want = PropertiesService.getScriptProperties().getProperty('MENTOR_PASSCODE');
   if (want && String(key || '').trim().toLowerCase() === want.trim().toLowerCase()) return true;
-  return !!String(key || '').trim() && isCoordinator(key);
+  return !!String(key || '').trim() && (isCoordinator(key) || !!accountName(key)); // or a creator's own sign-in (club.gs)
 }
 function locked() { return reply({ ok: false, locked: true, error: 'That mentor password doesn’t match.' }); }
 

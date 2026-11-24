@@ -1,8 +1,8 @@
 /* Creators Club 2.0 in the app: the member dashboard, weekly brief, link submissions, pause requests
    and coordinator tools. Loaded after script.js on the landing page; uses its helpers ($, body, showModal…).
-   Data comes from apps-script/club.gs through the same web app (content.uploadEndpoint). Members pick
-   their name (the creator password is shared); coordinators also enter the coordinator code, which the
-   script checks for every coordinator action. */
+   Data comes from apps-script/club.gs through the same web app (content.uploadEndpoint). Creators sign in with
+   their own name and password (script.js), so the dashboard is theirs; coordinators sign in with the coordinator
+   password, pick their name here, and the script checks the code for every coordinator action. */
 let club = null, clubBusy = false, coord = null, coordTab = 'applications', coordFilter = 'open', briefDraft = null;
 
 const clubName = () => storageGet(UPLOAD_NAME_KEY) || '';
@@ -32,6 +32,7 @@ async function loadClub() {
 }
 function clubNames() { return [...new Set([...squadNames(), ...((club && club.roster) || [])])].sort(); }
 function namePickerHTML(id, label) {
+  if (typeof isAccount === 'function' && isAccount()) return `<p class="club-who"><span>Signed in as</span><button type="button" class="text-button" data-action="profile">${escapeHTML(clubName())}</button></p>`;
   const saved = clubName();
   return `<label class="club-who" for="${id}"><span>${escapeHTML(label)}</span><select id="${id}" data-club-name><option value="">Choose your name</option>${clubNames().map(n => `<option${n === saved ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select></label>`;
 }
@@ -248,8 +249,16 @@ function coordRoster(c) {
       ${m.request ? `<p class="coord-request"><strong>${escapeHTML(m.request)} requested</strong>${m.requestUntil ? ` until ${escapeHTML(shortDate(m.requestUntil))}` : ''}${m.requestNote ? `: “${escapeHTML(m.requestNote)}”` : ''} <button class="text-button" type="button" data-coord-request="${escapeHTML(m.name)}" data-to="${m.request === 'Pause' ? 'Paused' : 'Active'}">${m.request === 'Pause' ? 'Approve pause' : 'Set Active'}</button><button class="text-button" type="button" data-coord-request="${escapeHTML(m.name)}" data-to="">Dismiss</button></p>` : ''}
       <div class="coord-row"><label>Status ${selectHTML('name="status"', ['Active', 'Paused', 'Needs Check-In', 'Inactive', 'Alumni'], m.status)}</label><label class="grow">Notes (coordinators only)<input name="notes" type="text" maxlength="1000" value="${escapeHTML(m.notes || '')}"></label><button class="button" type="submit">Save</button></div>
     </form>`).join('') || '<p class="quiet">No members yet.</p>'}
+    ${coordAccounts(c)}
     <form class="coord-card coord-add" data-coord-form="member-new"><label class="grow">Add someone to the roster<input name="name" type="text" maxlength="80" placeholder="Name as it appears in Disco" required></label><button class="button secondary" type="submit">Add</button></form>
     <p class="quiet">Nobody is removed automatically. Inactive members and alumni keep their history and the open Social & Sharing resources.</p>`;
+}
+// Creators' own passwords and bios: a coordinator can reset a forgotten password or take a bio down.
+function coordAccounts(c) {
+  const list = c.accounts || []; if (!list.length) return '';
+  return `<div class="coord-card"><h3>Passwords and bios</h3><p class="quiet">Creators set up their own password with the creator password. If someone forgets theirs, reset it and they set a new one the same way.</p>
+    <ul class="acct-list">${list.map(a => `<li><span><strong>${escapeHTML(a.name)}</strong><span class="quiet">${escapeHTML([a.hasPassword ? (a.lastSignIn && dateValid(a.lastSignIn.slice(0, 10)) ? 'last signed in ' + shortDate(a.lastSignIn.slice(0, 10)) : 'password set') : 'reset, waiting for a new password', a.bioSet ? (a.bio ? 'wrote a bio' : 'deleted their bio') : ''].filter(Boolean).join(' · '))}</span>${a.bio ? `<span class="acct-bio">“${escapeHTML(a.bio)}”</span>` : ''}</span>
+      <span class="acct-actions">${a.hasPassword ? `<button class="text-button" type="button" data-coord-account="reset" data-name="${escapeHTML(a.name)}">Reset password</button>` : ''}${a.bio ? `<button class="text-button danger" type="button" data-coord-account="clear-bio" data-name="${escapeHTML(a.name)}">Take bio down</button>` : ''}</span></li>`).join('')}</ul></div>`;
 }
 const standingClass = s => ({ 'On track': 'stage-published', 'Reminder': 'stage-filming', 'Needs review': 'stage-casting stage-alert', 'Paused': 'stage-idea' })[s] || 'stage-idea';
 const BRIEF_FIELDS = [['title', 'Campaign title', 'text'], ['theme', 'Weekly theme', 'text'], ['weekStart', 'Week starts', 'date'], ['weekEnd', 'Week ends', 'date'], ['format', 'Format', 'text', 'Instagram Reel'], ['length', 'Length', 'text', 'About 15–30 seconds'], ['window', 'Publishing window', 'text', 'Wednesday–Friday'], ['cta', 'Call to action', 'text', 'Explore the free Baby Concierge service'], ['direction', 'Creative direction', 'textarea'], ['hooks', 'Suggested hooks or talking points', 'textarea'], ['deliverables', 'Deliverables', 'textarea'], ['resources', 'Assets & resources (links welcome)', 'textarea'], ['guidelines', 'Brand or product guidelines', 'textarea']];
@@ -313,7 +322,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (t.matches && t.matches('[data-coord-sub]')) refreshCoord('admin-sub', { id: t.dataset.coordSub, status: t.value }, 'Saved.');
   });
   document.addEventListener('click', e => {
-    const t = e.target.closest && e.target.closest('[data-coord-tab],[data-coord-filter],[data-coord-seed],[data-coord-request],[data-coord-new-brief],[data-coord-edit],[data-coord-brief],[data-coord-cancel]');
+    const t = e.target.closest && e.target.closest('[data-coord-tab],[data-coord-filter],[data-coord-seed],[data-coord-request],[data-coord-new-brief],[data-coord-edit],[data-coord-brief],[data-coord-cancel],[data-coord-account]');
     if (!t || !coord) return;
     const d = t.dataset;
     if (d.coordTab) { coordTab = d.coordTab; briefDraft = null; status.textContent = ''; renderCoord(); return; }
@@ -323,6 +332,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if ('coordNewBrief' in d) { briefDraft = {}; renderCoord(); return; }
     if (d.coordEdit) { briefDraft = { ...(coord.briefs.find(b => b.id === d.coordEdit) || {}) }; renderCoord(); return; }
     if ('coordCancel' in d) { briefDraft = null; renderCoord(); return; }
+    if (d.coordAccount) { refreshCoord('admin-account', { name: d.name, op: d.coordAccount }, d.coordAccount === 'reset' ? `Password reset. ${d.name} can set a new one with the creator password.` : 'Bio taken down.'); return; }
     if (d.coordBrief) { refreshCoord('admin-brief', { op: d.coordBrief, brief: { id: d.id } }, { duplicate: 'Copied as a draft for the next week.', publish: 'Published. Creators see it now.', unpublish: 'Back to draft.', archive: 'Archived.' }[d.coordBrief]); return; }
   });
   document.addEventListener('submit', async e => {

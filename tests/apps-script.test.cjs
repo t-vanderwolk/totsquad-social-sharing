@@ -45,7 +45,10 @@ function fakeGoogle(props) {
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => store.get(k) ?? null, setProperty: (k, v) => store.set(k, v), getProperties: () => Object.fromEntries(store) }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
-    Utilities: { formatDate: (d, tz, f) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d).map(x => [x.type, x.value])); return f === 'yyyy-MM-dd' ? `${p.year}-${p.month}-${p.day}` : d.toISOString(); } },
+    Utilities: { DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' }, getUuid: () => require('node:crypto').randomUUID(),
+      computeDigest: (alg, v) => [...require('node:crypto').createHash(alg).update(String(v), 'utf8').digest()].map(x => x > 127 ? x - 256 : x),
+      computeHmacSha256Signature: (v, k) => [...require('node:crypto').createHmac('sha256', String(k)).update(String(v), 'utf8').digest()].map(x => x > 127 ? x - 256 : x),
+      formatDate: (d, tz, f) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d).map(x => [x.type, x.value])); return f === 'yyyy-MM-dd' ? `${p.year}-${p.month}-${p.day}` : d.toISOString(); } },
     ContentService: { createTextOutput: s => ({ setMimeType() { return JSON.parse(s); } }), MimeType: { JSON: 'json' } },
     UrlFetchApp: { fetch: (url, opts) => { made.push(JSON.parse(opts.payload).parents[0]); return { getHeaders: () => ({ Location: 'https://upload.example/x' }), getResponseCode: () => 200 }; } }, ScriptApp: { getOAuthToken: () => "" }, Session: {}, console: { log: console.log, error() {} }
   };
@@ -194,4 +197,51 @@ assert.ok(!reels().some(x => x.title === 'Car Seat Check')); assert.equal(reels(
 // Formulas and odd links are neutralised.
 r = t5.post({ action: 'admin-reel', ...rc, op: 'create', reel: { title: '=IMPORTXML("x")', status: 'upcoming', folderUrl: 'javascript:alert(1)' } });
 assert.equal(r.reels.find(x => x.title.includes('IMPORTXML')).title[0], "'"); assert.equal(r.reels.find(x => x.title.includes('IMPORTXML')).folderUrl, '');
+// Creator accounts: the shared password only sets up your own; then you sign in with your name and password, and own your bio.
+const t6 = boot(), shared = 'footpop';
+r = t6.post({ action: 'account-setup', key: 'nope', name: 'Kristin', password: 'sunshine-toy-9' }); assert.equal(r.locked, true);
+assert.match(t6.post({ action: 'account-setup', key: shared, name: 'Kristin', password: 'short' }).error, /8 characters/);
+assert.match(t6.post({ action: 'account-setup', key: shared, name: 'Kristin', password: 'FOOTPOP' }).error, /yours/);
+assert.match(t6.post({ action: 'account-setup', key: shared, name: 'Kristin', password: 'Coord-123' }).error, /yours/);
+r = t6.post({ action: 'account-setup', key: shared, name: 'Kristin', password: 'sunshine-toy-9' });
+assert.equal(r.ok, true); assert.equal(r.name, 'Kristin'); assert.match(r.key, /^acct\.[\w-]+\.[\w-]+$/); const kKey = r.key;
+// The sheet never holds the password or the device key.
+const acctSheet = JSON.stringify(t6.g.books.get(vm.runInContext("PropertiesService.getScriptProperties().getProperty('CLUB_SHEET_ID')", t6.ctx)).getSheetByName('Accounts').rows);
+assert.ok(!acctSheet.includes('sunshine-toy-9')); assert.ok(!acctSheet.includes(kKey.split('.')[2]));
+// Someone else can't take the name once it has a password.
+r = t6.post({ action: 'account-setup', key: shared, name: 'kristin', password: 'another-pass-1' }); assert.equal(r.ok, false); assert.equal(r.taken, true);
+// The device key works everywhere the creator password does, and you act as yourself.
+assert.equal(t6.get({ action: 'gate', key: kKey }).ok, true);
+assert.equal(t6.get({ action: 'gate', key: kKey.slice(0, -2) + 'zz' }).locked, true);
+// Sign in on another device.
+assert.equal(t6.post({ action: 'account-login', name: 'Kristin', password: 'wrong-password' }).wrong, true);
+r = t6.post({ action: 'account-login', name: 'KRISTIN', password: 'sunshine-toy-9' }); assert.equal(r.ok, true); const kKey2 = r.key; assert.notEqual(kKey2, kKey);
+// Bio: create, read (public), update, delete.
+assert.deepEqual(t6.get({ action: 'bios' }).bios, []);
+assert.equal(t6.post({ action: 'bio-save', key: shared, bio: 'Hi' }).noAccount, true); // the shared password alone can't write a bio
+assert.equal(t6.post({ action: 'bio-save', key: kKey, bio: '   ' }).ok, false);
+r = t6.post({ action: 'bio-save', key: kKey, bio: 'Mom of three in Holly Springs, NC.\nFormer TV producer.' }); assert.equal(r.ok, true); assert.equal(r.bio, 'Mom of three in Holly Springs, NC. Former TV producer.');
+assert.deepEqual(t6.get({ action: 'bios' }).bios, [{ name: 'Kristin', bio: 'Mom of three in Holly Springs, NC. Former TV producer.' }]);
+r = t6.post({ action: 'account-me', key: kKey2 }); assert.equal(r.bio, 'Mom of three in Holly Springs, NC. Former TV producer.'); assert.equal(r.bioSet, true);
+assert.equal(t6.post({ action: 'bio-save', key: kKey2, bio: 'x'.repeat(900) }).bio.length, 400);
+r = t6.post({ action: 'bio-delete', key: kKey }); assert.equal(r.bio, ''); assert.deepEqual(t6.get({ action: 'bios' }).bios, [{ name: 'Kristin', bio: '' }]);
+// Change password: the other device is signed out.
+assert.equal(t6.post({ action: 'account-password', key: kKey, current: 'nope-nope', password: 'new-password-2' }).ok, false);
+r = t6.post({ action: 'account-password', key: kKey, current: 'sunshine-toy-9', password: 'new-password-2' }); assert.equal(r.ok, true);
+assert.equal(t6.get({ action: 'gate', key: kKey2 }).locked, true); assert.equal(t6.get({ action: 'gate', key: kKey }).ok, true);
+assert.equal(t6.post({ action: 'account-login', name: 'Kristin', password: 'sunshine-toy-9' }).ok, false);
+assert.equal(t6.post({ action: 'account-login', name: 'Kristin', password: 'new-password-2' }).ok, true);
+// Club actions use the signed-in name, not whatever name is sent.
+r = t6.get({ action: 'club', key: kKey, name: 'Somebody Else' }); assert.equal(r.ok, true);
+// Coordinators see accounts, can take a bio down and reset a password; the creator then sets a new one with the creator password.
+const tc = { key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Sarah' };
+r = t6.post({ action: 'admin-data', ...tc }); assert.equal(r.accounts[0].name, 'Kristin'); assert.equal(r.accounts[0].hasPassword, true); assert.equal(r.accounts[0].hash, undefined);
+r = t6.post({ action: 'admin-account', ...tc, name: 'Kristin', op: 'reset' }); assert.equal(r.accounts[0].hasPassword, false);
+assert.equal(t6.get({ action: 'gate', key: kKey }).locked, true);
+assert.equal(t6.post({ action: 'account-setup', key: shared, name: 'Kristin', password: 'fresh-start-3' }).ok, true);
+// Sign out forgets this device's key.
+r = t6.post({ action: 'account-login', name: 'Kristin', password: 'fresh-start-3' }); assert.equal(t6.post({ action: 'account-signout', key: r.key }).ok, true); assert.equal(t6.get({ action: 'gate', key: r.key }).locked, true);
+// Too many wrong tries are slowed down.
+for (let i = 0; i < 10; i++) t6.post({ action: 'account-login', name: 'Kristin', password: 'guess-' + i });
+assert.match(t6.post({ action: 'account-login', name: 'Kristin', password: 'fresh-start-3' }).error, /Too many/);
 console.log('PASS: Creators Club 2.0 backend workflows');

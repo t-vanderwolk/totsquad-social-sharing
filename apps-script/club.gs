@@ -255,6 +255,7 @@ function adminReply(req) {
     else if (req.action === 'admin-brief') savedId = adminBrief(req, who);
     else if (req.action === 'admin-sub') adminSubmission(req, who);
     else if (req.action === 'admin-settings') adminSettings(req);
+    else if (req.action === 'admin-account') adminAccount(req, who); // reset a password or take a bio down
     else if (req.action !== 'admin-data') return reply({ ok: false, error: 'Unknown request.' });
     return reply(Object.assign(adminData(), { savedId: savedId }));
   } catch (err) { console.error(err); return reply({ ok: false, error: String(err && err.message || err) }); }
@@ -263,7 +264,7 @@ function adminReply(req) {
 function adminData() {
   const settings = clubSettings(), briefs = allBriefs(), subs = allSubmissions(), members = allMembers(true);
   const part = participation(members, briefs, subs, settings);
-  return { ok: true, settings: settings, applications: allApplications(), members: members, briefs: briefs.slice().sort(byWeek).reverse(), current: (currentBrief(briefs) || {}).id || '',
+  return { ok: true, accounts: allAccounts(), settings: settings, applications: allApplications(), members: members, briefs: briefs.slice().sort(byWeek).reverse(), current: (currentBrief(briefs) || {}).id || '',
     submissions: subs.slice(-300).reverse(), participation: part, analytics: clubAnalytics(members, briefs, subs, part) };
 }
 function allApplications() {
@@ -417,4 +418,135 @@ function adminReel(req) {
 function reelsDone(row) {
   CacheService.getScriptCache().remove('reels');
   return { ok: true, row: row, updated: new Date().toISOString(), reels: readReels() };
+}
+
+/* ---------- Creator accounts: your own password, and your bio ----------
+   The shared creator password (MENTOR_PASSCODE) is only for setting up: a creator picks their name and a password of
+   their own, then signs in with those. Passwords are never stored, only a salted, stretched hash. Each signed-in
+   device gets a random key; only its hash is kept (the last 5 devices). Coordinators can reset a password from the
+   Roster tab, and the creator sets a new one with the creator password. Bios show on Meet the Squad. */
+const ACCOUNT_COLS = CLUB_TABS['Accounts'] = [['id', 'Account ID'], ['name', 'Name'], ['bio', 'Bio'], ['bioUpdated', 'Bio updated'], ['hash', 'Password hash'], ['salt', 'Salt'], ['tokens', 'Signed-in devices'], ['created', 'Created'], ['lastSignIn', 'Last sign-in'], ['resetBy', 'Reset by']];
+const BIO_MAX = 400;
+function hexOf(bytes) { return bytes.map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join(''); }
+function sha(s) { return hexOf(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(s), Utilities.Charset.UTF_8)); }
+function pwHash(password, salt) {
+  let h = String(password);
+  for (let i = 0; i < 400; i++) h = hexOf(Utilities.computeHmacSha256Signature(h + String(password), String(salt)));
+  return h;
+}
+function accountsSheet() { return clubSheet('Accounts'); }
+function allAccountRows() { return readTable(accountsSheet(), ACCOUNT_COLS).filter(a => a.name); }
+function findAccount(name) { return allAccountRows().find(a => sameName(a.name, name)) || null; }
+const tokenList = a => String(a.tokens || '').split(',').filter(Boolean);
+function forgetTokens(hashes) { const c = CacheService.getScriptCache(); hashes.forEach(h => c.remove('acct:' + h)); }
+// "acct.<account id>.<secret>" -> the creator's name, or '' (cached for 10 minutes).
+function accountName(key) {
+  const m = String(key || '').match(/^acct\.([\w-]{8,40})\.([\w-]{20,80})$/); if (!m) return '';
+  const cache = CacheService.getScriptCache(), th = sha(m[2]), hit = cache.get('acct:' + th);
+  if (hit) return hit === '-' ? '' : hit;
+  const a = allAccountRows().find(r => String(r.id) === m[1]);
+  const name = a && a.hash && tokenList(a).indexOf(th) >= 0 ? String(a.name) : '';
+  cache.put('acct:' + th, name || '-', 600);
+  return name;
+}
+function issueKey(a) {
+  const secret = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, ''), keep = tokenList(a);
+  const dropped = keep.length >= 5 ? keep.slice(0, keep.length - 4) : [];
+  writeRow(accountsSheet(), ACCOUNT_COLS, { tokens: keep.slice(-4).concat(sha(secret)).join(','), lastSignIn: new Date() }, a._row);
+  forgetTokens(dropped);
+  return 'acct.' + a.id + '.' + secret;
+}
+function sharedPassword(key) {
+  const want = PropertiesService.getScriptProperties().getProperty('MENTOR_PASSCODE');
+  return !!want && String(key || '').trim().toLowerCase() === want.trim().toLowerCase();
+}
+function passwordProblem(pw, name) {
+  pw = String(pw || '');
+  if (sharedPassword(pw) || isCoordinator(pw)) return 'Pick a password that’s yours, not the shared one.';
+  if (pw.length < 8) return 'Use at least 8 characters.';
+  if (pw.length > 200) return 'That password is too long.';
+  if (sameName(pw, name)) return 'Don’t use your name as your password.';
+  return '';
+}
+function accountOut(a, key) {
+  return { ok: true, key: key || undefined, name: String(a.name), bio: String(a.bio || ''), bioSet: !!a.bioUpdated };
+}
+// POST account-setup { key: the creator password, name, password }
+function accountSetup(req) {
+  if (!sharedPassword(req.key) && !isCoordinator(req.key)) return locked();
+  const name = clean(req.name);
+  if (!name) return reply({ ok: false, error: 'Choose your name first.' });
+  const problem = passwordProblem(req.password, name); if (problem) return reply({ ok: false, error: problem });
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const sheet = accountsSheet(); let a = findAccount(name);
+    if (a && a.hash) return reply({ ok: false, taken: true, error: name + ' already has a password. Sign in with your name and your own password, or ask a coordinator to reset it.' });
+    const salt = Utilities.getUuid(), patch = { salt: salt, hash: pwHash(req.password, salt), tokens: '', resetBy: '' };
+    if (a) writeRow(sheet, ACCOUNT_COLS, patch, a._row);
+    else writeRow(sheet, ACCOUNT_COLS, Object.assign(patch, { id: 'a' + Utilities.getUuid().replace(/-/g, '').slice(0, 15), name: name, created: new Date() }), 0);
+    a = findAccount(name);
+    return reply(accountOut(a, issueKey(a)));
+  } finally { lock.releaseLock(); }
+}
+// POST account-login { name, password }: a few tries per name every 15 minutes.
+function accountLogin(req) {
+  const name = clean(req.name), pw = String(req.password || '');
+  if (!name || !pw) return reply({ ok: false, wrong: true, error: 'Enter your name and your password.' });
+  const cache = CacheService.getScriptCache(), k = 'login:' + name.toLowerCase(), tries = Number(cache.get(k) || 0);
+  if (tries >= 10) return reply({ ok: false, error: 'Too many tries. Wait 15 minutes and try again, or ask a coordinator to reset your password.' });
+  const a = findAccount(name);
+  if (!a || !a.hash || pwHash(pw, a.salt) !== String(a.hash)) {
+    cache.put(k, String(tries + 1), 900);
+    return reply({ ok: false, wrong: true, noAccount: !a || !a.hash, error: 'That name and password don’t match.' });
+  }
+  cache.remove(k);
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try { return reply(accountOut(a, issueKey(findAccount(name)))); } finally { lock.releaseLock(); }
+}
+// Signed-in creators: read their account, change their password, sign out, and save or delete their bio.
+function accountReply(req, name) {
+  if (!name) return reply({ ok: false, noAccount: true, error: 'Sign in with your own password to do that.' });
+  const lock = LockService.getScriptLock(); lock.waitLock(15000);
+  try {
+    const sheet = accountsSheet(), a = findAccount(name), mine = sha(String(req.key).split('.')[2] || '');
+    if (!a) return reply({ ok: false, noAccount: true, error: 'Sign in with your own password to do that.' });
+    if (req.action === 'account-password') {
+      if (pwHash(String(req.current || ''), a.salt) !== String(a.hash)) return reply({ ok: false, error: 'Your current password doesn’t match.' });
+      const problem = passwordProblem(req.password, name); if (problem) return reply({ ok: false, error: problem });
+      const salt = Utilities.getUuid();
+      writeRow(sheet, ACCOUNT_COLS, { salt: salt, hash: pwHash(req.password, salt), tokens: mine }, a._row); // other devices are signed out
+      forgetTokens(tokenList(a).filter(h => h !== mine));
+    } else if (req.action === 'account-signout') {
+      writeRow(sheet, ACCOUNT_COLS, { tokens: tokenList(a).filter(h => h !== mine).join(',') }, a._row);
+      forgetTokens([mine]);
+      return reply({ ok: true });
+    } else if (req.action === 'bio-save') {
+      const bio = text(req.bio).replace(/\s+/g, ' ').slice(0, BIO_MAX);
+      if (!bio) return reply({ ok: false, error: 'Write your bio first, or delete it instead.' });
+      writeRow(sheet, ACCOUNT_COLS, { bio: bio, bioUpdated: new Date() }, a._row);
+      CacheService.getScriptCache().remove('bios');
+    } else if (req.action === 'bio-delete') {
+      writeRow(sheet, ACCOUNT_COLS, { bio: '', bioUpdated: new Date() }, a._row);
+      CacheService.getScriptCache().remove('bios');
+    }
+    return reply(accountOut(findAccount(name)));
+  } finally { lock.releaseLock(); }
+}
+// GET bios (public): every bio a creator has written or deleted. An empty bio means "show no bio".
+function readBios() {
+  const cache = CacheService.getScriptCache(), hit = cache.get('bios');
+  if (hit) return JSON.parse(hit);
+  const out = allAccountRows().filter(a => a.bioUpdated).map(a => ({ name: String(a.name), bio: String(a.bio || '').replace(/^'/, '') }));
+  cache.put('bios', JSON.stringify(out), 120);
+  return out;
+}
+function allAccounts() {
+  return allAccountRows().map(a => ({ name: String(a.name), hasPassword: !!a.hash, bio: String(a.bio || ''), bioSet: !!a.bioUpdated, lastSignIn: isoTime(a.lastSignIn) }));
+}
+// Coordinators: reset a creator's password (they set a new one with the creator password), or take a bio down.
+function adminAccount(req, who) {
+  const a = findAccount(req.name); if (!a) throw new Error('No account for that name.');
+  if (req.op === 'reset') { writeRow(accountsSheet(), ACCOUNT_COLS, { hash: '', salt: '', tokens: '', resetBy: who }, a._row); forgetTokens(tokenList(a)); }
+  else if (req.op === 'clear-bio') { writeRow(accountsSheet(), ACCOUNT_COLS, { bio: '', bioUpdated: new Date() }, a._row); CacheService.getScriptCache().remove('bios'); }
+  else throw new Error('Unknown request.');
 }

@@ -276,12 +276,15 @@ function fitBios() {
 if (typeof window !== 'undefined' && window.addEventListener) { let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitBios, 150); }); }
 function renderSquad() {
   const leader = leaderCard();
-  const people = (content.featuredSpecialists || []).map(p => typeof p === 'string' ? {name:p} : p).filter(p => p && p.name);
+  const featured = (content.featuredSpecialists || []).map(p => typeof p === 'string' ? {name:p} : p).filter(p => p && p.name);
+  const people = [...featured.map(p => ({ ...p, bio: bioFor(p) })), // bios creators wrote themselves win over content.js
+    ...(liveBios || []).filter(b => b.bio && !featured.some(p => sameName(p.name, b.name)) && !(content.leader && sameName(content.leader.name, b.name))).map(b => ({ name: b.name, bio: b.bio }))];
+  const me = myName();
   $('#squad-grid').innerHTML = people.length || leader ? leader + people.map((p,i) => {
     const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
     return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
       <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio" id="bio-${i}">${escapeHTML(p.bio)}</p>${p.bio.length > 110 ? `<button type="button" class="text-button bio-more" data-bio="bio-${i}" aria-expanded="false" aria-controls="bio-${i}">Read more</button>` : ''}` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-      <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></article>`;
+      <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}${me && sameName(p.name, me) ? `<button type="button" class="text-button" data-action="profile">${p.bio ? 'Edit my bio' : 'Add my bio'}</button>` : ''}</div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitBios);
 }
@@ -1171,7 +1174,7 @@ function openUpload(d={}) {
 }
 async function uploadRequest(payload) {
   const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ ...payload, key: mentorKey() }) });
-  const data = await res.json(); if (data && data.locked) data.error = 'The creator password on this device is out of date. Ask Sarah or Taylor for the new one.';
+  const data = await res.json(); if (data && data.locked) data.error = 'Your sign-in on this device has expired. Sign out, then sign in again.';
   return data;
 }
 function putFile(url, file, onProgress) {
@@ -1243,6 +1246,7 @@ function openPanel(action,data={}) {
   if (action === 'calendar') return openCalendar();
   if (action === 'tracker') return openTracker();
   if (action === 'reel') return openReel(data.reel);
+  if (action === 'profile') return openProfile();
   if (action === 'reel-new') return openReelForm('', data);
   if (action === 'reel-edit') return openReelForm(data.rid);
   if (action === 'reel-delete') return openReelDelete(data.rid);
@@ -1591,8 +1595,9 @@ function setCoordinator(code) {
 }
 if (storageGet(COORD_CODE_KEY)) document.documentElement?.classList?.add('coordinator');
 function signOut() {
+  if (isAccount() && UPLOAD_ON() && typeof fetch === 'function') { try { fetch(content.uploadEndpoint, { method:'POST', keepalive:true, headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({ action:'account-signout', key: mentorKey() }) }).catch(() => {}); } catch (e) {} } // forget this device's key
   mentorMemory = '';
-  try { localStorage.removeItem(MENTOR_KEY); localStorage.removeItem(COORD_CODE_KEY); localStorage.removeItem('totsquad-coordinator-name'); } catch (e) {}
+  try { localStorage.removeItem(MENTOR_KEY); localStorage.removeItem(COORD_CODE_KEY); localStorage.removeItem(ACCOUNT_NAME_KEY); localStorage.removeItem('totsquad-coordinator-name'); } catch (e) {}
   document.documentElement.classList.remove('unlocked', 'coordinator');
   location.href = pageUrl('index.html');
 }
@@ -1605,19 +1610,162 @@ const OPEN_PAGE = () => LANDING() || !!(document.getElementById && document.getE
 async function mentorHash(key) { const bytes = new TextEncoder().encode(String(key).trim().toLowerCase()); const buf = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
 function unlock() { document.documentElement?.classList.add('unlocked'); document.getElementById?.('gate')?.remove(); }
 // Wires a password form. Returns nothing; on a match it saves the key, unlocks and re-renders.
-function passwordForm(form, input, note$, go, label) {
+/* Sign-in: your name and your own password. The shared creator password only opens "Set up your password";
+   the coordinator password signs Taylor, Sarah and Linden in as coordinators. */
+function passwordForm(form, input, note$, go, label, nameEl) {
+  if (nameEl && !nameEl.value) nameEl.value = storageGet(ACCOUNT_NAME_KEY) || storageGet(UPLOAD_NAME_KEY) || '';
+  const list = nameEl && nameEl.list; if (list) list.innerHTML = squadNames().map(n => `<option value="${escapeHTML(n)}">`).join('');
   form.onsubmit = async ev => {
     ev.preventDefault();
-    const key = input.value.trim(); if (!key) { note$.textContent = 'Enter the creator password.'; return; }
+    const key = input.value.trim(), name = nameEl ? nameEl.value.trim() : '';
+    if (!key) { note$.textContent = 'Enter your password.'; input.focus(); return; }
     go.disabled = true; go.textContent = 'Checking…'; note$.textContent = '';
+    const ready = () => { go.disabled = false; go.textContent = label; };
     try {
-      let coordinator = false;
-      if (await mentorHash(key) !== content.mentorPasswordHash) coordinator = await coordinatorLogin(key); // not the creator password: maybe the coordinator one
-      if (!coordinator && await mentorHash(key) !== content.mentorPasswordHash) { note$.textContent = 'That password doesn’t match. Check it with Sarah or Taylor.'; input.select(); }
-      else { mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(coordinator ? key : ''); unlock(); renderContent(); loadIdeas(); loadActivity(); toast(coordinator ? 'You’re signed in as a coordinator.' : 'You’re signed in.'); return; }
+      if (GATE_ON() && await mentorHash(key) === content.mentorPasswordHash) { ready(); input.value = ''; return openAccountSetup(key, name); } // first time here
+      if (name && UPLOAD_ON()) {
+        const res = await accountRequest({ action:'account-login', name, password: key });
+        if (res && res.ok) { ready(); input.value = ''; return finishSignin(res); }
+        if (res && !res.wrong) { note$.textContent = res.error || 'That didn’t work. Try again in a minute.'; return ready(); }
+      }
+      if (await coordinatorLogin(key)) { // not yours: maybe the coordinator password
+        ready(); input.value = ''; mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(key); unlock(); renderContent(); loadIdeas(); loadActivity(); toast('You’re signed in as a coordinator.'); return;
+      }
+      note$.textContent = name ? 'That name and password don’t match. First time here? Use the creator password from Sarah or Taylor to set up your own.' : 'Enter your name and your password.';
+      (name ? input : nameEl || input).focus(); if (name) input.select();
     } catch { note$.textContent = 'This browser couldn’t check the password. Try Chrome or Safari.'; }
-    go.disabled = false; go.textContent = label;
+    ready();
   };
+}
+/* ---------- Your own account: password and bio (apps-script/club.gs) ---------- */
+const ACCOUNT_NAME_KEY = 'totsquad-account-name';
+const isAccount = () => /^acct\./.test(mentorKey());
+const myName = () => isAccount() ? storageGet(ACCOUNT_NAME_KEY) || '' : '';
+async function accountRequest(payload) {
+  const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
+  return res.json();
+}
+function finishSignin(res) {
+  mentorMemory = res.key; storageSet(MENTOR_KEY, res.key); storageSet(ACCOUNT_NAME_KEY, res.name); storageSet(UPLOAD_NAME_KEY, res.name); setCoordinator('');
+  if (typeof club !== 'undefined') club = null; // club.js: reload the dashboard for this person
+  unlock(); renderContent(); loadIdeas(); loadActivity();
+  toast(`You’re signed in. Hi, ${String(res.name).split(/\s+/)[0]}!`);
+}
+function openAccountSetup(sharedKey, name = '', moving = false) {
+  if (!modal.open) opener = document.activeElement;
+  status.textContent = '';
+  title.textContent = 'Set up your password';
+  body.innerHTML = `<p>${moving ? 'Each creator now has their own password. ' : 'Welcome to the Creators Club! '}Pick your name and a password only you know. You’ll sign in with these from now on, and you can write your own bio for Meet the Squad.</p>
+    <form id="acct-form" novalidate>
+      <label for="acct-name">Your name</label>
+      <input id="acct-name" type="text" list="acct-names" maxlength="80" autocomplete="username" placeholder="As it appears in Disco" value="${escapeHTML(name)}" required><datalist id="acct-names">${squadNames().map(n => `<option value="${escapeHTML(n)}">`).join('')}</datalist>
+      <label for="acct-pw">New password</label>
+      <input id="acct-pw" type="password" autocomplete="new-password" minlength="8" required>
+      <p class="quiet">At least 8 characters, and not the shared creator password.</p>
+      <label for="acct-pw2">Type it again</label>
+      <input id="acct-pw2" type="password" autocomplete="new-password" required>
+      <div class="form-actions"><button class="button" type="submit" id="acct-go">Save my password</button></div>
+    </form>`;
+  $('#acct-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const nm = $('#acct-name').value.trim(), pw = $('#acct-pw').value, pw2 = $('#acct-pw2').value, go = $('#acct-go');
+    status.textContent = '';
+    if (!nm) { status.textContent = 'Add your name first.'; return $('#acct-name').focus(); }
+    if (pw.length < 8) { status.textContent = 'Use at least 8 characters.'; return $('#acct-pw').focus(); }
+    if (pw !== pw2) { status.textContent = 'Those passwords don’t match.'; return $('#acct-pw2').focus(); }
+    go.disabled = true; go.textContent = 'Saving…';
+    try {
+      const res = await accountRequest({ action:'account-setup', key: sharedKey, name: nm, password: pw });
+      if (!res || !res.ok) { status.textContent = res && res.locked ? 'The creator password has changed. Ask Sarah or Taylor for the new one.' : (res && res.error) || 'That didn’t save. Try again in a minute.'; go.disabled = false; go.textContent = 'Save my password'; return; }
+      finishSignin(res);
+      title.textContent = 'You’re all set';
+      body.innerHTML = `<p>Next time, sign in with <strong>${escapeHTML(res.name)}</strong> and your new password. Your browser can save it for you.</p>
+        <div class="button-row"><button class="button" type="button" data-action="profile">${res.bio ? 'Edit my bio' : 'Write my bio'}</button><button class="button secondary" type="button" id="acct-done">Done</button></div>`;
+      status.textContent = ''; $('#acct-done').onclick = () => modal.close();
+    } catch { status.textContent = 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = 'Save my password'; }
+  };
+  showModal(); $('#acct-pw').focus();
+}
+// The bio on someone's Meet the Squad card: theirs if they've written (or deleted) one, otherwise content.js.
+let liveBios = null;
+const bioFor = p => { const b = (liveBios || []).find(x => sameName(x.name, p.name)); return b ? b.bio : p.bio; };
+const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+async function loadBios() {
+  if (!UPLOAD_ON() || typeof fetch !== 'function' || !has('#squad-grid')) return;
+  try { const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=bios`); const d = await res.json(); if (d && d.ok && Array.isArray(d.bios)) { liveBios = d.bios; renderSquad(); } } catch {}
+}
+function setMyBio(name, bio) {
+  liveBios = [...(liveBios || []).filter(b => !sameName(b.name, name)), { name, bio }];
+  if (has('#squad-grid')) renderSquad();
+}
+async function openProfile() {
+  if (!modal.open) opener = document.activeElement;
+  status.textContent = ''; title.textContent = 'My profile';
+  if (!isAccount()) {
+    body.innerHTML = `<p>${storageGet(COORD_CODE_KEY) ? 'You’re signed in with the coordinator password. ' : ''}To write your bio, sign in with your own name and password. First time? Sign out, then sign in with the creator password and you’ll set one up.</p><div class="button-row"><button class="button secondary" type="button" data-signout>Sign out</button></div>`;
+    return showModal();
+  }
+  body.innerHTML = '<p class="quiet">Loading your profile…</p>'; showModal();
+  let a;
+  try { a = await uploadRequest({ action:'account-me' }); } catch { a = null; }
+  if (!a || !a.ok) { body.innerHTML = `<p>${escapeHTML(a && a.error || 'Your profile couldn’t load. Check your connection and try again.')}</p><div class="button-row"><button class="button secondary" type="button" data-signout>Sign out</button></div>`; return; }
+  renderProfile(a);
+}
+function renderProfile(a, note = '') {
+  const card = (content.featuredSpecialists || []).find(p => p && sameName(p.name, a.name));
+  const current = a.bioSet ? a.bio : (card && card.bio) || '';
+  body.innerHTML = `<p>Signed in as <strong>${escapeHTML(a.name)}</strong>.</p>
+    <section class="profile-part" aria-labelledby="bio-head"><h3 class="cal-head" id="bio-head">Your bio</h3>
+      <p class="quiet">It shows on your card in Meet the Squad, which anyone can see. A sentence or two: where you’re based, your background, what you love helping families with. Keep clients’ and babies’ details out.</p>
+      <label class="sr-only" for="bio-text">Your bio</label>
+      <textarea id="bio-text" rows="4" maxlength="400" placeholder="Scottsdale-based mom of two and certified car seat tech who loves…">${escapeHTML(current)}</textarea>
+      <p class="quiet bio-count" id="bio-count" aria-live="polite"></p>
+      <div class="button-row" id="bio-actions"><button class="button" type="button" id="bio-save">${current ? 'Save bio' : 'Add bio'}</button>${current ? '<button class="text-button danger" type="button" id="bio-del">Delete bio</button>' : ''}</div>
+    </section>
+    <section class="profile-part" aria-labelledby="pw-head"><h3 class="cal-head" id="pw-head">Change your password</h3>
+      <form id="pw-form" novalidate>
+        <label for="pw-now">Current password</label><input id="pw-now" type="password" autocomplete="current-password">
+        <label for="pw-new">New password</label><input id="pw-new" type="password" autocomplete="new-password" minlength="8">
+        <label for="pw-new2">Type it again</label><input id="pw-new2" type="password" autocomplete="new-password">
+        <div class="button-row"><button class="button secondary" type="submit" id="pw-go">Change password</button></div>
+      </form>
+    </section>
+    <div class="button-row"><button class="button secondary" type="button" data-signout>Sign out</button></div>`;
+  status.textContent = note;
+  const ta = $('#bio-text'), count = () => { $('#bio-count').textContent = `${ta.value.length} of 400 characters`; };
+  ta.oninput = count; count();
+  $('#bio-save').onclick = () => saveBio(a);
+  const del = document.getElementById ? document.getElementById('bio-del') : null;
+  if (del) del.onclick = () => {
+    $('#bio-actions').innerHTML = `<span>Delete your bio? Your card will show without one.</span><button class="button danger" type="button" id="bio-del-go">Delete</button><button class="button secondary" type="button" id="bio-keep">Keep it</button>`;
+    $('#bio-keep').onclick = () => renderProfile(a);
+    $('#bio-del-go').onclick = () => saveBio(a, true);
+  };
+  $('#pw-form').onsubmit = ev => { ev.preventDefault(); changePassword(a); };
+}
+async function saveBio(a, remove = false) {
+  const bio = remove ? '' : $('#bio-text').value.trim();
+  if (!remove && !bio) { status.textContent = 'Write your bio first, or delete it instead.'; return $('#bio-text').focus(); }
+  const btn = $(remove ? '#bio-del-go' : '#bio-save'); btn.disabled = true; btn.textContent = remove ? 'Deleting…' : 'Saving…'; status.textContent = '';
+  try {
+    const res = await uploadRequest(remove ? { action:'bio-delete' } : { action:'bio-save', bio });
+    if (!res || !res.ok) { status.textContent = (res && res.error) || 'That didn’t save. Try again in a minute.'; btn.disabled = false; btn.textContent = remove ? 'Delete' : 'Save bio'; return; }
+    setMyBio(res.name, res.bio);
+    renderProfile(res, remove ? 'Bio deleted.' : 'Saved. It’s on your card in Meet the Squad.');
+  } catch { status.textContent = 'That didn’t save. Check your connection and try again.'; btn.disabled = false; btn.textContent = remove ? 'Delete' : 'Save bio'; }
+}
+async function changePassword(a) {
+  const now = $('#pw-now').value, pw = $('#pw-new').value, pw2 = $('#pw-new2').value, go = $('#pw-go');
+  status.textContent = '';
+  if (!now) { status.textContent = 'Enter your current password.'; return $('#pw-now').focus(); }
+  if (pw.length < 8) { status.textContent = 'Use at least 8 characters for the new one.'; return $('#pw-new').focus(); }
+  if (pw !== pw2) { status.textContent = 'The new passwords don’t match.'; return $('#pw-new2').focus(); }
+  go.disabled = true; go.textContent = 'Changing…';
+  try {
+    const res = await uploadRequest({ action:'account-password', current: now, password: pw });
+    if (!res || !res.ok) { status.textContent = (res && res.error) || 'That didn’t work. Try again in a minute.'; go.disabled = false; go.textContent = 'Change password'; return; }
+    renderProfile(res, 'Password changed. You’re signed out everywhere else.');
+  } catch { status.textContent = 'That didn’t work. Check your connection and try again.'; go.disabled = false; go.textContent = 'Change password'; }
 }
 // Asks the script whether this is the coordinator password. Nothing about it lives in the page.
 async function coordinatorLogin(code) {
@@ -1644,8 +1792,10 @@ function showGate(note = '') {
   gate.innerHTML = `<form class="gate-card" id="gate-form" novalidate>
     <img class="gate-logo" src="https://cdn.prod.website-files.com/5f4a9ffd91010361e130f380/68407ea76a2d0b8be6420f9e_Tot-Squad-Logo-NEW-REG.png" alt="Tot Squad">
     <h1 id="gate-title">Creators Club</h1>
-    <p>This page is for Tot Squad creators. Enter the creator password to come in.</p>
-    <label for="gate-key">Creator password</label>
+    <p>This page is for Tot Squad creators. Sign in with your name and password. First time? Use the creator password from Sarah or Taylor.</p>
+    <label for="gate-name">Your name</label>
+    <input id="gate-name" type="text" autocomplete="username" maxlength="80" list="gate-names" placeholder="As it appears in Disco"><datalist id="gate-names"></datalist>
+    <label for="gate-key">Password</label>
     <input id="gate-key" type="password" autocomplete="current-password" required>
     <button class="button" type="submit" id="gate-go">Come in</button>
     <p class="gate-note" id="gate-note" role="alert">${escapeHTML(note)}</p>
@@ -1653,8 +1803,8 @@ function showGate(note = '') {
   </form>`;
   document.body.append(gate);
   const input = gate.querySelector('#gate-key');
-  setTimeout(() => input.focus(), 0);
-  passwordForm(gate.querySelector('#gate-form'), input, gate.querySelector('#gate-note'), gate.querySelector('#gate-go'), 'Come in');
+  setTimeout(() => (gate.querySelector('#gate-name').value ? input : gate.querySelector('#gate-name')).focus(), 0);
+  passwordForm(gate.querySelector('#gate-form'), input, gate.querySelector('#gate-note'), gate.querySelector('#gate-go'), 'Come in', gate.querySelector('#gate-name'));
 }
 // Signed-out visitors on the landing page: actions other than sharing a published Reel ask for the password.
 document.addEventListener('click', e => {
@@ -1666,7 +1816,12 @@ document.addEventListener('click', e => {
 setupMenu();
 setupBell();
 watchScreen();
+// A device still signed in with the shared creator password: it no longer signs anyone in, so set up your own password.
+let movingKey = '';
+{ const k = storageGet(MENTOR_KEY); if (GATE_ON() && k && !/^acct\./.test(k) && !storageGet(COORD_CODE_KEY)) { movingKey = k; mentorMemory = ''; try { localStorage.removeItem(MENTOR_KEY); } catch (e) {} document.documentElement?.classList?.remove('unlocked'); } }
 if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); }
-else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
+else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in', f.querySelector('#signin-name')); }
 else if (OPEN_PAGE()) renderContent();
 else showGate();
+loadBios();
+if (movingKey && typeof crypto !== 'undefined' && crypto.subtle) mentorHash(movingKey).then(h => { if (h === content.mentorPasswordHash) openAccountSetup(movingKey, storageGet(UPLOAD_NAME_KEY) || '', true); }).catch(() => {});

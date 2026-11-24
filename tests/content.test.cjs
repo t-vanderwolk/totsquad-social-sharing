@@ -3,7 +3,7 @@ const vm = require('node:vm'), fs = require('node:fs'), assert = require('node:a
 const root = require('node:path').join(__dirname, '..');
 const { validate, load } = require('../scripts/validate-content.cjs');
 
-function boot(config, storageFailure = false, stored = new Map([['totsquad-mentor-key','test-key']])) {
+function boot(config, storageFailure = false, stored = new Map([['totsquad-mentor-key','acct.testaccount1.testsecretsecretsecretsecret'],['totsquad-account-name','Taylor']])) {
   const elements = new Map();
   const el = id => { if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, addEventListener() {}, classList: { toggle() {} }, replaceChildren() {}, showModal() { this.open = true; } }); return elements.get(id); };
   const storage = { getItem(k) { if (storageFailure) throw Error('blocked'); return stored.get(k) ?? null; }, setItem(k, v) { if (storageFailure) throw Error('blocked'); stored.set(k, String(v)); }, removeItem(k) { if (storageFailure) throw Error('blocked'); stored.delete(k); } };
@@ -404,3 +404,22 @@ console.log('PASS: bell badge');
   t13.run(`coordTab = 'analytics'; renderCoord();`); assert.match(t13.html('#modal-body'), /aren’t tracked yet/); // no invented reach numbers
 }
 console.log('PASS: Creators Club dashboard and coordinator tools');
+
+// Own accounts: the shared creator password never stays signed in; bios creators write show on Meet the Squad.
+{
+  const shared = boot(null, false, new Map([['totsquad-mentor-key', 'footpop'], ['totsquad-upload-name', 'Kristin']]));
+  assert.equal(shared.run('mentorKey()'), ''); assert.equal(shared.run('movingKey'), 'footpop'); // goes to "Set up your password"
+  const coordDevice = boot(null, false, new Map([['totsquad-mentor-key', 'Coord-123'], ['totsquad-coordinator-code', 'Coord-123']]));
+  assert.equal(coordDevice.run('mentorKey()'), 'Coord-123'); // coordinators keep their sign-in
+  const me = boot(); // signed in as Taylor (see boot)
+  assert.equal(me.run('isAccount()'), true); assert.equal(me.run('myName()'), 'Taylor');
+  me.run(`liveBios = [{ name:'taylor', bio:'Gear nerd <b>' }, { name:'Kristin', bio:'' }, { name:'Ana Lopez', bio:'New in Phoenix.' }, { name:'Bo', bio:'' }]; renderSquad();`);
+  const sq = me.html('#squad-grid');
+  assert.match(sq, /Gear nerd &lt;b&gt;/); assert.doesNotMatch(sq, /Scottsdale-based baby gear expert/); // Taylor's own bio wins
+  assert.doesNotMatch(sq, /Holly Springs/); // Kristin deleted hers
+  assert.match(sq, /Ana Lopez/); assert.doesNotMatch(sq, />Bo</); // a new creator with a bio gets a card; an empty one doesn't
+  assert.equal((sq.match(/data-action="profile"/g) || []).length, 1); assert.match(sq, /Edit my bio/); // only on your own card
+  const out = boot(null, false, new Map()); out.run(`liveBios = [{ name:'Taylor', bio:'Gear nerd' }]; renderSquad();`);
+  assert.match(out.html('#squad-grid'), /Gear nerd/); assert.doesNotMatch(out.html('#squad-grid'), /data-action="profile"/); // public sees bios, no edit
+}
+console.log('PASS: own passwords and bios');
