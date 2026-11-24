@@ -85,41 +85,60 @@ r = t.post({ action: 'admin-app', ...coord, id: appId, status: 'Approved' });
 const ana = r.members.find(m => m.name === 'Ana Lopez'); assert.equal(ana.status, 'Active'); assert.equal(ana.market, 'Phoenix'); assert.equal(r.applications[0].reviewedBy, 'Taylor');
 // Seed the current Squad; no duplicates.
 r = t.post({ action: 'admin-seed', ...coord, members: [{ name: 'Kristin', market: 'East' }, { name: 'Ana Lopez' }] }); assert.equal(r.members.length, 2);
-// New members are only held to weeks after they joined; backdate both so the earlier weeks count in this test.
-vm.runInContext(`(() => { const sh = clubSheet('Members'); readTable(sh, CLUB_TABS['Members']).forEach(m => writeRow(sh, CLUB_TABS['Members'], { joined: '${day(-30)}' }, m._row)); })()`, t.ctx);
-r = t.post({ action: 'admin-data', ...coord }); assert.equal(r.participation.find(p => p.name === 'Kristin').weeksFinished, 0); // no briefs yet
-// Brief manager: create, publish a past week and the current week, duplicate, archive.
-r = t.post({ action: 'admin-brief', ...coord, brief: { title: 'Registry Mistakes', theme: 'Registry Mistakes', format: 'Instagram Reel', length: '15–30 seconds', weekStart: day(-14), weekEnd: day(-8), cta: 'Explore the free Baby Concierge service.' } });
-const past = r.savedId; assert.equal(r.briefs.find(b => b.id === past).status, 'Draft');
+// Whole weeks and months after joining count; backdate both members so there's history to check.
+vm.runInContext(`(() => { const sh = clubSheet('Members'); readTable(sh, CLUB_TABS['Members']).forEach(m => writeRow(sh, CLUB_TABS['Members'], { joined: '${day(-70)}' }, m._row)); })()`, t.ctx);
+r = t.post({ action: 'admin-data', ...coord }); assert.ok(r.participation.find(p => p.name === 'Kristin').weeksFinished >= 8);
+assert.equal(r.settings.requiredPosts, 1); assert.equal(r.settings.requiredStories, 1); assert.equal(r.settings.briefEveryWeeks, 2); assert.equal(r.settings.requiredThemed, undefined);
+// Briefs come every other week: a brief runs two weeks, and duplicating one moves it two weeks on.
+r = t.post({ action: 'admin-brief', ...coord, brief: { title: 'Registry Mistakes', theme: 'Registry Mistakes', audios: 'Trending sound: “Oh no”', launches: 'New Nuna stroller', format: 'Instagram Reel', length: '15–30 seconds', weekStart: day(-28), cta: 'Explore the free Baby Concierge service.' } });
+const past = r.savedId; assert.equal(r.briefs.find(b => b.id === past).status, 'Draft'); assert.equal(r.briefs.find(b => b.id === past).weekEnd, day(-15)); assert.equal(r.briefs.find(b => b.id === past).audios, 'Trending sound: “Oh no”');
 r = t.post({ action: 'admin-brief', ...coord, op: 'publish', brief: { id: past } });
-r = t.post({ action: 'admin-brief', ...coord, op: 'duplicate', brief: { id: past } }); const mid = r.savedId; assert.equal(r.briefs.find(b => b.id === mid).weekStart, day(-7));
+r = t.post({ action: 'admin-brief', ...coord, op: 'duplicate', brief: { id: past } }); const mid = r.savedId; assert.equal(r.briefs.find(b => b.id === mid).weekStart, day(-14));
 r = t.post({ action: 'admin-brief', ...coord, op: 'publish', brief: { id: mid } });
-r = t.post({ action: 'admin-brief', ...coord, brief: { title: 'Stroller Myths', weekStart: day(-1), weekEnd: day(5) } }); const cur = r.savedId;
+r = t.post({ action: 'admin-brief', ...coord, brief: { title: 'Stroller Myths', weekStart: day(-1) } }); const cur = r.savedId;
 r = t.post({ action: 'admin-brief', ...coord, op: 'publish', brief: { id: cur } }); assert.equal(r.current, cur);
 r = t.post({ action: 'admin-brief', ...coord, op: 'duplicate', brief: { id: cur } }); const extra = r.savedId;
 r = t.post({ action: 'admin-brief', ...coord, op: 'archive', brief: { id: extra } }); assert.equal(r.briefs.find(b => b.id === extra).status, 'Archived');
-// Approved creator sees this week's brief and submits a published link.
-r = t.get({ action: 'club', key, name: 'ana lopez' }); assert.equal(r.brief.id, cur); assert.equal(r.member.status, 'Active'); assert.equal(r.member.notes, undefined);
-assert.equal(t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'themed', briefId: cur, url: 'javascript:alert(1)' }).ok, false);
-r = t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'themed', briefId: cur, url: 'https://www.instagram.com/reel/abc/' }); assert.equal(r.ok, true);
-r = t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'themed', briefId: past, url: 'https://www.instagram.com/reel/old/' }); assert.equal(r.ok, true);
-// Admin reviews completion; participation: Kristin missed 2 finished weeks -> Needs review; Ana met the earlier week but missed the last one -> Reminder.
+// A creator logs a feed post (link required) and a story (link optional: stories disappear).
+r = t.get({ action: 'club', key, name: 'ana lopez' }); assert.equal(r.brief.id, cur); assert.equal(r.member.status, 'Active'); assert.equal(r.member.notes, undefined); assert.equal(r.settings.requiredStories, 1);
+assert.equal(t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'post', url: 'javascript:alert(1)' }).ok, false);
+assert.equal(t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'post', url: '' }).ok, false);
+r = t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'post', briefId: cur, url: 'https://www.instagram.com/reel/abc/' }); assert.equal(r.ok, true);
+r = t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'story', note: 'Car seat check day' }); assert.equal(r.ok, true);
+assert.equal(t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'story', date: day(3) }).ok, false); // not in the future
+assert.equal(t.post({ action: 'club-submit', key, name: 'Ana Lopez', kind: 'story', date: day(-60) }).ok, false); // too long ago to self-report
+// History: Ana shared a story every week until three weeks ago and a feed post every month; Kristin shared nothing.
+const monday = d => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x.toISOString().slice(0, 10); };
+const plus = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+const seed = []; for (let w = monday(day(-70)); w <= plus(monday(day(0)), -21); w = plus(w, 7)) seed.push(['story', plus(w, 2)]);
+for (let d = -70; d <= -1; d += 10) seed.push(['post', day(d)]);
+vm.runInContext(`(() => { const sh = clubSheet('Submissions'); ${JSON.stringify(seed)}.forEach(([kind, date], i) => writeRow(sh, CLUB_TABS['Submissions'], { id: 'seed' + i, submitted: new Date(), date: date, name: 'Ana Lopez', kind: kind, url: kind === 'post' ? 'https://www.instagram.com/p/' + i : '', status: 'Submitted' }, 0)); })()`, t.ctx);
 r = t.post({ action: 'admin-data', ...coord });
 const sub = r.submissions.find(s => s.briefId === cur); r = t.post({ action: 'admin-sub', ...coord, id: sub.id, status: 'Counted' }); assert.equal(r.submissions.find(s => s.id === sub.id).status, 'Counted');
 const pk = r.participation.find(p => p.name === 'Kristin'), pa = r.participation.find(p => p.name === 'Ana Lopez');
-assert.equal(pk.standing, 'Needs review'); assert.equal(pk.missedInARow, 2);
-assert.equal(pa.standing, 'Reminder'); assert.equal(pa.weeksMet, 1);
-assert.equal(r.analytics.activeCreators, 2); assert.equal(r.analytics.thisWeek.themedPosts, 1); assert.equal(r.analytics.lastWeek.rate, 0); assert.equal(r.analytics.publishedLinks, 2);
+assert.equal(pk.standing, 'Needs review'); assert.ok(pk.missedWeeks >= 4); assert.ok(pk.missedMonths >= 1);
+assert.equal(pa.standing, 'Reminder'); assert.equal(pa.missedWeeks, 2); assert.equal(pa.missedMonths, 0); assert.equal(pa.thisWeek.stories, 1); assert.ok(pa.thisMonth.posts >= 1); assert.equal(pa.monthsMet, pa.monthsFinished);
+assert.equal(r.analytics.activeCreators, 2); assert.equal(r.analytics.thisWeek.stories, 1); assert.equal(r.analytics.thisWeek.creators, 1); assert.equal(r.analytics.lastWeek.eligible, 2); assert.equal(r.analytics.lastWeek.rate, 0);
+assert.ok(r.analytics.thisMonth.posts >= 1); assert.equal(r.analytics.briefsRun, 3);
+// A story marked "Needs changes" stops counting.
+const todays = r.submissions.find(s => s.kind === 'story' && s.date === day(0)); r = t.post({ action: 'admin-sub', ...coord, id: todays.id, status: 'Needs changes' });
+assert.equal(r.participation.find(p => p.name === 'Ana Lopez').thisWeek.stories, 0);
+// Older rows from the weekly model ("themed"/"flexible") read as feed posts.
+vm.runInContext(`writeRow(clubSheet('Submissions'), CLUB_TABS['Submissions'], { id: 'old1', submitted: new Date(), name: 'Kristin', kind: 'themed', url: 'https://www.instagram.com/p/old', status: 'Submitted' }, 0)`, t.ctx);
+r = t.post({ action: 'admin-data', ...coord }); assert.equal(r.submissions.find(s => s.id === 'old1').kind, 'post'); assert.equal(r.participation.find(p => p.name === 'Kristin').thisMonth.posts, 1);
 // Creator requests a pause; status stays Active until a coordinator changes it.
 assert.equal(t.post({ action: 'club-request', key, name: 'Kristin', type: 'pause', until: day(20), note: 'Family trip' }).ok, true);
 r = t.post({ action: 'admin-data', ...coord }); let k = r.members.find(m => m.name === 'Kristin'); assert.equal(k.request, 'Pause'); assert.equal(k.status, 'Active');
 r = t.post({ action: 'admin-member', ...coord, name: 'Kristin', status: 'Paused', clearRequest: true }); k = r.members.find(m => m.name === 'Kristin');
 assert.equal(k.status, 'Paused'); assert.equal(k.request, ''); assert.equal(r.participation.find(p => p.name === 'Kristin').standing, 'Paused');
-assert.equal(t.post({ action: 'club-submit', key, name: 'Kristin', kind: 'flexible', url: 'https://example.com/x' }).ok, false); // paused: no submissions
-// Settings are adjustable and validated.
-r = t.post({ action: 'admin-settings', ...coord, settings: { requiredFlexible: '0', reviewAfter: '3', creatorCircleUrl: 'https://tot-squad-hub.disco.co/channel/abc' } });
-assert.equal(r.settings.requiredFlexible, 0); assert.equal(r.settings.reviewAfter, 3); assert.equal(r.participation.find(p => p.name === 'Ana Lopez').standing, 'Reminder');
+assert.equal(t.post({ action: 'club-submit', key, name: 'Kristin', kind: 'post', url: 'https://example.com/x' }).ok, false); // paused: nothing to log
+// Settings are adjustable and validated: with no story requirement, Kristin's missing feed post is a reminder.
+t.post({ action: 'admin-member', ...coord, name: 'Kristin', status: 'Active' });
+vm.runInContext(`(() => { const sh = clubSheet('Submissions'); const r = readTable(sh, CLUB_TABS['Submissions']).find(x => x.id === 'old1'); writeRow(sh, CLUB_TABS['Submissions'], { status: 'Needs changes' }, r._row); })()`, t.ctx);
+r = t.post({ action: 'admin-settings', ...coord, settings: { requiredStories: '0', postReviewMonths: '9', creatorCircleUrl: 'https://tot-squad-hub.disco.co/channel/abc' } });
+assert.equal(r.settings.requiredStories, 0); assert.equal(r.settings.postReviewMonths, 9); assert.equal(r.participation.find(p => p.name === 'Kristin').standing, 'Reminder');
 assert.equal(t.post({ action: 'admin-settings', ...coord, settings: { creatorCircleUrl: 'javascript:x' } }).ok, false);
+assert.equal(t.post({ action: 'admin-settings', ...coord, settings: { requiredPosts: '-1' } }).ok, false);
 // Declined/Waitlisted stay off the creators' list; Idea Bank is open; nothing was deleted.
 t.post({ action: 'apply', application: { name: 'Bo', why: 'Hi', agreed: true } });
 r = t.post({ action: 'admin-data', ...coord }); t.post({ action: 'admin-app', ...coord, id: r.applications.find(a => a.name === 'Bo').id, status: 'Waitlisted' });
@@ -199,19 +218,20 @@ r = t5.post({ action: 'admin-reel', ...rc, op: 'create', reel: { title: '=IMPORT
 assert.equal(r.reels.find(x => x.title.includes('IMPORTXML')).title[0], "'"); assert.equal(r.reels.find(x => x.title.includes('IMPORTXML')).folderUrl, '');
 // Creator accounts: the shared password only sets up your own; then you sign in with your name and password, and own your bio.
 const t6 = boot(), shared = 'footpop';
-r = t6.post({ action: 'account-setup', key: 'nope', name: 'Kristin Smith', password: 'sunshine-toy-9' }); assert.equal(r.locked, true);
-assert.match(t6.post({ action: 'account-setup', key: shared, name: 'Kristin Smith', password: 'short' }).error, /8 characters/);
-assert.match(t6.post({ action: 'account-setup', key: shared, name: 'Kristin Smith', password: 'FOOTPOP' }).error, /yours/);
-assert.match(t6.post({ action: 'account-setup', key: shared, name: 'Kristin Smith', password: 'Coord-123' }).error, /yours/);
-assert.equal(t6.post({ action: 'account-setup', key: shared, name: 'Kristin', password: 'sunshine-toy-9' }).fullName, true); // first name alone isn't enough
-assert.equal(t6.post({ action: 'account-setup', key: shared, name: 'Kristin 2', password: 'sunshine-toy-9' }).fullName, true);
-r = t6.post({ action: 'account-setup', key: shared, name: 'Kristin Smith', password: 'sunshine-toy-9' });
+r = t6.post({ action: 'account-setup', agreed: true, key: 'nope', name: 'Kristin Smith', password: 'sunshine-toy-9' }); assert.equal(r.locked, true);
+assert.match(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin Smith', password: 'short' }).error, /8 characters/);
+assert.match(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin Smith', password: 'FOOTPOP' }).error, /yours/);
+assert.match(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin Smith', password: 'Coord-123' }).error, /yours/);
+assert.equal(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin', password: 'sunshine-toy-9' }).fullName, true); // first name alone isn't enough
+assert.match(t6.post({ action: 'account-setup', key: shared, name: 'Kristin Smith', password: 'sunshine-toy-9' }).error, /guidelines/); // has to agree to the guidelines
+assert.equal(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin 2', password: 'sunshine-toy-9' }).fullName, true);
+r = t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin Smith', password: 'sunshine-toy-9' });
 assert.equal(r.ok, true); assert.equal(r.name, 'Kristin Smith'); assert.match(r.key, /^acct\.[\w-]+\.[\w-]+$/); const kKey = r.key;
 // The sheet never holds the password or the device key.
 const acctSheet = JSON.stringify(t6.g.books.get(vm.runInContext("PropertiesService.getScriptProperties().getProperty('CLUB_SHEET_ID')", t6.ctx)).getSheetByName('Accounts').rows);
 assert.ok(!acctSheet.includes('sunshine-toy-9')); assert.ok(!acctSheet.includes(kKey.split('.')[2]));
 // Someone else can't take the name once it has a password.
-r = t6.post({ action: 'account-setup', key: shared, name: 'kristin smith', password: 'another-pass-1' }); assert.equal(r.ok, false); assert.equal(r.taken, true);
+r = t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'kristin smith', password: 'another-pass-1' }); assert.equal(r.ok, false); assert.equal(r.taken, true);
 // The device key works everywhere the creator password does, and you act as yourself.
 assert.equal(t6.get({ action: 'gate', key: kKey }).ok, true);
 assert.equal(t6.get({ action: 'gate', key: kKey.slice(0, -2) + 'zz' }).locked, true);
@@ -243,7 +263,7 @@ const tc = { key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Sarah' };
 r = t6.post({ action: 'admin-data', ...tc }); assert.equal(r.accounts[0].name, 'Kristin Smith'); assert.equal(r.accounts[0].hasPassword, true); assert.equal(r.accounts[0].hash, undefined);
 r = t6.post({ action: 'admin-account', ...tc, name: 'Kristin Smith', op: 'reset' }); assert.equal(r.accounts[0].hasPassword, false);
 assert.equal(t6.get({ action: 'gate', key: kKey }).locked, true);
-assert.equal(t6.post({ action: 'account-setup', key: shared, name: 'Kristin Smith', password: 'fresh-start-3' }).ok, true);
+assert.equal(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin Smith', password: 'fresh-start-3' }).ok, true);
 // Sign out forgets this device's key.
 r = t6.post({ action: 'account-login', name: 'Kristin Smith', password: 'fresh-start-3' }); assert.equal(t6.post({ action: 'account-signout', key: r.key }).ok, true); assert.equal(t6.get({ action: 'gate', key: r.key }).locked, true);
 // Too many wrong tries are slowed down.

@@ -1,6 +1,7 @@
 /* =====================================================================================================
-   Tot Squad Creators Club 2.0: applications review, members, weekly creative briefs, submissions,
-   participation and coordinator tools. Works alongside upload.gs (same Apps Script project).
+   Tot Squad Creators Club 2.0: applications review, members, creative briefs (every other week), submissions,
+   participation and coordinator tools. Commitments follow the Creators Club guidelines: at least one feed post
+   (reel, carousel or collab) each month and one Instagram story each week. Works alongside upload.gs (same Apps Script project).
 
    Data lives in the "Creators Club program" spreadsheet in the Tot Squad shared drive, created the first
    time it's needed, with tabs Members, Weekly briefs, Submissions and Settings. Coordinators can edit the
@@ -11,20 +12,24 @@
    ===================================================================================================== */
 const CLUB_TABS = {
   'Members': [['name','Name'],['status','Status'],['roles','Roles'],['market','Home market'],['instagram','Instagram'],['interests','Content interests'],['joined','Joined'],['request','Request'],['requestUntil','Request until'],['requestNote','Request note'],['notes','Coordinator notes'],['updated','Last updated'],['updatedBy','Updated by']],
-  'Weekly briefs': [['id','ID'],['status','Status'],['weekStart','Week starts'],['weekEnd','Week ends'],['title','Campaign title'],['theme','Weekly theme'],['format','Format'],['length','Length'],['direction','Creative direction'],['hooks','Hooks & talking points'],['deliverables','Deliverables'],['window','Publishing window'],['cta','CTA'],['resources','Assets & resources'],['guidelines','Brand guidelines'],['updated','Last updated'],['updatedBy','Updated by']],
-  'Submissions': [['id','ID'],['submitted','Submitted'],['name','Creator'],['briefId','Brief ID'],['briefTitle','Brief'],['kind','Kind'],['url','Link'],['note','Note'],['status','Status'],['reviewedBy','Reviewed by'],['reviewed','Reviewed']],
+  'Weekly briefs': [['id','ID'],['status','Status'],['weekStart','Week starts'],['weekEnd','Week ends'],['title','Campaign title'],['theme','Weekly theme'],['audios','Trending audios'],['launches','Upcoming launches'],['format','Format'],['length','Length'],['direction','Creative direction'],['hooks','Hooks & talking points'],['deliverables','Deliverables'],['window','Publishing window'],['cta','CTA'],['resources','Assets & resources'],['guidelines','Brand guidelines'],['updated','Last updated'],['updatedBy','Updated by']],
+  'Submissions': [['id','ID'],['submitted','Submitted'],['date','Posted on'],['name','Creator'],['briefId','Brief ID'],['briefTitle','Brief'],['kind','Kind'],['url','Link'],['note','Note'],['status','Status'],['reviewedBy','Reviewed by'],['reviewed','Reviewed']],
   'Settings': [['key','Setting'],['value','Value'],['about','What it does']]
 };
 const CLUB_DEFAULTS = [
-  ['requiredThemed', '1', 'Themed posts required each week (the weekly brief)'],
-  ['requiredFlexible', '1', 'Flexible contributions each week: another post, a production task or another approved deliverable'],
-  ['reminderAfter', '1', 'Missed weeks in a row before a friendly reminder'],
-  ['reviewAfter', '2', 'Missed weeks in a row before a coordinator review'],
+  ['requiredPosts', '1', 'Feed posts each month: a reel, carousel or collab post (Creators Club guidelines)'],
+  ['requiredStories', '1', 'Instagram stories each week, Monday to Sunday (Creators Club guidelines)'],
+  ['storyReminderWeeks', '2', 'Weeks in a row without a story before a friendly reminder'],
+  ['storyReviewWeeks', '4', 'Weeks in a row without a story before a coordinator check-in'],
+  ['postReminderMonths', '1', 'Months in a row without a feed post before a friendly reminder'],
+  ['postReviewMonths', '2', 'Months in a row without a feed post before a coordinator check-in'],
+  ['briefEveryWeeks', '2', 'Weeks between briefs (a new brief every other week)'],
   ['creatorCircleUrl', '', 'Link to the private Creator Circle channel in Disco'],
   ['coordinators', 'Taylor, Sarah, Linden', 'Who reviews applications and publishes briefs'],
   ['coordinatorCode', '', 'The code coordinators enter to open Coordinator tools. Type it in the Value column. Only people who can open this sheet see it.']
 ];
-const CLUB_NUMBERS = ['requiredThemed', 'requiredFlexible', 'reminderAfter', 'reviewAfter'];
+const CLUB_NUMBERS = ['requiredPosts', 'requiredStories', 'storyReminderWeeks', 'storyReviewWeeks', 'postReminderMonths', 'postReviewMonths', 'briefEveryWeeks'];
+const OLD_SETTINGS = ['requiredThemed', 'requiredFlexible', 'reminderAfter', 'reviewAfter']; // the weekly model before the guidelines
 const MEMBER_STATUSES = ['Active', 'Paused', 'Needs Check-In', 'Inactive', 'Alumni'];
 const APP_STATUSES = ['Submitted', 'Under Review', 'Approved', 'Waitlisted', 'Declined'];
 const BRIEF_STATUSES = ['Draft', 'Published', 'Archived'];
@@ -108,7 +113,7 @@ function newId(prefix) { return prefix + '-' + Date.now().toString(36) + Math.ra
 function clubSettings() {
   const out = {}, sheet = clubSheet('Settings'), rows = readTable(sheet, CLUB_TABS['Settings']);
   CLUB_DEFAULTS.forEach(r => { out[r[0]] = r[1]; if (!rows.some(x => x.key === r[0])) sheet.appendRow(r); }); // settings added later show up in the sheet too
-  rows.forEach(r => { if (r.key) out[r.key] = String(r.value); });
+  rows.forEach(r => { if (r.key && OLD_SETTINGS.indexOf(r.key) < 0) out[r.key] = String(r.value); });
   delete out.coordinatorCode; // never sent to the browser
   CLUB_NUMBERS.forEach(k => { const n = Math.round(Number(out[k])); out[k] = String(out[k]).trim() !== '' && isFinite(n) && n >= 0 ? n : Number(CLUB_DEFAULTS.find(d => d[0] === k)[1]); });
   out.coordinators = String(out.coordinators || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -119,7 +124,7 @@ function briefOut(b) {
   const o = {};
   CLUB_TABS['Weekly briefs'].forEach(([k]) => { o[k] = k === 'weekStart' || k === 'weekEnd' ? isoDay(b[k]) : k === 'updated' ? isoTime(b[k]) : String(b[k] || ''); });
   o.status = pick(o.status, BRIEF_STATUSES, 'Draft');
-  if (o.weekStart && !o.weekEnd) { const d = new Date(o.weekStart + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 6); o.weekEnd = d.toISOString().slice(0, 10); }
+  if (o.weekStart && !o.weekEnd) o.weekEnd = addDays(o.weekStart, 13); // a brief runs two weeks unless it says otherwise
   return o;
 }
 function allBriefs() { return readTable(clubSheet('Weekly briefs'), CLUB_TABS['Weekly briefs']).filter(b => b.id).map(briefOut); }
@@ -128,7 +133,8 @@ function currentBrief(briefs) {
   const today = todayIso(), live = briefs.filter(b => b.status === 'Published' && b.weekStart).sort(byWeek);
   return live.find(b => b.weekStart <= today && b.weekEnd >= today) || live.find(b => b.weekStart > today) || live[live.length - 1] || null;
 }
-function subOut(s) { return { id: s.id, submitted: isoTime(s.submitted), name: s.name, briefId: s.briefId, briefTitle: s.briefTitle, kind: s.kind === 'themed' ? 'themed' : 'flexible', url: s.url, note: s.note, status: pick(s.status, SUB_STATUSES, 'Submitted'), reviewedBy: s.reviewedBy }; }
+// Kinds: "post" (a feed post: reel, carousel or collab) or "story". Older "themed"/"flexible" rows were feed posts.
+function subOut(s) { return { id: s.id, submitted: isoTime(s.submitted), date: isoDay(s.date) || isoDay(s.submitted), name: s.name, briefId: s.briefId, briefTitle: s.briefTitle, kind: String(s.kind).toLowerCase() === 'story' ? 'story' : 'post', url: s.url, note: s.note, status: pick(s.status, SUB_STATUSES, 'Submitted'), reviewedBy: s.reviewedBy }; }
 function allSubmissions() { return readTable(clubSheet('Submissions'), CLUB_TABS['Submissions']).filter(s => s.id).map(subOut); }
 function memberOut(m, withNotes) {
   const o = { name: m.name, status: pick(m.status, MEMBER_STATUSES, 'Active'), roles: m.roles, market: m.market, instagram: m.instagram, interests: m.interests, joined: isoDay(m.joined), request: m.request, requestUntil: isoDay(m.requestUntil), requestNote: m.requestNote };
@@ -138,41 +144,62 @@ function memberOut(m, withNotes) {
 function allMembers(withNotes) { return readTable(clubSheet('Members'), CLUB_TABS['Members']).filter(m => m.name).map(m => memberOut(m, withNotes)); }
 const appStatus = s => !String(s || '').trim() || /^new$/i.test(String(s).trim()) ? 'Submitted' : pick(s, APP_STATUSES, 'Submitted');
 
-/* Participation: for each member, every published brief week since they joined.
-   A week is met when themed posts reach requiredThemed (Needs-changes submissions don't count).
-   Standing is a suggestion for coordinators: nothing changes a member's status on its own. */
+/* Participation, from the Creators Club guidelines: a feed post each calendar month (requiredPosts) and a story each
+   week, Monday to Sunday (requiredStories). Only whole weeks and months after someone joined count, and links a
+   coordinator marked "Needs changes" don't. Standing is a suggestion for coordinators: nothing changes on its own. */
+function addDays(iso, n) { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function mondayOf(iso) { const d = new Date(iso + 'T12:00:00Z'); return addDays(iso, -((d.getUTCDay() + 6) % 7)); }
+function monthEnd(ym) { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); }
+function nextMonth(ym) { const [y, m] = ym.split('-').map(Number); return m === 12 ? (y + 1) + '-01' : y + '-' + String(m + 1).padStart(2, '0'); }
+const missedInARow = rows => { let n = 0; for (let i = rows.length - 1; i >= 0; i--) { if (!rows[i].finished) continue; if (rows[i].met) break; n++; } return n; };
 function participation(members, briefs, subs, settings) {
-  const today = todayIso(), weeks = briefs.filter(b => b.status !== 'Draft' && b.weekStart).sort(byWeek);
+  const today = todayIso();
   return members.map(m => {
-    const history = weeks.filter(b => !m.joined || b.weekEnd >= m.joined).map(b => {
-      const mine = subs.filter(s => sameName(s.name, m.name) && s.briefId === b.id && s.status !== 'Needs changes');
-      const themed = mine.filter(s => s.kind === 'themed').length, flexible = mine.length - themed;
-      return { briefId: b.id, title: b.title || b.theme, weekStart: b.weekStart, weekEnd: b.weekEnd, themed: themed, flexible: flexible,
-        met: themed >= settings.requiredThemed, complete: themed >= settings.requiredThemed && flexible >= settings.requiredFlexible, finished: b.weekEnd < today };
-    });
-    let missed = 0;
-    for (let i = history.length - 1; i >= 0; i--) { if (!history[i].finished) continue; if (history[i].met) break; missed++; }
+    const mine = subs.filter(s => sameName(s.name, m.name) && s.status !== 'Needs changes');
+    const stories = mine.filter(s => s.kind === 'story'), posts = mine.filter(s => s.kind === 'post');
+    const joined = m.joined || today, weeks = [], months = [];
+    // Weeks: the first Monday on or after joining, through this week.
+    let w = mondayOf(joined); if (w < joined) w = addDays(w, 7);
+    for (; w <= today; w = addDays(w, 7)) {
+      const end = addDays(w, 6), n = stories.filter(s => s.date >= w && s.date <= end).length;
+      weeks.push({ weekStart: w, weekEnd: end, stories: n, met: n >= settings.requiredStories, finished: end < today });
+    }
+    const thisWeekStart = mondayOf(today), thisWeekStories = stories.filter(s => s.date >= thisWeekStart && s.date <= today).length;
+    // Months: the first whole month after joining (or the joining month if they joined on the 1st), through this month.
+    let mo = joined.slice(0, 7); if (joined.slice(8) !== '01') mo = nextMonth(mo);
+    for (; mo <= today.slice(0, 7); mo = nextMonth(mo)) {
+      const n = posts.filter(s => s.date.slice(0, 7) === mo).length;
+      months.push({ month: mo, posts: n, met: n >= settings.requiredPosts, finished: monthEnd(mo) < today });
+    }
+    const thisMonthPosts = posts.filter(s => s.date.slice(0, 7) === today.slice(0, 7)).length;
+    const missedWeeks = settings.requiredStories ? missedInARow(weeks) : 0, missedMonths = settings.requiredPosts ? missedInARow(months) : 0;
+    const over = (n, limit) => !!limit && n >= limit;
     const standing = m.status === 'Paused' ? 'Paused' : ['Inactive', 'Alumni'].indexOf(m.status) >= 0 ? m.status
-      : settings.reviewAfter && missed >= settings.reviewAfter ? 'Needs review' : settings.reminderAfter && missed >= settings.reminderAfter ? 'Reminder' : 'On track';
-    const finished = history.filter(h => h.finished);
-    return { name: m.name, status: m.status, missedInARow: missed, standing: standing, weeksMet: finished.filter(h => h.met).length, weeksFinished: finished.length, history: history.slice(-8).reverse() };
+      : over(missedWeeks, settings.storyReviewWeeks) || over(missedMonths, settings.postReviewMonths) ? 'Needs review'
+      : over(missedWeeks, settings.storyReminderWeeks) || over(missedMonths, settings.postReminderMonths) ? 'Reminder' : 'On track';
+    const fw = weeks.filter(x => x.finished), fm = months.filter(x => x.finished);
+    return { name: m.name, status: m.status, standing: standing, missedWeeks: missedWeeks, missedMonths: missedMonths,
+      thisWeek: { stories: thisWeekStories, needed: settings.requiredStories, weekStart: thisWeekStart },
+      thisMonth: { posts: thisMonthPosts, needed: settings.requiredPosts, month: today.slice(0, 7) },
+      weeksMet: fw.filter(x => x.met).length, weeksFinished: fw.length, monthsMet: fm.filter(x => x.met).length, monthsFinished: fm.length,
+      weeks: weeks.slice(-8).reverse(), months: months.slice(-6).reverse() };
   });
 }
 function clubAnalytics(members, briefs, subs, part) {
-  const active = members.filter(m => m.status === 'Active' || m.status === 'Needs Check-In'), isActive = n => active.some(m => sameName(m.name, n));
-  const finished = briefs.filter(b => b.status !== 'Draft' && b.weekStart && b.weekEnd < todayIso()).sort(byWeek);
-  const last = finished[finished.length - 1], cur = currentBrief(briefs);
-  const counted = subs.filter(s => s.status !== 'Needs changes' && /^https:\/\//.test(s.url));
-  const lastRows = last ? part.filter(p => isActive(p.name) && p.history.some(h => h.briefId === last.id)) : [];
-  const metLast = last ? lastRows.filter(p => p.history.some(h => h.briefId === last.id && h.met)).length : 0;
-  const thisWeek = cur ? counted.filter(s => s.briefId === cur.id && s.kind === 'themed') : [];
+  const today = todayIso(), active = members.filter(m => m.status === 'Active' || m.status === 'Needs Check-In'), isActive = n => active.some(m => sameName(m.name, n));
+  const counted = subs.filter(s => s.status !== 'Needs changes'), activePart = part.filter(p => isActive(p.name));
+  const lastWeekStart = addDays(mondayOf(today), -7), lastMonth = (() => { const [y, m] = today.slice(0, 7).split('-').map(Number); return m === 1 ? (y - 1) + '-12' : y + '-' + String(m - 1).padStart(2, '0'); })();
+  const wk = activePart.map(p => p.weeks.find(w => w.weekStart === lastWeekStart)).filter(Boolean), mo = activePart.map(p => p.months.find(x => x.month === lastMonth)).filter(Boolean);
+  const rate = (met, of) => of ? Math.round(100 * met / of) : null;
+  const thisWeek = counted.filter(s => s.kind === 'story' && s.date >= mondayOf(today)), thisMonth = counted.filter(s => s.kind === 'post' && s.date.slice(0, 7) === today.slice(0, 7));
   return {
     activeCreators: active.length,
-    lastWeek: last ? { title: last.title || last.theme, weekStart: last.weekStart, met: metLast, eligible: lastRows.length, rate: lastRows.length ? Math.round(100 * metLast / lastRows.length) : null } : null,
-    thisWeek: cur ? { title: cur.title || cur.theme, themedPosts: thisWeek.length, creatorsPosted: new Set(thisWeek.map(s => s.name.toLowerCase())).size } : null,
-    publishedLinks: counted.length,
-    repeatCreators: part.filter(p => p.weeksMet >= 2).length,
-    weeksRun: finished.length
+    lastWeek: { weekStart: lastWeekStart, met: wk.filter(w => w.met).length, eligible: wk.length, rate: rate(wk.filter(w => w.met).length, wk.length) },
+    lastMonth: { month: lastMonth, met: mo.filter(x => x.met).length, eligible: mo.length, rate: rate(mo.filter(x => x.met).length, mo.length) },
+    thisWeek: { stories: thisWeek.length, creators: new Set(thisWeek.map(s => s.name.toLowerCase())).size },
+    thisMonth: { posts: thisMonth.length, creators: new Set(thisMonth.map(s => s.name.toLowerCase())).size },
+    publishedLinks: counted.filter(s => /^https:\/\//.test(s.url)).length,
+    briefsRun: briefs.filter(b => b.status !== 'Draft' && b.weekStart && b.weekStart <= today).length
   };
 }
 
@@ -184,7 +211,7 @@ function clubForCreator(name) {
   const upcoming = brief ? briefs.filter(b => b.status === 'Published' && b.weekStart > brief.weekStart).sort(byWeek).slice(0, 2).map(b => ({ id: b.id, title: b.title, theme: b.theme, weekStart: b.weekStart, weekEnd: b.weekEnd })) : [];
   return {
     ok: true,
-    settings: { requiredThemed: settings.requiredThemed, requiredFlexible: settings.requiredFlexible, creatorCircleUrl: settings.creatorCircleUrl, coordinators: settings.coordinators },
+    settings: { requiredPosts: settings.requiredPosts, requiredStories: settings.requiredStories, briefEveryWeeks: settings.briefEveryWeeks, creatorCircleUrl: settings.creatorCircleUrl, coordinators: settings.coordinators },
     brief: brief, upcoming: upcoming, member: member, application: name ? applicationFor(name) : null,
     submissions: subs.slice(-30).reverse(), participation: member ? participation([member], briefs, subs, settings)[0] : null,
     roster: allMembers(false).filter(m => m.status !== 'Alumni').map(m => m.name)
@@ -195,19 +222,23 @@ function applicationFor(name) {
   const a = rows[rows.length - 1]; if (!a) return null;
   return { status: appStatus(a.status), submitted: isoTime(a.submitted) };
 }
+// A feed post (link required) or a story (link optional: stories disappear after a day). "date" is when it went up.
 function saveSubmission(req) {
-  const name = clean(req.name), kind = req.kind === 'themed' ? 'themed' : 'flexible', url = String(req.url || '').trim();
+  const name = clean(req.name), kind = req.kind === 'story' ? 'story' : 'post', url = String(req.url || '').trim(), today = todayIso();
   if (!name) return reply({ ok: false, error: 'Choose your name first.' });
-  if (!/^https:\/\/\S+$/.test(url) || url.length > 500) return reply({ ok: false, error: 'Paste the link to your published post. It starts with https://' });
+  if (kind === 'post' && !/^https:\/\/\S+$/.test(url)) return reply({ ok: false, error: 'Paste the link to your post. It starts with https://' });
+  if (url && (!/^https:\/\/\S+$/.test(url) || url.length > 500)) return reply({ ok: false, error: 'Links start with https://' });
+  const date = isoDay(req.date) || today;
+  if (date > today) return reply({ ok: false, error: 'Pick a date that isn’t in the future.' });
+  if (date < addDays(today, -45)) return reply({ ok: false, error: 'That’s more than six weeks ago. Ask a coordinator to add it for you.' });
   const member = allMembers(false).find(m => sameName(m.name, name));
-  if (!member || ['Active', 'Needs Check-In'].indexOf(member.status) < 0) return reply({ ok: false, error: 'Submissions are for active Creators Club members. Apply to join, or ask a coordinator to switch you back to Active.' });
-  const brief = allBriefs().find(b => b.id === String(req.briefId || '') && b.status !== 'Draft') || null;
-  if (kind === 'themed' && !brief) return reply({ ok: false, error: 'There’s no published brief for a themed post yet.' });
+  if (!member || ['Active', 'Needs Check-In'].indexOf(member.status) < 0) return reply({ ok: false, error: 'Logging posts is for active Creators Club members. Apply to join, or ask a coordinator to switch you back to Active.' });
+  const brief = req.briefId ? allBriefs().find(b => b.id === String(req.briefId) && b.status !== 'Draft') || null : null;
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
     const id = newId('s');
-    writeRow(clubSheet('Submissions'), CLUB_TABS['Submissions'], { id: id, submitted: new Date(), name: member.name, briefId: brief ? brief.id : '', briefTitle: brief ? (brief.title || brief.theme) : '', kind: kind, url: url, note: text(req.note).slice(0, 500), status: 'Submitted' }, 0);
-    logActivity('post', member.name, kind === 'themed' ? 'shared their post for “' + (brief.title || brief.theme) + '”' : 'shared a flexible contribution', url);
+    writeRow(clubSheet('Submissions'), CLUB_TABS['Submissions'], { id: id, submitted: new Date(), date: date, name: member.name, briefId: brief ? brief.id : '', briefTitle: brief ? (brief.title || brief.theme) : '', kind: kind, url: url, note: text(req.note).slice(0, 500), status: 'Submitted' }, 0);
+    logActivity('post', member.name, kind === 'story' ? 'shared a story' : brief ? 'shared a feed post for “' + (brief.title || brief.theme) + '”' : 'shared a feed post', url);
     return reply({ ok: true, id: id });
   } finally { lock.releaseLock(); }
 }
@@ -314,7 +345,7 @@ function adminBrief(req, who) {
   const b = req.brief || {}, found = rows.find(r => r.id && r.id === String(b.id || ''));
   if (op === 'duplicate') {
     if (!found) throw new Error('That brief wasn’t found.');
-    const src = briefOut(found), shift = d => { if (!d) return ''; const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 7); return x.toISOString().slice(0, 10); };
+    const src = briefOut(found), gap = 7 * (clubSettings().briefEveryWeeks || 2), shift = d => d ? addDays(d, gap) : '';
     const copy = Object.assign({}, src, { id: newId('b'), status: 'Draft', weekStart: shift(src.weekStart), weekEnd: shift(src.weekEnd), updated: new Date(), updatedBy: who });
     writeRow(sheet, cols, copy, 0); return copy.id;
   }
@@ -323,7 +354,7 @@ function adminBrief(req, who) {
     const status = { publish: 'Published', archive: 'Archived', unpublish: 'Draft' }[op];
     if (status === 'Published' && !isoDay(found.weekStart)) throw new Error('Add the week’s start date before publishing.');
     writeRow(sheet, cols, { status: status, updated: new Date(), updatedBy: who }, found._row);
-    if (status === 'Published') logActivity('brief', '', 'New weekly brief: “' + (found.title || found.theme) + '”', '');
+    if (status === 'Published') logActivity('brief', '', 'New brief: “' + (found.title || found.theme) + '”', '');
     return found.id;
   }
   const patch = {};
@@ -343,7 +374,7 @@ function adminSettings(req) {
   CLUB_DEFAULTS.forEach(([k, , about]) => {
     if (next[k] == null || k === 'coordinatorCode') return; // the code is only changed in the sheet
     let v = String(next[k]).trim();
-    if (CLUB_NUMBERS.indexOf(k) >= 0) { const n = Math.round(Number(v)); if (v === '' || !isFinite(n) || n < 0 || n > 20) throw new Error('Weekly numbers need to be between 0 and 20.'); v = String(n); }
+    if (CLUB_NUMBERS.indexOf(k) >= 0) { const n = Math.round(Number(v)); if (v === '' || !isFinite(n) || n < 0 || n > 20) throw new Error('Numbers need to be between 0 and 20.'); v = String(n); }
     if (k === 'creatorCircleUrl' && v && !/^https:\/\/\S+$/.test(v)) throw new Error('The Creator Circle link needs to start with https://');
     const r = rows.find(x => x.key === k);
     if (r) writeRow(sheet, cols, { value: text(v) }, r._row); else writeRow(sheet, cols, { key: k, value: text(v), about: about }, 0);
@@ -425,7 +456,7 @@ function reelsDone(row) {
    their own, then signs in with those. Passwords are never stored, only a salted, stretched hash. Each signed-in
    device gets a random key; only its hash is kept (the last 5 devices). Coordinators can reset a password from the
    Roster tab, and the creator sets a new one with the creator password. Bios show on Meet the Squad. */
-const ACCOUNT_COLS = CLUB_TABS['Accounts'] = [['id', 'Account ID'], ['name', 'Name'], ['bio', 'Bio'], ['bioUpdated', 'Bio updated'], ['hash', 'Password hash'], ['salt', 'Salt'], ['tokens', 'Signed-in devices'], ['created', 'Created'], ['lastSignIn', 'Last sign-in'], ['resetBy', 'Reset by']];
+const ACCOUNT_COLS = CLUB_TABS['Accounts'] = [['id', 'Account ID'], ['name', 'Name'], ['bio', 'Bio'], ['bioUpdated', 'Bio updated'], ['hash', 'Password hash'], ['salt', 'Salt'], ['tokens', 'Signed-in devices'], ['created', 'Created'], ['lastSignIn', 'Last sign-in'], ['resetBy', 'Reset by'], ['agreed', 'Agreed to guidelines']];
 const BIO_MAX = 400;
 function hexOf(bytes) { return bytes.map(b => ((b + 256) % 256).toString(16).padStart(2, '0')).join(''); }
 function sha(s) { return hexOf(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(s), Utilities.Charset.UTF_8)); }
@@ -490,12 +521,13 @@ function accountSetup(req) {
   if (!sharedPassword(req.key) && !isCoordinator(req.key)) return locked();
   const name = clean(req.name);
   const nameProblem = fullNameProblem(name); if (nameProblem) return reply({ ok: false, fullName: true, error: nameProblem });
+  if (req.agreed !== true) return reply({ ok: false, error: 'Check the box to agree to the Creators Club guidelines.' });
   const problem = passwordProblem(req.password, name); if (problem) return reply({ ok: false, error: problem });
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
   try {
     const sheet = accountsSheet(); let a = findAccount(name);
     if (a && a.hash) return reply({ ok: false, taken: true, error: a.name + ' already has a password. Sign in with your name and your own password, or ask a coordinator to reset it.' });
-    const salt = Utilities.getUuid(), patch = { salt: salt, hash: pwHash(req.password, salt), tokens: '', resetBy: '' };
+    const salt = Utilities.getUuid(), patch = { salt: salt, hash: pwHash(req.password, salt), tokens: '', resetBy: '', agreed: new Date() };
     if (a) writeRow(sheet, ACCOUNT_COLS, patch, a._row);
     else writeRow(sheet, ACCOUNT_COLS, Object.assign(patch, { id: 'a' + Utilities.getUuid().replace(/-/g, '').slice(0, 15), name: name, created: new Date() }), 0);
     a = findAccount(name);

@@ -136,7 +136,7 @@ function saveApplication(req) {
   if (req.website) return reply({ ok: true }); // hidden field only bots fill in
   const a = req.application || {};
   if (!text(a.name) || !text(a.why)) return reply({ ok: false, error: 'Add your name and why you’d like to join.' });
-  if (a.agreed !== true) return reply({ ok: false, error: 'Check the box about the brand guidelines first.' });
+  if (a.agreed !== true) return reply({ ok: false, error: 'Check the box about the Creators Club guidelines first.' });
   const cache = CacheService.getScriptCache(), count = Number(cache.get('apply-count') || 0);
   if (count >= 40) return reply({ ok: false, error: 'We’re getting a lot of applications right now. Try again in an hour.' });
   cache.put('apply-count', String(count + 1), 3600);

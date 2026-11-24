@@ -9,6 +9,39 @@ window.HUB_CONTENT = {
   squadChatUrl: 'https://ig.me/j/hTZzg7b07ZRFT3eU/',
   // Private Creator Circle channel in Disco (coordinators can override it in Coordinator tools > Settings).
   creatorCircleUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjM0ODYw',
+  // Creators Club guidelines (from "Tot Squad Creator's Club: Purpose, Expectations, & Community Guidelines").
+  // Shown in the toolkit, on the application and when a creator sets up their password. The tracking in
+  // apps-script/club.gs follows the expectations: 1 feed post a month, 1 story a week, a brief every other week.
+  clubGuidelines: {
+    purpose: 'The Creator’s Club exists to build mutual visibility, professional credibility, and genuine relationship-centered collaboration within Tot Squad.',
+    goals: [
+      ['Increase visibility', 'Help Tot Squad expand reach + establish ourselves as trusted voices in the baby gear industry'],
+      ['Build community', 'Create genuine professional relationships to feel less isolated + accountable to show up consistently'],
+      ['Share expertise', 'Exchange ideas + learn from one another’s unique expertise'],
+      ['Encourage collaboration', 'Create opportunities for brand partnerships, guest features, shared content, referrals, + cross-promotion']
+    ],
+    membership: 'Being part of the Creator’s Club means being an active participant. This is not an artificial engagement inflation pod + we don’t expect anyone to be online 24/7, but we do expect consistency, reciprocity, and a willingness to contribute.',
+    expectations: [
+      ['1 feed post per month', 'Post at least one reel, carousel, or collab post per month that showcases your expertise as a Baby Specialist, a hot take for the baby gear industry, a unique perspective, promotion of Baby Concierge services, or even education about your specialty (babywearing, CPST, NCS, etc).'],
+      ['1 story share per week', 'Share at least one Instagram story each week that highlights your work as a Baby Specialist, introduces your specialty, shares educational content, or connects your audience to something valuable.'],
+      ['Community engagement', 'Engage with fellow members: make an effort to interact with other specialists’ content through meaningful comments, likes, shares, + story replies. Celebrate wins: support launches, milestones, new projects, professional achievements, + exciting opportunities.']
+    ],
+    briefs: 'Every other week, members will receive a brief containing trending audios, hooks, concepts, or upcoming launches for inspiration. Members are welcome to use any hooks, ideas, templates, or b-roll shared with the group.',
+    principles: [
+      ['Give as much as you take.', 'This community works best when everyone contributes + invests time in the group. Be intentional + take time to learn what other members do, what they’re working on + what makes their expert perspective unique. Follow through on commitments + collaborations you agree to participate in.'],
+      ['Authenticity over obligation.', 'We want genuine engagement, not artificially inflated engagement or copy-and-paste comments. Interact because you find something genuinely valuable or interesting!'],
+      ['Respect different specialties.', 'Everyone brings a different perspective, audience, experience, and area of expertise. There is no unnecessary competition here + plenty of room for all of us to succeed.'],
+      ['Keep participation professional.', 'Be respectful of everyone’s time, expertise, + professional boundaries. Be constructive with feedback, not critical. Represent Tot Squad positively when interacting publicly.']
+    ],
+    accountability: 'Active participation is important to maintaining the value of this community. We recognize that life, work, and personal responsibilities fluctuate. The goal is consistency, not perfection.',
+    accountabilityPoints: [
+      'Members should communicate if they need to take a temporary break.',
+      'Consistently inactive members may be contacted to check in about their continued participation.',
+      'Repeatedly failing to meet membership expectations without communication may result in membership being reconsidered.',
+      'We reserve the right to remove members who consistently disregard community guidelines or create an unwelcoming environment.'
+    ],
+    commitment: 'By joining the Creator’s Club, you’re agreeing to invest in something bigger than your own platform. We’re here to share knowledge, amplify Tot Squad, build meaningful professional relationships, + create opportunities that might not exist if we were working alone!'
+  },
   submissionFolderUrl: 'https://drive.google.com/drive/folders/0ADqEscN50JTEUk9PVA',
   // Mentor password screen: SHA-256 of the lowercase password (see README). Leave blank to turn the screen off.
   // Keep it in step with MENTOR_PASSCODE in the Creators Club script, which pitches still check.

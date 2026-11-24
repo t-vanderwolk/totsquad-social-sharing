@@ -896,3 +896,16 @@ html:not(.coordinator) [data-coordinator]{display:none!important}
 .acct-list li>span:first-child{display:grid;gap:2px;min-width:0;flex:1 1 260px}
 .acct-list .quiet{font-size:12px}.acct-bio{font-size:13px;color:var(--body)}
 .acct-actions{display:flex;gap:var(--s3);align-items:center}
+/* Creators Club guidelines */
+.guidelines h3{font:700 16px/1.3 var(--sans);color:var(--plum-ink);margin:var(--s5) 0 var(--s2)}
+.guidelines ul{margin:0;padding-left:1.2em;display:grid;gap:var(--s2)}
+.guide-purpose{font:600 18px/1.45 var(--serif);color:var(--plum-ink);background:var(--teal-soft);border-radius:var(--r-md);padding:var(--s4) var(--s5);margin:0}
+.guide-expect{display:grid;gap:var(--s2);margin:var(--s3) 0}
+.guide-expect div{display:grid;grid-template-columns:minmax(120px,170px) 1fr;gap:var(--s3);padding:var(--s3) 0;border-top:1px solid var(--line-soft)}
+.guide-expect dt{font-weight:700;color:var(--plum-ink)}.guide-expect dd{margin:0}
+@media (max-width:520px){.guide-expect div{grid-template-columns:1fr;gap:2px}}
+.guide-fold{margin:var(--s3) 0;border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s2) var(--s4);background:var(--white)}
+.guide-fold summary{cursor:pointer;font-weight:700;color:var(--plum)}
+.guide-fold[open] summary{margin-bottom:var(--s2)}
+.club-progress small{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.week-dots .dots-label{font-size:11px;font-weight:700;color:var(--muted);margin-right:var(--s1);min-width:48px;display:inline-block}

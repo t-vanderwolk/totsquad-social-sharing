@@ -1,4 +1,4 @@
-/* Creators Club 2.0 in the app: the member dashboard, weekly brief, link submissions, pause requests
+/* Creators Club 2.0 in the app: the member dashboard, briefs (every other week), logged posts and stories, pause requests
    and coordinator tools. Loaded after script.js on the landing page; uses its helpers ($, body, showModal…).
    Data comes from apps-script/club.gs through the same web app (content.uploadEndpoint). Creators sign in with
    their own name and password (script.js), so the dashboard is theirs; coordinators sign in with the coordinator
@@ -7,7 +7,7 @@ let club = null, clubBusy = false, coord = null, coordTab = 'applications', coor
 
 const clubName = () => storageGet(UPLOAD_NAME_KEY) || '';
 const firstName = n => String(n || '').split(/\s+/)[0];
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const plural = (n, word, many = word + 's') => `${n} ${n === 1 ? word : many}`;
 function weekRange(b) {
   if (!b || !dateValid(b.weekStart)) return '';
   const a = fmt(b.weekStart, { month: 'short', day: 'numeric' });
@@ -41,37 +41,38 @@ function renderDashboard() {
   if (!club) { box.innerHTML = `<p class="quiet">${clubBusy ? 'Loading your Creators Club…' : ''}</p>`; return; }
   if (!club.ok) { box.innerHTML = '<p class="quiet">Your Creators Club dashboard couldn’t load right now. Try again in a minute.</p>'; return; }
   const name = clubName(), m = club.member, b = club.brief;
-  const head = `<div class="club-head"><div><h2 id="dash-title">${name ? `Hi, ${escapeHTML(firstName(name))}!` : 'Your Creators Club'}</h2><p>${m ? escapeHTML(memberLine(m)) : 'Your weekly brief, posts and standing, all in one place.'}</p></div>${namePickerHTML('club-name', name ? 'Not you?' : 'Who are you?')}</div>`;
-  if (!name) { box.innerHTML = head + `<p class="quiet">Choose your name to see this week’s brief and your contributions.</p>`; return; }
+  const head = `<div class="club-head"><div><h2 id="dash-title">${name ? `Hi, ${escapeHTML(firstName(name))}!` : 'Your Creators Club'}</h2><p>${m ? escapeHTML(memberLine(m)) : 'Your brief, feed posts, stories and standing, all in one place.'}</p></div>${namePickerHTML('club-name', name ? 'Not you?' : 'Who are you?')}</div>`;
+  if (!name) { box.innerHTML = head + `<p class="quiet">Choose your name to see the current brief and your commitments.</p>`; return; }
   if (!m || ['Inactive', 'Alumni'].includes(m.status)) { box.innerHTML = head + outsiderCard(m); return; }
-  const part = club.participation || {}, week = (part.history || []).find(h => b && h.briefId === b.id) || { themed: 0, flexible: 0 };
+  const part = club.participation || {}, week = part.thisWeek || { stories: 0 }, month = part.thisMonth || { posts: 0 };
   const req = club.settings || {}, need = n => Math.max(0, Number(n) || 0);
   const paused = m.status === 'Paused';
   box.innerHTML = head + `<div class="club-grid">
     <article class="club-card brief-card">${b ? `
-      <p class="club-kicker">This week’s brief${weekRange(b) ? ` · ${escapeHTML(weekRange(b))}` : ''}</p>
+      <p class="club-kicker">Current brief${weekRange(b) ? ` · ${escapeHTML(weekRange(b))}` : ''}</p>
       <h3>${escapeHTML(b.title || b.theme)}</h3>
       ${b.theme && b.title && b.theme !== b.title ? `<p class="brief-theme">${escapeHTML(b.theme)}</p>` : ''}
       <dl class="brief-facts">${[['Format', b.format], ['Length', b.length], ['Publish', b.window], ['CTA', b.cta]].filter(x => x[1]).map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHTML(v)}</dd></div>`).join('')}</dl>
       ${b.direction ? `<p class="brief-direction">${escapeHTML(b.direction.length > 220 ? b.direction.slice(0, 220).trim() + '…' : b.direction)}</p>` : ''}
-      <div class="button-row">${paused ? '' : `<button class="button" type="button" data-action="club-submit" data-kind="themed">Submit your post</button>`}<button class="button secondary" type="button" data-action="club-brief">Read the full brief</button></div>`
-      : `<p class="club-kicker">This week’s brief</p><h3>Coming soon</h3><p>The coordinators will post this week’s theme here. Meanwhile, pick an idea from the Idea Bank or join a casting call.</p>`}
+      <div class="button-row"><button class="button" type="button" data-action="club-brief">Read the full brief</button></div>`
+      : `<p class="club-kicker">Brief</p><h3>Coming soon</h3><p>A new brief with trending audios, hooks and ideas lands here every other week. Meanwhile, pick an idea from the Idea Bank or join a casting call.</p>`}
     </article>
     <article class="club-card">
-      <p class="club-kicker">My week</p>
+      <p class="club-kicker">My commitments</p>
       ${paused ? `<p class="standing standing-paused">Paused${m.requestUntil ? ` until ${escapeHTML(shortDate(m.requestUntil))}` : ''}</p><p>Your history is saved. Come back whenever you’re ready.</p><div class="button-row"><button class="button secondary" type="button" data-action="club-request" data-type="resume">I’m back</button></div>` : `
       <ul class="club-progress">
-        ${need(req.requiredThemed) ? `<li class="${week.themed >= need(req.requiredThemed) ? 'done' : ''}"><span>${week.themed >= need(req.requiredThemed) ? '✓' : ''}</span>Themed post <em>${Math.min(week.themed, need(req.requiredThemed))} of ${need(req.requiredThemed)}</em></li>` : ''}
-        ${need(req.requiredFlexible) ? `<li class="${week.flexible >= need(req.requiredFlexible) ? 'done' : ''}"><span>${week.flexible >= need(req.requiredFlexible) ? '✓' : ''}</span>Flexible contribution <em>${Math.min(week.flexible, need(req.requiredFlexible))} of ${need(req.requiredFlexible)}</em></li>` : ''}
+        ${need(req.requiredPosts) ? progressItem(month.posts, need(req.requiredPosts), 'Feed post this month', 'reel, carousel or collab') : ''}
+        ${need(req.requiredStories) ? progressItem(week.stories, need(req.requiredStories), 'Story this week', 'Monday to Sunday') : ''}
       </ul>
       ${standingNote(part, m)}
-      <div class="button-row"><button class="button secondary" type="button" data-action="club-submit" data-kind="flexible">Add a flexible contribution</button></div>`}
+      <div class="button-row"><button class="button" type="button" data-action="club-submit" data-kind="post">Log a feed post</button><button class="button secondary" type="button" data-action="club-submit" data-kind="story">Log a story</button></div>`}
       ${m.request ? `<p class="quiet">Your “${escapeHTML(m.request.toLowerCase())}” request is with the coordinators.</p>` : paused ? '' : `<p class="quiet club-pause"><button class="text-button" type="button" data-action="club-request" data-type="pause">Need a break? Request a pause</button></p>`}
     </article>
     <article class="club-card">
       <p class="club-kicker">My contributions</p>
       ${(club.submissions || []).length ? `<ul class="club-subs">${club.submissions.slice(0, 5).map(subRow).join('')}</ul>` : '<p class="quiet">Nothing yet. Your published links show up here once you submit them.</p>'}
-      ${part.weeksFinished ? `<p class="quiet">${plural(part.weeksMet, 'week')} met out of ${part.weeksFinished} since you joined.</p>` : ''}
+      ${part.weeksFinished || part.monthsFinished ? `<p class="quiet">${[part.monthsFinished ? `Feed posts: ${part.monthsMet} of ${plural(part.monthsFinished, 'month')}` : '', part.weeksFinished ? `stories: ${part.weeksMet} of ${plural(part.weeksFinished, 'week')}` : ''].filter(Boolean).join(' · ')} since you joined.</p>` : ''}
+      <p class="quiet"><button class="text-button" type="button" data-action="guidelines">Read the Creators Club guidelines</button></p>
     </article>
     <article class="club-card club-links">
       <p class="club-kicker">Around the Club</p>
@@ -87,16 +88,21 @@ function memberLine(m) {
   const bits = [m.status === 'Active' ? 'Creators Club member' : m.status === 'Needs Check-In' ? 'Creators Club member · check-in pending' : `Creators Club · ${m.status}`, m.market, m.joined ? `since ${shortDate(m.joined)}` : ''];
   return bits.filter(Boolean).join(' · ');
 }
+function progressItem(n, need, label, hint) {
+  const done = n >= need;
+  return `<li class="${done ? 'done' : ''}"><span>${done ? '✓' : ''}</span><div>${escapeHTML(label)}<small>${escapeHTML(hint)}</small></div><em>${Math.min(n, need)} of ${need}</em></li>`;
+}
 function standingNote(part, m) {
   const s = part && part.standing;
   if (m.status === 'Needs Check-In') return `<p class="standing standing-review">A coordinator will check in with you soon. If life got busy, that’s okay: just let us know.</p>`;
-  if (s === 'Needs review') return `<p class="standing standing-review">You’ve missed a couple of weeks. A coordinator will check in, or request a pause if you need time away.</p>`;
-  if (s === 'Reminder') return `<p class="standing standing-reminder">Friendly reminder: last week’s brief didn’t get a post. No stress, just share this week’s when you can.</p>`;
+  if (s === 'Needs review') return `<p class="standing standing-review">It’s been a while since your last ${part.missedMonths >= part.missedWeeks / 4 && part.missedMonths ? 'feed post' : 'story'}. A coordinator will check in, or request a pause if you need time away.</p>`;
+  if (s === 'Reminder') return `<p class="standing standing-reminder">Friendly reminder: ${part.missedMonths ? 'last month didn’t get a feed post' : `no story for ${plural(part.missedWeeks, 'week')}`}. No stress: consistency, not perfection.</p>`;
   return `<p class="standing standing-good">You’re on track. Thanks for showing up!</p>`;
 }
+const subLabel = s => s.kind === 'story' ? 'Story' : s.briefTitle ? `Feed post · ${s.briefTitle}` : 'Feed post';
 function subRow(s) {
   const st = { Counted: 'counted', 'Needs changes': 'changes' }[s.status] || 'sent';
-  return `<li><span class="sub-dot sub-${st}" aria-hidden="true"></span><span><strong>${escapeHTML(s.kind === 'themed' ? (s.briefTitle || 'Themed post') : 'Flexible contribution')}</strong>${escapeHTML(shortDate((s.submitted || '').slice(0, 10)))} · ${escapeHTML(s.status)}</span>${externalLink(s.url, 'View', 'text-button')}</li>`;
+  return `<li><span class="sub-dot sub-${st}" aria-hidden="true"></span><span><strong>${escapeHTML(subLabel(s))}</strong>${escapeHTML(shortDate(s.date || (s.submitted || '').slice(0, 10)))} · ${escapeHTML(s.status)}</span>${externalLink(s.url, 'View', 'text-button')}</li>`;
 }
 function outsiderCard(m) {
   const a = club.application;
@@ -111,51 +117,62 @@ function outsiderCard(m) {
 /* ---------- Brief, submissions and requests ---------- */
 function openClubAction(action, data) {
   if (action === 'club-brief') return openClubBrief();
-  if (action === 'club-submit') return openClubSubmit(data.kind);
+  if (action === 'club-submit') return openClubSubmit(data.kind, !!data.brief);
   if (action === 'club-request') return openClubRequest(data.type);
   if (action === 'coordinator') return openCoordinator();
 }
 function briefSections(b) {
-  return [['Weekly theme', b.theme], ['Format', [b.format, b.length].filter(Boolean).join(' · ')], ['Creative direction', b.direction], ['Hooks & talking points', b.hooks], ['Deliverables', b.deliverables], ['Publishing window', b.window], ['Call to action', b.cta], ['Assets & resources', b.resources], ['Brand & product guidelines', b.guidelines]]
+  return [['Theme', b.theme], ['Trending audios', b.audios], ['Hooks & talking points', b.hooks], ['Creative direction', b.direction], ['Upcoming launches', b.launches], ['Format', [b.format, b.length].filter(Boolean).join(' · ')], ['Deliverables', b.deliverables], ['Publishing window', b.window], ['Call to action', b.cta], ['Assets & resources', b.resources], ['Brand & product guidelines', b.guidelines]]
     .filter(x => x[1]).map(([k, v]) => `<section class="brief-part"><h3>${k}</h3><p>${richText(v)}</p></section>`).join('');
 }
 function openClubBrief() {
   const b = club && club.brief; if (!b) return;
   title.textContent = b.title || b.theme;
-  body.innerHTML = `<p class="club-kicker">${escapeHTML(weekRange(b))} · Community brief</p>${briefSections(b)}
-    <p class="flow-note">Same theme, your voice. Bring your own personality, product knowledge and perspective: nobody needs the same script.</p>
-    <div class="button-row">${isMember(club.member) ? `<button class="button" type="button" data-action="club-submit" data-kind="themed">Submit your post</button>` : ''}${uploadButton('Upload clips instead', 'collab', b.title || b.theme)}</div>`;
+  body.innerHTML = `<p class="club-kicker">${escapeHTML(weekRange(b))} · Brief</p>${briefSections(b)}
+    <p class="flow-note">For inspiration: use any hooks, ideas, templates or B-roll shared with the group, in your own voice. Post it as your feed post for the month if it fits.</p>
+    <div class="button-row">${isMember(club.member) ? `<button class="button" type="button" data-action="club-submit" data-kind="post" data-brief="1">Log a feed post</button>` : ''}${uploadButton('Upload clips', 'collab', b.title || b.theme, 'button secondary')}</div>`;
   showModal();
 }
-function openClubSubmit(kind = 'themed') {
-  const b = club && club.brief, name = clubName();
-  title.textContent = 'Share your published post';
-  if (!isMember(club && club.member)) { body.innerHTML = '<p>Submissions are for active Creators Club members. Choose your name on the dashboard first.</p>'; return showModal(); }
-  const k = kind === 'flexible' || !b ? 'flexible' : 'themed';
+// Log a feed post (the link is required) or a story (stories disappear after a day, so the link is optional).
+function openClubSubmit(kind = 'post', fromBrief = false) {
+  const b = club && club.brief, name = clubName(), k = kind === 'story' ? 'story' : 'post', today = new Date().toLocaleDateString('en-CA');
+  title.textContent = k === 'story' ? 'Log a story' : 'Log a feed post';
+  if (!isMember(club && club.member)) { body.innerHTML = '<p>Logging posts is for active Creators Club members.</p>'; return showModal(); }
   body.innerHTML = `<form id="club-submit-form" novalidate>
-      <p>Paste the link once it’s live. It counts toward your week as soon as you send it.</p>
-      <fieldset class="choices"><legend>What is it?</legend>
-        ${b ? `<label class="check"><input type="radio" name="cs-kind" value="themed"${k === 'themed' ? ' checked' : ''}>Themed post for “${escapeHTML(b.title || b.theme)}”</label>` : ''}
-        <label class="check"><input type="radio" name="cs-kind" value="flexible"${k === 'flexible' ? ' checked' : ''}>Flexible contribution: another post, a collab task or another approved deliverable</label>
+      <fieldset class="choices"><legend>What did you share?</legend>
+        <label class="check"><input type="radio" name="cs-kind" value="post"${k === 'post' ? ' checked' : ''}>A feed post: a reel, carousel or collab post</label>
+        <label class="check"><input type="radio" name="cs-kind" value="story"${k === 'story' ? ' checked' : ''}>An Instagram story</label>
       </fieldset>
-      <label for="cs-url">Link to your published post</label>
-      <input id="cs-url" type="url" inputmode="url" maxlength="500" placeholder="https://www.instagram.com/reel/…" required>
+      <label for="cs-date">When did it go up?</label>
+      <input id="cs-date" type="date" max="${today}" value="${today}">
+      <label for="cs-url" id="cs-url-label">${k === 'story' ? 'Link to the story (optional)' : 'Link to your post'}</label>
+      <input id="cs-url" type="url" inputmode="url" maxlength="500" placeholder="https://www.instagram.com/${k === 'story' ? 'stories' : 'reel'}/…">
+      ${b ? `<label class="check" id="cs-brief-row"${k === 'story' ? ' hidden' : ''}><input type="checkbox" id="cs-brief"${fromBrief ? ' checked' : ''}>It’s for the brief “${escapeHTML(b.title || b.theme)}”</label>` : ''}
       <label for="cs-note">Anything the coordinators should know? (optional)</label>
-      <textarea id="cs-note" maxlength="500" placeholder="For example: collab with Lora, or the edit I made for the Squad Reel."></textarea>
-      <p class="quiet">Sending as ${escapeHTML(name)}.</p>
-      <div class="form-actions"><button class="button" type="submit" id="cs-go">Send link</button>${uploadButton('Upload files instead', 'collab', b ? (b.title || b.theme) : '')}</div>
+      <textarea id="cs-note" maxlength="500" placeholder="For example: collab with Lora, or a story about car seat checks."></textarea>
+      <p class="quiet">Logging as ${escapeHTML(name)}. It counts as soon as you send it.</p>
+      <div class="form-actions"><button class="button" type="submit" id="cs-go">Log it</button></div>
     </form>`;
+  const kindNow = () => (document.querySelector('input[name="cs-kind"]:checked') || {}).value || 'post';
+  document.querySelectorAll('input[name="cs-kind"]').forEach(r => { r.onchange = () => {
+    const story = kindNow() === 'story'; title.textContent = story ? 'Log a story' : 'Log a feed post';
+    document.getElementById('cs-url-label').textContent = story ? 'Link to the story (optional)' : 'Link to your post';
+    document.getElementById('cs-url').placeholder = `https://www.instagram.com/${story ? 'stories' : 'reel'}/…`;
+    const row = document.getElementById('cs-brief-row'); if (row) row.hidden = story;
+  }; });
   $('#club-submit-form').onsubmit = async ev => {
     ev.preventDefault();
-    const url = document.getElementById('cs-url').value.trim(), kindVal = (document.querySelector('input[name="cs-kind"]:checked') || {}).value || 'flexible';
-    if (!/^https:\/\/\S+$/.test(url)) { status.textContent = 'Paste the full link to your post. It starts with https://'; return document.getElementById('cs-url').focus(); }
+    const kindVal = kindNow(), url = document.getElementById('cs-url').value.trim(), date = document.getElementById('cs-date').value || today;
+    if (kindVal === 'post' && !/^https:\/\/\S+$/.test(url)) { status.textContent = 'Paste the full link to your post. It starts with https://'; return document.getElementById('cs-url').focus(); }
+    if (url && !/^https:\/\/\S+$/.test(url)) { status.textContent = 'Links start with https://'; return document.getElementById('cs-url').focus(); }
+    const briefBox = document.getElementById('cs-brief');
     const go = document.getElementById('cs-go'); go.disabled = true; go.textContent = 'Sending…'; status.textContent = '';
     try {
-      const res = await uploadRequest({ action: 'club-submit', name, kind: kindVal, briefId: kindVal === 'themed' && b ? b.id : '', url, note: document.getElementById('cs-note').value.trim() });
+      const res = await uploadRequest({ action: 'club-submit', name, kind: kindVal, date, briefId: kindVal === 'post' && b && briefBox && briefBox.checked ? b.id : '', url, note: document.getElementById('cs-note').value.trim() });
       if (!res.ok) throw new Error(res.error || '');
-      body.innerHTML = `<p><strong>Thank you!</strong> Your ${kindVal === 'themed' ? 'post for this week' : 'contribution'} is in. Go cheer on a few other creators while you’re here.</p>`;
+      body.innerHTML = `<p><strong>Logged, thank you!</strong> Your ${kindVal === 'story' ? 'story' : 'feed post'} counts toward your ${kindVal === 'story' ? 'week' : 'month'}. While you’re here, go cheer on a few other creators: real comments and story replies make the Club work.</p>`;
       loadClub();
-    } catch (err) { status.textContent = err.message || 'That didn’t send. Try again in a minute.'; go.disabled = false; go.textContent = 'Send link'; }
+    } catch (err) { status.textContent = err.message || 'That didn’t send. Try again in a minute.'; go.disabled = false; go.textContent = 'Log it'; }
   };
   showModal();
 }
@@ -216,7 +233,7 @@ function coordGone() {
   body.innerHTML = `<p>Coordinator tools open when you sign in with the coordinator password. If it changed, sign out and sign back in with the new one.</p><div class="button-row"><button class="button" type="button" data-signout>Sign out</button></div>`;
   if (!modal.open) showModal();
 }
-const COORD_TABS = [['applications', 'Applications'], ['roster', 'Roster'], ['briefs', 'Weekly briefs'], ['content', 'Content'], ['participation', 'Participation'], ['analytics', 'Analytics'], ['settings', 'Settings']];
+const COORD_TABS = [['applications', 'Applications'], ['roster', 'Roster'], ['briefs', 'Briefs'], ['content', 'Content'], ['participation', 'Participation'], ['analytics', 'Analytics'], ['settings', 'Settings']];
 function renderCoord() {
   const c = coord; if (!c) return;
   const openApps = c.applications.filter(a => ['Submitted', 'Under Review'].includes(a.status)).length;
@@ -261,7 +278,7 @@ function coordAccounts(c) {
       <span class="acct-actions">${a.hasPassword ? `<button class="text-button" type="button" data-coord-account="reset" data-name="${escapeHTML(a.name)}">Reset password</button>` : ''}${a.bio ? `<button class="text-button danger" type="button" data-coord-account="clear-bio" data-name="${escapeHTML(a.name)}">Take bio down</button>` : ''}</span></li>`).join('')}</ul></div>`;
 }
 const standingClass = s => ({ 'On track': 'stage-published', 'Reminder': 'stage-filming', 'Needs review': 'stage-casting stage-alert', 'Paused': 'stage-idea' })[s] || 'stage-idea';
-const BRIEF_FIELDS = [['title', 'Campaign title', 'text'], ['theme', 'Weekly theme', 'text'], ['weekStart', 'Week starts', 'date'], ['weekEnd', 'Week ends', 'date'], ['format', 'Format', 'text', 'Instagram Reel'], ['length', 'Length', 'text', 'About 15–30 seconds'], ['window', 'Publishing window', 'text', 'Wednesday–Friday'], ['cta', 'Call to action', 'text', 'Explore the free Baby Concierge service'], ['direction', 'Creative direction', 'textarea'], ['hooks', 'Suggested hooks or talking points', 'textarea'], ['deliverables', 'Deliverables', 'textarea'], ['resources', 'Assets & resources (links welcome)', 'textarea'], ['guidelines', 'Brand or product guidelines', 'textarea']];
+const BRIEF_FIELDS = [['title', 'Brief title', 'text'], ['theme', 'Theme or concept', 'text'], ['weekStart', 'Starts', 'date'], ['weekEnd', 'Ends (blank = two weeks)', 'date'], ['format', 'Format', 'text', 'Reel, carousel or story'], ['length', 'Length', 'text', 'About 15–30 seconds'], ['window', 'Publishing window', 'text', 'Anytime these two weeks'], ['cta', 'Call to action', 'text', 'Explore the free Baby Concierge service'], ['audios', 'Trending audios', 'textarea'], ['hooks', 'Hooks & talking points', 'textarea'], ['direction', 'Concepts & creative direction', 'textarea'], ['launches', 'Upcoming launches', 'textarea'], ['deliverables', 'Deliverables', 'textarea'], ['resources', 'Assets & resources (links welcome)', 'textarea'], ['guidelines', 'Brand or product guidelines', 'textarea']];
 function coordBriefs(c) {
   if (briefDraft) {
     const b = briefDraft;
@@ -271,44 +288,48 @@ function coordBriefs(c) {
       <div class="form-actions"><button class="button" type="submit">Save draft</button><button class="button secondary" type="button" data-coord-cancel>Cancel</button></div></form>`;
   }
   return `<div class="button-row"><button class="button" type="button" data-coord-new-brief>New brief</button></div>
-    ${c.briefs.length ? `<ul class="coord-list">${c.briefs.map(b => `<li class="coord-card"><div class="app-top"><strong>${escapeHTML(b.title || b.theme || 'Untitled')}</strong><span class="stage ${b.status === 'Published' ? 'stage-published' : b.status === 'Draft' ? 'stage-filming' : 'stage-idea'}">${b.id === c.current ? 'This week' : escapeHTML(b.status)}</span></div>
+    ${c.briefs.length ? `<ul class="coord-list">${c.briefs.map(b => `<li class="coord-card"><div class="app-top"><strong>${escapeHTML(b.title || b.theme || 'Untitled')}</strong><span class="stage ${b.status === 'Published' ? 'stage-published' : b.status === 'Draft' ? 'stage-filming' : 'stage-idea'}">${b.id === c.current ? 'Current' : escapeHTML(b.status)}</span></div>
       <p class="quiet">${escapeHTML([weekRange(b) || 'No dates yet', b.format, b.updatedBy ? 'updated by ' + b.updatedBy : ''].filter(Boolean).join(' · '))}</p>
-      <div class="trk-links"><button class="text-button" type="button" data-coord-edit="${escapeHTML(b.id)}">Edit</button><button class="text-button" type="button" data-coord-brief="duplicate" data-id="${escapeHTML(b.id)}">Duplicate for next week</button>${b.status === 'Published' ? `<button class="text-button" type="button" data-coord-brief="unpublish" data-id="${escapeHTML(b.id)}">Unpublish</button>` : `<button class="text-button" type="button" data-coord-brief="publish" data-id="${escapeHTML(b.id)}">Publish</button>`}${b.status !== 'Archived' ? `<button class="text-button" type="button" data-coord-brief="archive" data-id="${escapeHTML(b.id)}">Archive</button>` : ''}</div></li>`).join('')}</ul>`
-      : emptyState('No briefs yet.', 'Create the first weekly brief. It stays a draft until you publish it.', '', ICON.spark)}
+      <div class="trk-links"><button class="text-button" type="button" data-coord-edit="${escapeHTML(b.id)}">Edit</button><button class="text-button" type="button" data-coord-brief="duplicate" data-id="${escapeHTML(b.id)}">Duplicate for the next brief</button>${b.status === 'Published' ? `<button class="text-button" type="button" data-coord-brief="unpublish" data-id="${escapeHTML(b.id)}">Unpublish</button>` : `<button class="text-button" type="button" data-coord-brief="publish" data-id="${escapeHTML(b.id)}">Publish</button>`}${b.status !== 'Archived' ? `<button class="text-button" type="button" data-coord-brief="archive" data-id="${escapeHTML(b.id)}">Archive</button>` : ''}</div></li>`).join('')}</ul>`
+      : emptyState('No briefs yet.', 'Create the first brief: trending audios, hooks, concepts or upcoming launches. One every other week; it stays a draft until you publish it.', '', ICON.spark)}
     <p class="quiet">You can also edit briefs right in the “Creators Club program” sheet in the shared drive.</p>`;
 }
 function coordContent(c) {
-  return c.submissions.length ? `<ul class="coord-list">${c.submissions.map(s => `<li class="coord-card coord-sub"><div class="app-top"><strong>${escapeHTML(s.name)}</strong><span class="quiet">${escapeHTML(shortDate(s.submitted.slice(0, 10)))}</span></div>
-      <p>${escapeHTML(s.kind === 'themed' ? 'Themed: ' + (s.briefTitle || 'brief') : 'Flexible contribution')}${s.note ? ` · “${escapeHTML(s.note)}”` : ''}</p>
+  return c.submissions.length ? `<ul class="coord-list">${c.submissions.map(s => `<li class="coord-card coord-sub"><div class="app-top"><strong>${escapeHTML(s.name)}</strong><span class="quiet">${escapeHTML(shortDate(s.date || s.submitted.slice(0, 10)))}</span></div>
+      <p>${escapeHTML(subLabel(s))}${s.note ? ` · “${escapeHTML(s.note)}”` : ''}</p>
       <div class="coord-row">${externalLink(s.url, 'Open the post', 'text-button')}<label>Status ${selectHTML(`data-coord-sub="${escapeHTML(s.id)}"`, ['Submitted', 'Counted', 'Needs changes'], s.status)}</label></div></li>`).join('')}</ul>`
-    : emptyState('No submissions yet.', 'Published links from creators show up here.', '', ICON.play);
+    : emptyState('Nothing logged yet.', 'Feed posts and stories creators log show up here.', '', ICON.play);
 }
 function coordParticipation(c) {
-  const order = { 'Needs review': 0, 'Reminder': 1, 'On track': 2, 'Paused': 3 };
+  const order = { 'Needs review': 0, 'Reminder': 1, 'On track': 2, 'Paused': 3 }, st = c.settings;
   const rows = c.participation.slice().sort((a, b) => (order[a.standing] ?? 4) - (order[b.standing] ?? 4));
-  return `<p class="quiet">Suggestions only: nothing changes until you update someone on the Roster tab. ${c.settings.reminderAfter ? `Reminder after ${plural(c.settings.reminderAfter, 'missed week')}` : ''}${c.settings.reviewAfter ? `, review after ${c.settings.reviewAfter} in a row.` : '.'}</p>
+  const dots = (list, label, tip) => list.length ? `<p class="week-dots" aria-label="${label}"><span class="dots-label">${label}</span>${list.slice().reverse().map(h => `<span class="${!h.finished ? 'now' : h.met ? 'met' : 'miss'}" title="${escapeHTML(tip(h) + ': ' + (h.finished ? (h.met ? 'met' : 'missed') : 'in progress'))}">${!h.finished ? '…' : h.met ? '✓' : '·'}</span>`).join('')}</p>` : '';
+  return `<p class="quiet">From the guidelines: ${plural(st.requiredPosts, 'feed post')} a month and ${plural(st.requiredStories, 'story', 'stories')} a week. Reminder after ${plural(st.storyReminderWeeks, 'week')} without a story or ${plural(st.postReminderMonths, 'month')} without a feed post; check-in after ${st.storyReviewWeeks} weeks or ${st.postReviewMonths} months. Suggestions only: nothing changes until you update someone on the Roster tab.</p>
     ${rows.length ? `<ul class="coord-list">${rows.map(p => `<li class="coord-card"><div class="app-top"><strong>${escapeHTML(p.name)}</strong><span class="stage ${standingClass(p.standing)}">${escapeHTML(p.standing)}</span></div>
-      <p class="quiet">${p.weeksFinished ? `${p.weeksMet} of ${plural(p.weeksFinished, 'week')} met` : 'No finished weeks yet'}${p.missedInARow ? ` · missed ${p.missedInARow} in a row` : ''}</p>
-      ${p.history.length ? `<p class="week-dots">${p.history.slice().reverse().map(h => `<span class="${!h.finished ? 'now' : h.met ? 'met' : 'miss'}" title="${escapeHTML((h.title || '') + ': ' + (h.finished ? (h.met ? 'met' : 'missed') : 'this week'))}">${!h.finished ? '…' : h.met ? '✓' : '·'}</span>`).join('')}</p>` : ''}
+      <p class="quiet">${[p.monthsFinished ? `feed posts ${p.monthsMet} of ${plural(p.monthsFinished, 'month')}` : '', p.weeksFinished ? `stories ${p.weeksMet} of ${plural(p.weeksFinished, 'week')}` : '', p.missedMonths ? `no feed post for ${plural(p.missedMonths, 'month')}` : '', p.missedWeeks ? `no story for ${plural(p.missedWeeks, 'week')}` : ''].filter(Boolean).join(' · ') || 'No finished weeks yet'}</p>
+      ${dots(p.months || [], 'Months', h => h.month)}${dots(p.weeks || [], 'Weeks', h => 'Week of ' + shortDate(h.weekStart))}
       ${p.standing === 'Needs review' && p.status !== 'Needs Check-In' ? `<button class="text-button" type="button" data-coord-request="${escapeHTML(p.name)}" data-to="Needs Check-In" data-keep>Mark “Needs Check-In”</button>` : ''}</li>`).join('')}</ul>` : '<p class="quiet">Add members on the Roster tab to start tracking.</p>'}`;
 }
 function coordAnalytics(c) {
-  const a = c.analytics, tile = (n, label, note = '') => `<div class="stat-tile"><strong>${n}</strong><span>${label}</span>${note ? `<em>${note}</em>` : ''}</div>`;
+  const a = { lastWeek: {}, lastMonth: {}, thisWeek: {}, thisMonth: {}, ...c.analytics }, tile = (n, label, note = '') => `<div class="stat-tile"><strong>${n}</strong><span>${label}</span>${note ? `<em>${note}</em>` : ''}</div>`;
+  const pct = r => r && r.rate != null ? r.rate + '%' : '—';
+  const monthName = ym => ym ? new Date(ym + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long' }) : '';
   return `<div class="stat-grid">
     ${tile(a.activeCreators, 'Active creators')}
-    ${a.lastWeek ? tile(a.lastWeek.rate == null ? '—' : a.lastWeek.rate + '%', 'Participation last week', `${a.lastWeek.met} of ${a.lastWeek.eligible} · ${escapeHTML(a.lastWeek.title || '')}`) : tile('—', 'Participation last week', 'No finished brief weeks yet')}
-    ${a.thisWeek ? tile(a.thisWeek.themedPosts, 'Themed posts this week', `${plural(a.thisWeek.creatorsPosted, 'creator')} so far`) : tile('—', 'Themed posts this week', 'No published brief')}
-    ${tile(a.publishedLinks, 'Published links shared')}
-    ${tile(a.repeatCreators, 'Repeat creators', 'Met 2+ weeks')}
+    ${tile(pct(a.lastWeek), 'Shared a story last week', a.lastWeek.eligible ? `${a.lastWeek.met} of ${a.lastWeek.eligible}` : 'No finished weeks yet')}
+    ${tile(pct(a.lastMonth), `Posted to their feed in ${escapeHTML(monthName(a.lastMonth.month))}`, a.lastMonth.eligible ? `${a.lastMonth.met} of ${a.lastMonth.eligible}` : 'No finished months yet')}
+    ${tile(a.thisWeek.stories, 'Stories this week', `${plural(a.thisWeek.creators, 'creator')} so far`)}
+    ${tile(a.thisMonth.posts, 'Feed posts this month', `${plural(a.thisMonth.creators, 'creator')} so far`)}
+    ${tile(a.publishedLinks, 'Links shared')}
     ${tile(publishedProjects().length, 'Squad Reels published', 'From Made by the Squad')}
-    ${tile(a.weeksRun, 'Brief weeks run')}
+    ${tile(a.briefsRun, 'Briefs sent')}
   </div>
-  <p class="flow-note"><strong>Reach and engagement aren’t tracked yet.</strong> They need a verified source (like Instagram insights shared by each creator). Until then, nothing here estimates or invents them.</p>`;
+  <p class="flow-note"><strong>Reach and engagement aren’t tracked yet.</strong> They need a verified source (like Instagram insights shared by each creator). Until then, nothing here estimates or invents them. Community engagement (comments, likes, story replies) isn’t tracked either.</p>`;
 }
 function coordSettings(c) {
   const s = c.settings, num = (k, label) => `<label>${label}<input name="${k}" type="number" min="0" max="20" value="${escapeHTML(String(s[k]))}"></label>`;
-  return `<form class="coord-card" data-coord-form="settings"><h3>Weekly commitment</h3><p class="quiet">Proposed pilot defaults. Adjust them before launch; changes apply right away.</p>
-    <div class="brief-fields">${num('requiredThemed', 'Themed posts each week')}${num('requiredFlexible', 'Flexible contributions each week')}${num('reminderAfter', 'Missed weeks before a friendly reminder')}${num('reviewAfter', 'Missed weeks in a row before coordinator review')}
+  return `<form class="coord-card" data-coord-form="settings"><h3>Commitments</h3><p class="quiet">Set from the Creators Club guidelines. Changes apply right away.</p>
+    <div class="brief-fields">${num('requiredPosts', 'Feed posts each month')}${num('requiredStories', 'Stories each week')}${num('storyReminderWeeks', 'Weeks without a story before a reminder')}${num('storyReviewWeeks', 'Weeks without a story before a check-in')}${num('postReminderMonths', 'Months without a feed post before a reminder')}${num('postReviewMonths', 'Months without a feed post before a check-in')}${num('briefEveryWeeks', 'Weeks between briefs')}
     <label class="wide">Creator Circle link<input name="creatorCircleUrl" type="url" value="${escapeHTML(s.creatorCircleUrl || content.creatorCircleUrl || '')}" placeholder="https://tot-squad-hub.disco.co/channel/…"></label></div>
     <div class="form-actions"><button class="button" type="submit">Save settings</button></div></form>
     <div class="flow-note"><strong>Coming later: brand partnerships.</strong><p>Briefs are all voluntary community content today. Sponsored campaigns, paid UGC, licensing and compensation would be a separate brief type with its own consent and disclosure steps, and aren’t live.</p></div>

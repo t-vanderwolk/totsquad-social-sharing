@@ -372,13 +372,14 @@ function renderDeadlines() {
   $('#deadlines').innerHTML = unique.length ? unique.map(d => `<div class="deadline-item"><strong>${escapeHTML(d.title)}</strong><time datetime="${d.date}">${dateLabel(d.date)} · ${escapeHTML(content.timeZone)}</time>${externalLink(d.url,'View details','text-button')}</div>`).join('') : '<p class="quiet">No deadlines have been announced. New dates show up here first.</p>';
 }
 
-const TOOL_ICON = { palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝', bulb:'💡', wave:'👋' };
+const TOOL_ICON = { heart:'💜', palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝', bulb:'💡', wave:'👋' };
 // Toolkit: everything opens inside the Creators Club (panels or pages in this site), never an outside link.
 function toolkitItems() {
   return [
     { label:'Brand & voice', action:'brand', desc:'Colors, fonts and how we sound', icon:'palette' },
     { label:'Starter guide', action:'guide', desc:'Turn a spark into a Reel', icon:'spark' },
     { label:'Before you share', action:'checklist', desc:'A quick final check', icon:'check' },
+    { label:'Creators Club guidelines', action:'guidelines', desc:'Our purpose, expectations and community', icon:'heart' },
     ...(UPLOAD_ON() ? [{ label:'Upload clips', action:'upload', dest:'collab', desc:'Send footage straight to the Squad’s Drive', icon:'upload' }] : []),
     { label:'Idea Bank', page:'ideas.html', desc:'Every Squad idea, ready to lead or build on', icon:'bulb' },
     { label:'B-roll library', page:'b-roll.html', desc:'Short clips anyone can reuse', icon:'film' },
@@ -393,7 +394,7 @@ function toolTile(r) {
     : `<button type="button" class="tool" data-action="${escapeHTML(r.action)}"${r.dest ? ` data-dest="${escapeHTML(r.dest)}"` : ''}>${inner}</button>`;
 }
 // The three guides anyone can read on the landing page, no password.
-const PUBLIC_GUIDES = ['brand','guide','checklist'];
+const PUBLIC_GUIDES = ['brand','guide','checklist','guidelines'];
 const PUBLIC_PAGES = ['b-roll.html']; // the Idea Bank is for signed-in creators
 const isPublicTool = r => PUBLIC_GUIDES.includes(r.action) || PUBLIC_PAGES.includes(r.page);
 function renderGuides() { $('#public-guides').innerHTML = toolkitItems().filter(isPublicTool).map(toolTile).join(''); }
@@ -1247,6 +1248,7 @@ function openPanel(action,data={}) {
   if (action === 'tracker') return openTracker();
   if (action === 'reel') return openReel(data.reel);
   if (action === 'profile') return openProfile();
+  if (action === 'guidelines') return openGuidelines();
   if (action === 'reel-new') return openReelForm('', data);
   if (action === 'reel-edit') return openReelForm(data.rid);
   if (action === 'reel-delete') return openReelDelete(data.rid);
@@ -1288,13 +1290,35 @@ function applicationCard(a) {
 
 /* "Apply to join": open to everyone. Sends to the "Creators Club applications" sheet (apps-script/upload.gs). */
 // What Creators Club members agree to (shown on the application and the landing page).
-const CLUB_EXPECTATIONS = ['Publish your weekly post on the shared theme and format, in your own voice','Share your published work with the group','Cheer each other on with real comments and feedback','Join collaborations when you can','Tell a coordinator when you need a week off or a pause'];
+/* The Creators Club guidelines (content.clubGuidelines): a panel in the toolkit, and the full text on the application
+   and the password set-up, where creators agree to them. */
+function guidelinesHTML() {
+  const g = content.clubGuidelines; if (!g) return '';
+  const e = escapeHTML, pairs = list => (list || []).map(([k, v]) => `<li><strong>${e(k)}</strong> ${e(v)}</li>`).join('');
+  return `<div class="guidelines">
+    <p class="guide-purpose">${e(g.purpose)}</p>
+    <h3>We’re building a community where we can</h3><ul>${pairs((g.goals || []).map(([k, v]) => [k + ':', v]))}</ul>
+    <h3>Membership expectations</h3><p>${e(g.membership)}</p>
+    <dl class="guide-expect">${(g.expectations || []).map(([k, v]) => `<div><dt>${e(k)}</dt><dd>${e(v)}</dd></div>`).join('')}</dl>
+    <p>${e(g.briefs)}</p>
+    <h3>Community guidelines</h3><p>To make this a valuable + welcoming space for everyone, we ask members to follow a few shared community principles:</p><ul>${pairs(g.principles)}</ul>
+    <h3>Accountability & membership</h3><p><strong>${e(g.accountability)}</strong></p><ul>${(g.accountabilityPoints || []).map(x => `<li>${e(x)}</li>`).join('')}</ul>
+    <h3>Our shared commitment</h3><p>${e(g.commitment)}</p><p><strong>Welcome to the Squad!</strong></p></div>`;
+}
+function openGuidelines() {
+  title.textContent = 'Creators Club guidelines';
+  body.innerHTML = guidelinesHTML() + (LOCKED() ? `<div class="button-row"><button class="button" type="button" data-action="apply">Apply to join</button></div>` : '');
+  showModal();
+}
+// Shown on the application and the password set-up: the full guidelines, folded, above the "I agree" box.
+const guidelinesFold = () => content.clubGuidelines ? `<details class="guide-fold"><summary>Read the Creators Club guidelines</summary>${guidelinesHTML()}</details>` : '';
+const CLUB_EXPECTATIONS = (content.clubGuidelines && content.clubGuidelines.expectations || []).map(([k, v]) => k);
 const CLUB_ROLES = ['On-camera creator','Baby gear educator','Editor','Scriptwriter','Creative producer','Photographer','UGC creator','Other creative contributor'];
 function openApply() {
   title.textContent = 'Apply to join the Creators Club';
   if (!UPLOAD_ON()) { body.innerHTML = `<p>Applications open soon. In the meantime, say hi in ${externalLink(content.discoUrl,'Social & Sharing','text-button')}.</p>`; return showModal(); }
   const radios = (name, list) => list.map((r,i) => `<label class="check"><input type="radio" name="${name}" value="${escapeHTML(r)}" id="${name}-${i}">${escapeHTML(r)}</label>`).join('');
-  body.innerHTML = `<p>The Creators Club is a smaller group of Baby Specialists who post on a shared weekly theme. Beginners are welcome: it’s about showing up, not follower count. It takes about three minutes, and a coordinator will reach out in Disco.</p>
+  body.innerHTML = `<p>The Creators Club is a group of Baby Specialists building visibility, credibility and real relationships together. Beginners are welcome: it’s about consistency, not perfection, and never follower count. It takes about three minutes, and a coordinator will reach out in Disco.</p>
     <form id="apply-form" novalidate>
       <div class="field-pair">
         <div><label for="ap-name">Your name, as it appears in Disco</label><input id="ap-name" type="text" autocomplete="name" maxlength="80" required></div>
@@ -1312,7 +1336,7 @@ function openApply() {
       <label for="ap-exp">Any filming, editing, scripting or other creative experience?</label>
       <textarea id="ap-exp" maxlength="800" placeholder="None yet is a perfectly good answer."></textarea>
       <fieldset class="choices"><legend>How comfortable are you on camera?</legend>${radios('ap-camera',['Not yet, I’d rather stay behind the camera','Getting there','Love it'])}</fieldset>
-      <fieldset class="choices"><legend>Realistically, how much can you post each week?</legend>${radios('ap-capacity',['One post a week','Two posts a week','Three or more','Not sure yet'])}</fieldset>
+      <fieldset class="choices"><legend>Can you share at least one feed post a month and one story a week?</legend>${radios('ap-capacity',['Yes','Most weeks','Not sure yet'])}</fieldset>
       <label for="ap-avail">When do you usually have time to film or post? (optional)</label>
       <input id="ap-avail" type="text" maxlength="200" placeholder="Weekday mornings, after shifts…">
       <label for="ap-why">Why would you like to join?</label>
@@ -1320,8 +1344,8 @@ function openApply() {
       <label for="ap-example">Link to something you’ve made (optional)</label>
       <input id="ap-example" type="url" inputmode="url" maxlength="300" placeholder="https://">
       <input class="hp" id="ap-website" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <div class="flow-note"><strong>Creators Club members agree to:</strong><ul class="club-expect">${CLUB_EXPECTATIONS.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul><p class="quiet">It’s voluntary and separate from your role as a specialist. Posts follow the Tot Squad brand guidelines and share families only with their consent.</p></div>
-      <label class="check agree"><input type="checkbox" id="ap-agree">I’ve read these and I’m in.</label>
+      <div class="flow-note"><strong>Creators Club members agree to:</strong><ul class="club-expect">${CLUB_EXPECTATIONS.map(x => `<li>${escapeHTML(x)}</li>`).join('')}<li>Give as much as you take, keep it authentic and professional, and say so when you need a break</li></ul>${guidelinesFold()}<p class="quiet">It’s voluntary and separate from your role as a specialist. Posts follow the Tot Squad brand guidelines and share families only with their consent.</p></div>
+      <label class="check agree"><input type="checkbox" id="ap-agree">I’ve read the Creators Club guidelines and I’m in.</label>
       <div class="form-actions"><button class="button" type="submit" id="ap-go">Send application</button></div>
     </form>`;
   $('#apply-form').onsubmit = async ev => {
@@ -1334,7 +1358,7 @@ function openApply() {
       why: val('ap-why'), example: val('ap-example'), agreed: document.getElementById('ap-agree').checked };
     if (!application.name) { status.textContent = 'Add your name first.'; return document.getElementById('ap-name').focus(); }
     if (!application.why) { status.textContent = 'Add a sentence about why you’d like to join.'; return document.getElementById('ap-why').focus(); }
-    if (!application.agreed) { status.textContent = 'Check the box to agree to the Creators Club expectations.'; return document.getElementById('ap-agree').focus(); }
+    if (!application.agreed) { status.textContent = 'Check the box to agree to the Creators Club guidelines.'; return document.getElementById('ap-agree').focus(); }
     const go = document.getElementById('ap-go'); go.disabled = true; go.textContent = 'Sending…'; status.textContent = '';
     try {
       const res = await uploadRequest({ action:'apply', application, website: val('ap-website') });
@@ -1667,6 +1691,8 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
       <p class="quiet">At least 8 characters, and not the shared creator password.</p>
       <label for="acct-pw2">Type it again</label>
       <input id="acct-pw2" type="password" autocomplete="new-password" required>
+      ${guidelinesFold()}
+      <label class="check agree"><input type="checkbox" id="acct-agree">I agree to the Creators Club guidelines: at least one feed post a month, one story a week, and showing up for each other.</label>
       <div class="form-actions"><button class="button" type="submit" id="acct-go">Save my password</button></div>
     </form>`;
   $('#acct-form').onsubmit = async ev => {
@@ -1676,9 +1702,10 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
     if (!isFullName(nm)) { status.textContent = 'Enter your full name, first and last, as it appears in Disco.'; return $('#acct-name').focus(); }
     if (pw.length < 8) { status.textContent = 'Use at least 8 characters.'; return $('#acct-pw').focus(); }
     if (pw !== pw2) { status.textContent = 'Those passwords don’t match.'; return $('#acct-pw2').focus(); }
+    const agree = document.getElementById('acct-agree'); if (agree && !agree.checked) { status.textContent = 'Check the box to agree to the Creators Club guidelines.'; return agree.focus(); }
     go.disabled = true; go.textContent = 'Saving…';
     try {
-      const res = await accountRequest({ action:'account-setup', key: sharedKey, name: nm, password: pw });
+      const res = await accountRequest({ action:'account-setup', key: sharedKey, name: nm, password: pw, agreed: true });
       if (!res || !res.ok) { status.textContent = res && res.locked ? 'The creator password has changed. Ask Sarah or Taylor for the new one.' : (res && res.error) || 'That didn’t save. Try again in a minute.'; go.disabled = false; go.textContent = 'Save my password'; if (res && res.fullName) $('#acct-name').focus(); return; }
       finishSignin(res);
       title.textContent = 'You’re all set';

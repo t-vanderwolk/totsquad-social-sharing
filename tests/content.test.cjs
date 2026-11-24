@@ -387,19 +387,22 @@ console.log('PASS: bell badge');
 // Creators Club 2.0 dashboard (club.js): member view, outsider view, escaping, coordinator tabs.
 {
   const t13 = boot(); t13.run(require('node:fs').readFileSync(root + '/club.js', 'utf8'));
-  t13.run(`storageSet(UPLOAD_NAME_KEY, 'Ana <i>'); club = { ok:true, settings:{ requiredThemed:1, requiredFlexible:1, creatorCircleUrl:'' }, roster:['Ana <i>'],
+  t13.run(`storageSet(UPLOAD_NAME_KEY, 'Ana <i>'); club = { ok:true, settings:{ requiredPosts:1, requiredStories:1, creatorCircleUrl:'' }, roster:['Ana <i>'],
     brief:{ id:'b1', title:'Registry <Mistakes>', theme:'Registry mistakes', weekStart:'2026-11-23', weekEnd:'2026-11-29', format:'Instagram Reel', cta:'Explore Baby Concierge' },
-    member:{ name:'Ana <i>', status:'Active', market:'Phoenix', joined:'2026-11-23' }, submissions:[{ id:'s1', submitted:'2026-11-24T10:00:00Z', kind:'themed', briefTitle:'Registry <Mistakes>', url:'https://www.instagram.com/reel/x/', status:'Submitted' }],
-    participation:{ standing:'Reminder', weeksMet:1, weeksFinished:2, history:[{ briefId:'b1', themed:1, flexible:0 }] } }; renderDashboard();`);
+    member:{ name:'Ana <i>', status:'Active', market:'Phoenix', joined:'2026-11-23' }, submissions:[{ id:'s1', submitted:'2026-11-24T10:00:00Z', date:'2026-11-24', kind:'post', briefTitle:'Registry <Mistakes>', url:'https://www.instagram.com/reel/x/', status:'Submitted' }, { id:'s2', submitted:'2026-11-24T11:00:00Z', date:'2026-11-23', kind:'story', url:'', status:'Submitted' }],
+    participation:{ standing:'Reminder', missedWeeks:2, missedMonths:0, weeksMet:1, weeksFinished:3, monthsMet:0, monthsFinished:0, thisWeek:{ stories:0, needed:1 }, thisMonth:{ posts:1, needed:1 } } }; renderDashboard();`);
   const d = t13.html('#club-dash');
   assert.match(d, /Registry &lt;Mistakes&gt;/); assert.doesNotMatch(d, /<Mistakes>|<i>/);
-  assert.match(d, /data-action="club-submit" data-kind="themed"/); assert.match(d, /1 of 1/); assert.match(d, /Friendly reminder/);
+  assert.match(d, /data-action="club-submit" data-kind="post"/); assert.match(d, /data-action="club-submit" data-kind="story"/);
+  assert.match(d, /Feed post this month<small>[^<]*<\/small><\/div><em>1 of 1/); assert.match(d, /Story this week<small>[^<]*<\/small><\/div><em>0 of 1/);
+  assert.match(d, /Friendly reminder: no story for 2 weeks/); assert.match(d, /Feed post · Registry &lt;Mistakes&gt;/); assert.match(d, />Story</);
+  assert.match(d, /data-action="guidelines"/); assert.match(d, /stories: 1 of 3 weeks/);
   assert.match(d, /tot-squad-hub\.disco\.co\/channel\/Q2hhdENoYW5uZWw6MjM0ODYw/); // Creator Circle falls back to content.js
   t13.run(`club.member = null; club.application = { status:'Waitlisted' }; renderDashboard();`);
   assert.match(t13.html('#club-dash'), /on the waitlist/); assert.doesNotMatch(t13.html('#club-dash'), /club-submit/);
   assert.doesNotMatch(t13.html('#club-dash'), /data-action="apply"/); // signed-in creators never see Apply to join
   t13.run(`club.application = null; renderDashboard();`); assert.doesNotMatch(t13.html('#club-dash'), /data-action="apply"/); assert.doesNotMatch(t13.html('#club-dash'), /Almost there|club-outside/);
-  t13.run(`coord = { applications:[{ id:'a1', name:'Bo', status:'Submitted', notes:'' }], members:[], briefs:[], submissions:[], participation:[], settings:{ requiredThemed:1, requiredFlexible:1, reminderAfter:1, reviewAfter:2 }, analytics:{ activeCreators:0, publishedLinks:0, repeatCreators:0, weeksRun:0, lastWeek:null, thisWeek:null }, current:'' };`);
+  t13.run(`coord = { applications:[{ id:'a1', name:'Bo', status:'Submitted', notes:'' }], members:[], briefs:[], submissions:[], participation:[], settings:{ requiredPosts:1, requiredStories:1, storyReminderWeeks:2, storyReviewWeeks:4, postReminderMonths:1, postReviewMonths:2, briefEveryWeeks:2 }, analytics:{ activeCreators:0, publishedLinks:0, briefsRun:0, lastWeek:{ met:0, eligible:0, rate:null }, lastMonth:{ month:'2026-10', met:0, eligible:0, rate:null }, thisWeek:{ stories:0, creators:0 }, thisMonth:{ posts:0, creators:0 } }, current:'' };`);
   for (const tab of ['applications','roster','briefs','content','participation','analytics','settings']) { t13.run(`coordTab = '${tab}'; renderCoord();`); assert.ok(t13.html('#modal-body').length > 100, tab); }
   t13.run(`coordTab = 'analytics'; renderCoord();`); assert.match(t13.html('#modal-body'), /aren’t tracked yet/); // no invented reach numbers
 }
@@ -423,3 +426,16 @@ console.log('PASS: Creators Club dashboard and coordinator tools');
   assert.match(out.html('#squad-grid'), /Gear nerd/); assert.doesNotMatch(out.html('#squad-grid'), /data-action="profile"/); // public sees bios, no edit
 }
 console.log('PASS: own passwords and bios');
+
+// The Creators Club guidelines: open to everyone in the toolkit, and agreed to on the application and the password set-up.
+{
+  const g = boot(null, false, new Map()); // signed out
+  assert.equal(g.run("PUBLIC_GUIDES.includes('guidelines')"), true);
+  assert.match(g.run("toolkitItems().map(t => t.action).join(',')"), /guidelines/);
+  g.run("openPanel('guidelines')"); const html = g.html('#modal-body');
+  for (const part of ['mutual visibility', 'least one reel, carousel, or collab post per month', 'at least one Instagram story each week', 'Every other week', 'Give as much as you take.', 'Authenticity over obligation.', 'Respect different specialties.', 'Keep participation professional.', 'consistency, not perfection', 'Welcome to the Squad!']) assert.ok(html.includes(part), part);
+  assert.match(html, /data-action="apply"/); // signed out: a way to apply
+  g.run("openApply()"); assert.match(g.html('#modal-body'), /Read the Creators Club guidelines/); assert.match(g.html('#modal-body'), /1 feed post per month/);
+  g.el('#acct-pw').focus = g.el('#acct-name').focus = () => {}; g.run("openAccountSetup('x', 'Ana Lopez')"); assert.match(g.html('#modal-body'), /acct-agree/); assert.match(g.html('#modal-body'), /guide-fold/);
+}
+console.log('PASS: Creators Club guidelines');
