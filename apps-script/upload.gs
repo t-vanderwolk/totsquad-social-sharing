@@ -38,6 +38,7 @@ function doPost(e) {
     if (req.action === 'squad-pitch') return saveSquadPitch(req); // open to anyone: ideas for Sarah to review
     if (req.action === 'cast-start') return startCastUpload(req); // open casting calls: video only, no password
     if (req.action === 'upload-done') return uploadDone(req); // logs finished uploads for What's new
+    if (req.action === 'coord-login') return coordLogin(req); // sign-in with the coordinator password (club.gs)
     if (!isMentor(req.key)) return locked(); // everything else needs the creator password
     if (req.action === 'idea-save') return saveIdea(req);
     if (req.action === 'idea-build') return buildOnIdea(req);
@@ -405,9 +406,11 @@ function readReels() {
 
 
 // The creator password on the Creators Club's sign-in. Every request from the page carries it.
+// The creator password, or the coordinator password (coordinators are creators too).
 function isMentor(key) {
   const want = PropertiesService.getScriptProperties().getProperty('MENTOR_PASSCODE');
-  return !!want && String(key || '').trim().toLowerCase() === want.trim().toLowerCase();
+  if (want && String(key || '').trim().toLowerCase() === want.trim().toLowerCase()) return true;
+  return !!String(key || '').trim() && isCoordinator(key);
 }
 function locked() { return reply({ ok: false, locked: true, error: 'That mentor password doesn’t match.' }); }
 

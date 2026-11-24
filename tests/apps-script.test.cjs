@@ -27,12 +27,13 @@ function fakeGoogle(props) {
     insertSheet(x) { const s = makeSheet(x); this.sheets.push(s); return s; }, setSpreadsheetTimeZone() {} }; books.set(id, book); return book; };
   const validation = { requireValueInList() { return this; }, setAllowInvalid() { return this; }, build() { return {}; } };
   const store = new Map(Object.entries(props));
+  const cache = new Map();
   return { books,
     SpreadsheetApp: { create: makeBook, openById: id => { const b = books.get(id); if (!b) throw Error('missing'); return b; }, newDataValidation: () => validation },
     DriveApp: { getFileById: () => ({ moveTo() {} }), getFolderById: () => ({ getParents: () => ({ hasNext: () => false }) }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: k => store.get(k) ?? null, setProperty: (k, v) => store.set(k, v), getProperties: () => Object.fromEntries(store) }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-    CacheService: { getScriptCache: () => { const c = new Map(); return { get: k => c.get(k) ?? null, put: (k, v) => c.set(k, v) }; } },
+    CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v) }) },
     Utilities: { formatDate: (d, tz, f) => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d).map(x => [x.type, x.value])); return f === 'yyyy-MM-dd' ? `${p.year}-${p.month}-${p.day}` : d.toISOString(); } },
     ContentService: { createTextOutput: s => ({ setMimeType() { return JSON.parse(s); } }), MimeType: { JSON: 'json' } },
     UrlFetchApp: {}, ScriptApp: { getOAuthToken: () => "" }, Session: {}, console: { log: console.log, error() {} }
@@ -124,4 +125,11 @@ assert.equal(t3.post({ action: 'admin-data', key, coordKey: 'nope' }).coordLocke
 r = t3.post({ action: 'admin-data', key, coordKey: 'bossy' }); assert.equal(r.ok, true); assert.equal(r.settings.coordinatorCode, undefined);
 assert.equal(t3.get({ action: 'club', key, name: 'x' }).settings.coordinatorCode, undefined);
 t3.post({ action: 'admin-settings', key, coordKey: 'bossy', settings: { coordinatorCode: 'hacked' } }); assert.equal(t3.post({ action: 'admin-data', key, coordKey: 'bossy' }).ok, true);
+// Signing in with the coordinator password: it works as a creator password too, and the check is rate-limited.
+assert.equal(t.post({ action: 'coord-login', code: 'nope' }).ok, false);
+assert.equal(t.post({ action: 'coord-login', code: 'Coord-123' }).ok, true);
+assert.equal(t.get({ action: 'ideas', key: 'Coord-123' }).ok, true); // coordinators are creators too
+assert.equal(t.post({ action: 'admin-data', key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Sarah' }).ok, true);
+for (let i = 0; i < 25; i++) t.post({ action: 'coord-login', code: 'guess' + i });
+assert.match(t.post({ action: 'coord-login', code: 'Coord-123' }).error || '', /Too many tries/);
 console.log('PASS: Creators Club 2.0 backend workflows');

@@ -3,8 +3,6 @@
    Data comes from apps-script/club.gs through the same web app (content.uploadEndpoint). Members pick
    their name (the creator password is shared); coordinators also enter the coordinator code, which the
    script checks for every coordinator action. */
-const COORD_CODE_KEY = 'totsquad-coordinator-code', COORD_NAME_KEY = 'totsquad-coordinator-name';
-const DEFAULT_COORDINATORS = ['Taylor', 'Sarah', 'Linden'];
 let club = null, clubBusy = false, coord = null, coordTab = 'applications', coordFilter = 'open', briefDraft = null;
 
 const clubName = () => storageGet(UPLOAD_NAME_KEY) || '';
@@ -181,16 +179,18 @@ function openClubRequest(type) {
   showModal();
 }
 
-/* ---------- Coordinator tools ---------- */
+/* ---------- Coordinator tools ----------
+   Coordinators (Taylor, Sarah, Linden) sign in on the landing page with the coordinator password instead of
+   the creator password. That signs them in as creators too, and the script checks it again for every coordinator action. */
 const coordCode = () => storageGet(COORD_CODE_KEY) || '';
 async function coordRequest(action, extra = {}) {
-  const res = await uploadRequest({ action, coordKey: coordCode(), coordName: storageGet(COORD_NAME_KEY) || '', ...extra });
-  if (res && res.coordLocked) { try { localStorage.removeItem(COORD_CODE_KEY); } catch {} }
+  const res = await uploadRequest({ action, coordKey: coordCode(), coordName: clubName() || 'Coordinator', ...extra });
+  if (res && res.coordLocked) setCoordinator('');
   return res;
 }
 function openCoordinator() {
   modal.classList.toggle('coord', true);
-  if (!coordCode()) return coordSignin();
+  if (!coordCode()) return coordGone();
   title.textContent = 'Coordinator tools';
   if (!coord) body.innerHTML = '<p class="quiet">Loading…</p>';
   else renderCoord();
@@ -201,30 +201,18 @@ async function refreshCoord(action = 'admin-data', extra = {}, done = '') {
   status.textContent = action === 'admin-data' ? '' : 'Saving…';
   try {
     const res = await coordRequest(action, extra);
-    if (res.coordLocked) { status.textContent = ''; return coordSignin(res.error); }
+    if (res.coordLocked) { status.textContent = ''; return coordGone(); }
     if (!res.ok) throw new Error(res.error || '');
     coord = res; if (title.textContent === 'Coordinator tools') renderCoord(); status.textContent = done;
     if (has('#club-dash')) loadClub();
     return res;
   } catch (err) { status.textContent = err.message || 'That didn’t save. Try again in a minute.'; }
 }
-function coordSignin(note = '') {
-  const names = (club && club.settings && club.settings.coordinators && club.settings.coordinators.length) ? club.settings.coordinators : DEFAULT_COORDINATORS;
-  title.textContent = 'Coordinator sign in';
-  body.innerHTML = `<form id="coord-form" novalidate><p>For Creators Club coordinators: review applications, publish weekly briefs and check in on participation.</p>
-    <label for="co-name">Who are you?</label><select id="co-name">${names.map(n => `<option${n === storageGet(COORD_NAME_KEY) ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
-    <label for="co-code">Coordinator code</label><input id="co-code" type="password" autocomplete="off" required>
-    <p class="gate-note" role="alert">${escapeHTML(note)}</p>
-    <div class="form-actions"><button class="button" type="submit" id="co-go">Open coordinator tools</button></div></form>`;
-  $('#coord-form').onsubmit = async ev => {
-    ev.preventDefault();
-    storageSet(COORD_NAME_KEY, document.getElementById('co-name').value);
-    storageSet(COORD_CODE_KEY, document.getElementById('co-code').value.trim());
-    title.textContent = 'Coordinator tools'; body.innerHTML = '<p class="quiet">Loading…</p>';
-    refreshCoord();
-  };
+// The coordinator password changed (or was never entered here): sign out and back in with the new one.
+function coordGone() {
+  title.textContent = 'Coordinator tools';
+  body.innerHTML = `<p>Coordinator tools open when you sign in with the coordinator password. If it changed, sign out and sign back in with the new one.</p><div class="button-row"><button class="button" type="button" data-signout>Sign out</button></div>`;
   if (!modal.open) showModal();
-  setTimeout(() => document.getElementById('co-code')?.focus({ preventScroll: true }), 0);
 }
 const COORD_TABS = [['applications', 'Applications'], ['roster', 'Roster'], ['briefs', 'Weekly briefs'], ['content', 'Content'], ['participation', 'Participation'], ['analytics', 'Analytics'], ['settings', 'Settings']];
 function renderCoord() {
@@ -314,7 +302,7 @@ function coordSettings(c) {
     <label class="wide">Creator Circle link<input name="creatorCircleUrl" type="url" value="${escapeHTML(s.creatorCircleUrl || content.creatorCircleUrl || '')}" placeholder="https://tot-squad-hub.disco.co/channel/…"></label></div>
     <div class="form-actions"><button class="button" type="submit">Save settings</button></div></form>
     <div class="flow-note"><strong>Coming later: brand partnerships.</strong><p>Briefs are all voluntary community content today. Sponsored campaigns, paid UGC, licensing and compensation would be a separate brief type with its own consent and disclosure steps, and aren’t live.</p></div>
-    <p><button class="text-button" type="button" data-coord-signout>Sign out of coordinator tools on this device</button></p>`;
+`;
 }
 const formData = f => Object.fromEntries([...f.querySelectorAll('input[name],select[name],textarea[name]')].map(el => [el.name, el.value.trim()]));
 if (typeof document !== 'undefined' && document.addEventListener) {
@@ -324,7 +312,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (t.matches && t.matches('[data-coord-sub]')) refreshCoord('admin-sub', { id: t.dataset.coordSub, status: t.value }, 'Saved.');
   });
   document.addEventListener('click', e => {
-    const t = e.target.closest && e.target.closest('[data-coord-tab],[data-coord-filter],[data-coord-seed],[data-coord-request],[data-coord-new-brief],[data-coord-edit],[data-coord-brief],[data-coord-cancel],[data-coord-signout]');
+    const t = e.target.closest && e.target.closest('[data-coord-tab],[data-coord-filter],[data-coord-seed],[data-coord-request],[data-coord-new-brief],[data-coord-edit],[data-coord-brief],[data-coord-cancel]');
     if (!t || !coord) return;
     const d = t.dataset;
     if (d.coordTab) { coordTab = d.coordTab; briefDraft = null; status.textContent = ''; renderCoord(); return; }
@@ -335,7 +323,6 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (d.coordEdit) { briefDraft = { ...(coord.briefs.find(b => b.id === d.coordEdit) || {}) }; renderCoord(); return; }
     if ('coordCancel' in d) { briefDraft = null; renderCoord(); return; }
     if (d.coordBrief) { refreshCoord('admin-brief', { op: d.coordBrief, brief: { id: d.id } }, { duplicate: 'Copied as a draft for the next week.', publish: 'Published. Creators see it now.', unpublish: 'Back to draft.', archive: 'Archived.' }[d.coordBrief]); return; }
-    if ('coordSignout' in d) { try { localStorage.removeItem(COORD_CODE_KEY); } catch {} coord = null; modal.close(); }
   });
   document.addEventListener('submit', async e => {
     const f = e.target.closest && e.target.closest('[data-coord-form]'); if (!f) return;

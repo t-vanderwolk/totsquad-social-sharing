@@ -233,6 +233,13 @@ function coordinatorCode() {
   return row ? String(row.value).trim() : '';
 }
 function isCoordinator(code) { const want = coordinatorCode(); return !!want && String(code || '').trim() === want; }
+// Sign-in check for the landing page. A few tries per minute at most, so the code can't be guessed by brute force.
+function coordLogin(req) {
+  const cache = CacheService.getScriptCache(), tries = Number(cache.get('coord-login') || 0);
+  if (tries >= 20) return reply({ ok: false, error: 'Too many tries. Wait a minute and try again.' });
+  cache.put('coord-login', String(tries + 1), 60);
+  return reply({ ok: isCoordinator(req.code) });
+}
 function adminReply(req) {
   if (!coordinatorCode()) return reply({ ok: false, coordLocked: true, error: 'Coordinator tools aren’t switched on yet. Add a coordinator code on the Settings tab of the Creators Club program sheet.' });
   if (!isCoordinator(req.coordKey)) return reply({ ok: false, coordLocked: true, error: 'That coordinator code doesn’t match.' });

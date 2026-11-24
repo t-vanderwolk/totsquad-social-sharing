@@ -1468,10 +1468,17 @@ const MENTOR_KEY = 'totsquad-mentor-key';
 let mentorMemory = '';
 function mentorKey() { return mentorMemory || storageGet(MENTOR_KEY) || ''; }
 // Sign out: forget the password on this device and go back to the public landing page.
+// Coordinators sign in with the coordinator password; it's kept on the device and checked by the script on every coordinator action.
+const COORD_CODE_KEY = 'totsquad-coordinator-code';
+function setCoordinator(code) {
+  if (code) storageSet(COORD_CODE_KEY, code); else { try { localStorage.removeItem(COORD_CODE_KEY); } catch (e) {} }
+  document.documentElement?.classList?.toggle('coordinator', !!code);
+}
+if (storageGet(COORD_CODE_KEY)) document.documentElement?.classList?.add('coordinator');
 function signOut() {
   mentorMemory = '';
-  try { localStorage.removeItem(MENTOR_KEY); } catch (e) {}
-  document.documentElement.classList.remove('unlocked');
+  try { localStorage.removeItem(MENTOR_KEY); localStorage.removeItem(COORD_CODE_KEY); localStorage.removeItem('totsquad-coordinator-name'); } catch (e) {}
+  document.documentElement.classList.remove('unlocked', 'coordinator');
   location.href = pageUrl('index.html');
 }
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-signout]')) { e.preventDefault(); signOut(); } });
@@ -1489,11 +1496,19 @@ function passwordForm(form, input, note$, go, label) {
     const key = input.value.trim(); if (!key) { note$.textContent = 'Enter the creator password.'; return; }
     go.disabled = true; go.textContent = 'Checking…'; note$.textContent = '';
     try {
-      if (await mentorHash(key) !== content.mentorPasswordHash) { note$.textContent = 'That password doesn’t match. Check it with Sarah or Taylor.'; input.select(); }
-      else { mentorMemory = key; storageSet(MENTOR_KEY, key); unlock(); renderContent(); loadIdeas(); loadActivity(); toast('You’re signed in.'); return; }
+      let coordinator = false;
+      if (await mentorHash(key) !== content.mentorPasswordHash) coordinator = await coordinatorLogin(key); // not the creator password: maybe the coordinator one
+      if (!coordinator && await mentorHash(key) !== content.mentorPasswordHash) { note$.textContent = 'That password doesn’t match. Check it with Sarah or Taylor.'; input.select(); }
+      else { mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(coordinator ? key : ''); unlock(); renderContent(); loadIdeas(); loadActivity(); toast(coordinator ? 'You’re signed in as a coordinator.' : 'You’re signed in.'); return; }
     } catch { note$.textContent = 'This browser couldn’t check the password. Try Chrome or Safari.'; }
     go.disabled = false; go.textContent = label;
   };
+}
+// Asks the script whether this is the coordinator password. Nothing about it lives in the page.
+async function coordinatorLogin(code) {
+  if (!UPLOAD_ON() || typeof fetch !== 'function') return false;
+  try { const res = await fetch(content.uploadEndpoint, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'coord-login', code }) }); const data = await res.json(); return !!(data && data.ok); }
+  catch { return false; }
 }
 function askSignin(note = 'Sign in as a creator to do that.') {
   const box = document.getElementById('mentor-signin');
