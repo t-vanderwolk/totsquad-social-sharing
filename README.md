@@ -137,3 +137,14 @@ GitHub Pages deploys from `main` at `/ (root)`. No build step. Push to `main`, w
 
 ## Public-data boundary
 Everything in this repository and page is public. Idea details and first-name credits are shown by decision of the hub owner. Never add client information, specialist locations or contact details, private mentor information, internal scoring, confidential planning, confidential folder URLs, API keys or credentials. Draft contents stay in the browser until the user copies or downloads them.
+
+## Creators Club 2.0 (Nov 2026)
+
+Two levels: **the Squad** (open to every specialist: Idea Bank, casting, resources, B-roll, Made by the Squad, no sign-in) and **the Creators Club** (by application, weekly brief and commitment).
+
+- **Front end:** `club.js` adds the member dashboard (this week's brief, submit a published link, my week, contributions, pause/rejoin requests) and Coordinator tools (Applications, Roster, Weekly briefs, Content, Participation, Analytics, Settings). The expanded Apply form lives in `script.js`.
+- **Back end:** `apps-script/club.gs` (add it next to `upload.gs` in the same Apps Script project). Data is in the **Creators Club program** spreadsheet in the shared drive (tabs: Members, Weekly briefs, Submissions, Settings), created on first use. Applications stay in **Creators Club applications**; new columns were appended after Notes. Nothing is ever deleted: statuses change, rows stay.
+- **Sign-in:** members use the shared creator password and pick their name. Coordinator actions also need the coordinator code: the `coordinatorCode` row on the Settings tab of the program sheet (or `COORDINATOR_PASSCODE` in Script properties). Until one is set, coordinator tools stay off.
+- **Statuses:** applications Submitted / Under Review / Approved / Waitlisted / Declined; members Active / Paused / Needs Check-In / Inactive / Alumni; briefs Draft / Published / Archived; submissions Submitted / Counted / Needs changes.
+- **Participation:** a week is met when themed posts reach the required number. Standing (On track / Reminder / Needs review) is a suggestion; only coordinators change a member's status.
+- **Tests:** `node tests/apps-script.test.cjs` runs the backend workflows against in-memory sheets.

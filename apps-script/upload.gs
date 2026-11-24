@@ -41,6 +41,9 @@ function doPost(e) {
     if (!isMentor(req.key)) return locked(); // everything else needs the creator password
     if (req.action === 'idea-save') return saveIdea(req);
     if (req.action === 'idea-build') return buildOnIdea(req);
+    if (req.action === 'club-submit') return saveSubmission(req);
+    if (req.action === 'club-request') return saveRequest(req);
+    if (/^admin-/.test(String(req.action))) return adminReply(req); // coordinators only (club.gs)
     if (req.action === 'ideas-seed') return seedIdeas(req);
     if (req.action === 'check') return reply({ ok: true });
     if (req.action !== 'start') return reply({ ok: false, error: 'Unknown request.' });
@@ -118,8 +121,11 @@ function pitchSheet() {
   props.setProperty('PITCH_SHEET_ID', ss.getId());
   return sheet;
 }
-/* "Apply to join": one row per application. Taylor sets Status; approved people go in Disco's Creators group. */
-const APPLY_COLUMNS = [['submitted','Submitted'],['name','Name in Disco'],['region','Region'],['instagram','Instagram'],['roles','How they’d like to help'],['camera','On camera'],['why','Why they want to join'],['example','Example link'],['agreed','Agreed to guidelines'],['status','Status'],['notes','Notes']];
+/* "Apply to join": one row per application. Coordinators set Status (in the app's coordinator tools or right here).
+   Columns after Notes were added for Creators Club 2.0; older rows simply leave them blank. Approving adds the
+   person to the Members tab of the Creators Club program sheet (club.gs). */
+const APPLY_COLUMNS = [['submitted','Submitted'],['name','Name in Disco'],['region','Region'],['instagram','Instagram'],['roles','How they’d like to help'],['camera','On camera'],['why','Why they want to join'],['example','Example link'],['agreed','Agreed to guidelines'],['status','Status'],['notes','Notes'],
+  ['market','Home market'],['interests','Content interests'],['experience','Creative experience'],['capacity','Availability & weekly capacity'],['id','ID'],['reviewedBy','Reviewed by'],['reviewed','Reviewed']];
 function saveApplication(req) {
   if (req.website) return reply({ ok: true }); // hidden field only bots fill in
   const a = req.application || {};
@@ -130,35 +136,30 @@ function saveApplication(req) {
   cache.put('apply-count', String(count + 1), 3600);
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
-    const row = APPLY_COLUMNS.map(([key]) => key === 'submitted' ? new Date() : key === 'status' ? 'New' : key === 'notes' ? '' : key === 'agreed' ? 'Yes' : text(a[key]).slice(0, 1000));
-    applySheet().appendRow(row);
+    const row = { submitted: new Date(), status: 'Submitted', agreed: 'Yes', id: newId('a') };
+    ['name','region','instagram','roles','camera','why','example','market','interests','experience','capacity'].forEach(k => { row[k] = text(a[k]).slice(0, 1000); });
+    writeRow(applySheet(), APPLY_COLUMNS, row, 0);
     logActivity('apply', text(a.name).slice(0, 80), 'applied to join the Creators Club', '');
     return reply({ ok: true });
   } finally { lock.releaseLock(); }
 }
 // For signed-in creators: newest applications first. Declined ones and the Notes column stay private.
 function readApplications() {
-  const rows = applySheet().getDataRange().getValues(), col = k => APPLY_COLUMNS.findIndex(c => c[0] === k), out = [];
-  for (let r = rows.length - 1; r >= 1 && out.length < 60; r--) {
-    const row = rows[r], get = k => String(row[col(k)] == null ? '' : row[col(k)]).trim(), status = get('status') || 'New';
-    if (!get('name') || /declin/i.test(status)) continue;
-    const s = row[col('submitted')];
-    out.push({ submitted: s instanceof Date ? s.toISOString() : get('submitted'), name: get('name'), region: get('region'), instagram: get('instagram'),
-      roles: get('roles'), camera: get('camera'), why: get('why'), example: get('example'), status: status });
-  }
-  return out;
+  return readTable(applySheet(), APPLY_COLUMNS).filter(r => r.name).reverse()
+    .filter(r => ['Submitted', 'Under Review', 'Approved'].indexOf(appStatus(r.status)) >= 0).slice(0, 60) // waitlisted and declined stay private
+    .map(r => ({ submitted: isoTime(r.submitted), name: r.name, region: r.market || r.region, instagram: r.instagram, roles: r.roles, camera: r.camera, why: r.why, example: r.example, interests: r.interests, status: appStatus(r.status) }));
 }
 function applySheet() {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty('APPLY_SHEET_ID');
-  if (id) { try { return SpreadsheetApp.openById(id).getSheets()[0]; } catch (err) { console.error(err); } }
+  if (id) { try { const s = SpreadsheetApp.openById(id).getSheets()[0]; if (ensureHeaders(s, APPLY_COLUMNS)) statusList(s, APPLY_COLUMNS, 'status', APP_STATUSES); return s; } catch (err) { console.error(err); } }
   const ss = SpreadsheetApp.create('Creators Club applications');
   const sheet = ss.getSheets()[0];
   sheet.setName('Applications');
   sheet.appendRow(APPLY_COLUMNS.map(c => c[1]));
   sheet.setFrozenRows(1);
   sheet.getRange(1, 1, 1, APPLY_COLUMNS.length).setFontWeight('bold').setBackground('#f3eaf1');
-  sheet.getRange(2, APPLY_COLUMNS.findIndex(c => c[0] === 'status') + 1, 999, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['New', 'Approved', 'Declined'], true).build());
+  statusList(sheet, APPLY_COLUMNS, 'status', APP_STATUSES);
   const parents = DriveApp.getFolderById(ROOTS.broll).getParents();
   if (parents.hasNext()) DriveApp.getFileById(ss.getId()).moveTo(parents.next());
   props.setProperty('APPLY_SHEET_ID', ss.getId());
@@ -336,9 +337,10 @@ function text(s) { const t = String(s == null ? '' : s).replace(/[\u0000-\u0008\
 const REELS_SHEET_ID = moved('1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg');
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
+  if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // the Idea Bank is open to every specialist
   if (action && !isMentor(e.parameter.key)) return locked();
+  if (action === 'club') return reply(clubForCreator(clean(e.parameter.name)));
   if (action === 'gate') return reply({ ok: true });
-  if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() });
   if (action === 'activity') return reply({ ok: true, activity: readActivity() });
   if (action === 'applications') return reply({ ok: true, applications: readApplications() });
   if (action === 'drivemap') { const all = PropertiesService.getScriptProperties().getProperties(), map = {}; Object.keys(all).filter(k => k.indexOf('C_') === 0).forEach(k => { map[k.slice(2)] = all[k]; }); return reply({ ok: true, map: map }); } // old Drive ID -> copy, for scripts/relink-drive.cjs

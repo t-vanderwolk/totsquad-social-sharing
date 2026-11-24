@@ -5,6 +5,8 @@ window.HUB_CONTENT = {
   timeZone: 'America/Phoenix',
   appUrl: 'https://tot-squad-hub.disco.co/page-app/UHJvZHVjdEFwcDozODQzNTg=?u=8d8e2732-9268-481e-9d53-1363df5e83ca&drawerTab=analytics',
   discoUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx',
+  // Private Creator Circle channel in Disco (coordinators can override it in Coordinator tools > Settings).
+  creatorCircleUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjM0ODYw',
   submissionFolderUrl: 'https://drive.google.com/drive/folders/0ADqEscN50JTEUk9PVA',
   // Mentor password screen: SHA-256 of the lowercase password (see README). Leave blank to turn the screen off.
   // Keep it in step with MENTOR_PASSCODE in the Creators Club script, which pitches still check.

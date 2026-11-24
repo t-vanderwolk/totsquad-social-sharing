@@ -391,7 +391,9 @@ function toolTile(r) {
 }
 // The three guides anyone can read on the landing page, no password.
 const PUBLIC_GUIDES = ['brand','guide','checklist'];
-function renderGuides() { $('#public-guides').innerHTML = toolkitItems().filter(r => PUBLIC_GUIDES.includes(r.action)).map(toolTile).join(''); }
+const PUBLIC_PAGES = ['ideas.html','b-roll.html'];
+const isPublicTool = r => PUBLIC_GUIDES.includes(r.action) || PUBLIC_PAGES.includes(r.page);
+function renderGuides() { $('#public-guides').innerHTML = toolkitItems().filter(isPublicTool).map(toolTile).join(''); }
 function renderResources() { $('#resource-links').innerHTML = toolkitItems().map(toolTile).join(''); }
 // Hamburger menu: every section plus every tool, in one dropdown.
 function menuItem(r) {
@@ -402,7 +404,7 @@ function menuItem(r) {
 function renderMenu() {
   const items = toolkitItems();
   if (has('#menu-tools')) $('#menu-tools').innerHTML = items.map(menuItem).join('');
-  if (has('#menu-guides')) $('#menu-guides').innerHTML = items.filter(r => PUBLIC_GUIDES.includes(r.action)).map(menuItem).join('');
+  if (has('#menu-guides')) $('#menu-guides').innerHTML = items.filter(isPublicTool).map(menuItem).join('');
 }
 function setupMenu() {
   const btn = document.getElementById && document.getElementById('menu-btn'), menu = document.getElementById && document.getElementById('nav-menu');
@@ -436,6 +438,7 @@ function renderContent() {
   const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources],['#public-guides',renderGuides],['#nav-menu',renderMenu]];
   for (const [sel,render] of sections) if (has(sel)) render();
   storageSet('totsquad-last-visit', today());
+  if (typeof loadClub === 'function' && typeof club !== 'undefined' && !club && !clubBusy) loadClub(); // club.js, after signing in
 }
 
 /* ---------- Drafts ---------- */
@@ -677,7 +680,7 @@ function openIdea(id) {
       ${builds.length ? builds.map(n => `<div class="buildon"><div class="buildon-head"><strong>${escapeHTML(n.name)}</strong>${n.lead ? '<span class="chip lead">Took the lead</span>' : ''}<time datetime="${escapeHTML(n.date || '')}">${escapeHTML(timeAgo(n.date))}</time></div><p>${escapeHTML(n.note)}</p></div>`).join('')
         : `<p class="quiet">No notes yet. ${leads.length ? 'Add yours below.' : 'Be the first to build on it, and take the lead if you’d like.'}</p>`}
     </section>
-    ${liveIdeas ? `<form id="build-form" class="build-form" novalidate>
+    ${liveIdeas && !LOCKED() ? `<form id="build-form" class="build-form" novalidate>
       <h3>Build on this idea</h3>
       <p class="quiet">Add your take: a twist, a hook, a shot idea, who you’d film with. The original concept stays as it is.</p>
       <label for="bo-name">Your name</label>
@@ -687,7 +690,7 @@ function openIdea(id) {
       <label class="check" id="bo-lead-row"><input type="checkbox" id="bo-lead"${leads.length ? '' : ' checked'}><span>${leads.length ? `Co-lead this idea with ${escapeHTML(leads.join(' & '))}` : 'Make me the lead on this idea'}</span></label>
       <div class="form-actions"><button class="button" type="submit" id="bo-go">Add my notes</button></div>
     </form>` : '<p class="quiet">Building on ideas works when the Idea Bank is connected. Try again in a moment.</p>'}
-    <div class="button-row">${liveIdeas ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
+    <div class="button-row">${liveIdeas && !LOCKED() ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
   </div>`;
   const form = body.querySelector ? body.querySelector('#build-form') : null; // (has() is shadowed in this function)
   if (form) {
@@ -1129,6 +1132,7 @@ function openPanel(action,data={}) {
   if (action === 'reel') return openReel(data.reel);
   if (action === 'brief') return openBrief(data.doc, data.project);
   if (action === 'applications') return openApplications();
+  if (typeof openClubAction === 'function' && /^(club-|coordinator)/.test(action)) return openClubAction(action, data); // club.js
   if (action === 'reel-share') return openReelShare(data.project);
   if (action === 'upload') return openUpload(data);
   if (action === 'apply') return openApply();
@@ -1163,47 +1167,59 @@ function applicationCard(a) {
 }
 
 /* "Apply to join": open to everyone. Sends to the "Creators Club applications" sheet (apps-script/upload.gs). */
+// What Creators Club members agree to (shown on the application and the landing page).
+const CLUB_EXPECTATIONS = ['Publish your weekly post on the shared theme and format, in your own voice','Share your published work with the group','Cheer each other on with real comments and feedback','Join collaborations when you can','Tell a coordinator when you need a week off or a pause'];
+const CLUB_ROLES = ['On-camera creator','Baby gear educator','Editor','Scriptwriter','Creative producer','Photographer','UGC creator','Other creative contributor'];
 function openApply() {
   title.textContent = 'Apply to join the Creators Club';
   if (!UPLOAD_ON()) { body.innerHTML = `<p>Applications open soon. In the meantime, say hi in ${externalLink(content.discoUrl,'Social & Sharing','text-button')}.</p>`; return showModal(); }
-  const roles = ['Be on camera','Film B-roll','Pitch ideas','Edit Reels'];
-  body.innerHTML = `<p>Tell us a little about you. It takes about two minutes. Sarah and Taylor read every application, and one of them will reach out in Disco.</p>
+  const radios = (name, list) => list.map((r,i) => `<label class="check"><input type="radio" name="${name}" value="${escapeHTML(r)}" id="${name}-${i}">${escapeHTML(r)}</label>`).join('');
+  body.innerHTML = `<p>The Creators Club is a smaller group of Baby Specialists who post on a shared weekly theme. Beginners are welcome: it’s about showing up, not follower count. It takes about three minutes, and a coordinator will reach out in Disco.</p>
     <form id="apply-form" novalidate>
-      <label for="ap-name">Your name, as it appears in Disco</label>
-      <input id="ap-name" type="text" autocomplete="name" maxlength="80" required>
-      <label for="ap-region">Your region</label>
-      <select id="ap-region"><option value="">Choose one</option><option>East</option><option>Central</option><option>West</option></select>
-      <label for="ap-ig">Instagram handle (optional)</label>
-      <input id="ap-ig" type="text" autocomplete="off" maxlength="40" placeholder="@yourhandle">
-      <fieldset class="choices"><legend>How would you like to help? Pick any.</legend>
-        ${roles.map((r,i) => `<label class="check"><input type="checkbox" name="ap-role" value="${escapeHTML(r)}" id="ap-role-${i}">${escapeHTML(r)}</label>`).join('')}
+      <div class="field-pair">
+        <div><label for="ap-name">Your name, as it appears in Disco</label><input id="ap-name" type="text" autocomplete="name" maxlength="80" required></div>
+        <div><label for="ap-market">Home market</label><input id="ap-market" type="text" maxlength="80" placeholder="For example, North Phoenix Target stores"></div>
+      </div>
+      <div class="field-pair">
+        <div><label for="ap-region">Hub region</label><select id="ap-region"><option value="">Choose one</option><option>East</option><option>Central</option><option>West</option></select></div>
+        <div><label for="ap-ig">Instagram handle</label><input id="ap-ig" type="text" autocomplete="off" maxlength="40" placeholder="@yourhandle"></div>
+      </div>
+      <fieldset class="choices"><legend>Which roles interest you? Pick any.</legend>
+        ${CLUB_ROLES.map((r,i) => `<label class="check"><input type="checkbox" name="ap-role" value="${escapeHTML(r)}" id="ap-role-${i}">${escapeHTML(r)}</label>`).join('')}
       </fieldset>
-      <fieldset class="choices"><legend>How comfortable are you on camera?</legend>
-        ${['Not yet, I’d rather stay behind the camera','Getting there','Love it'].map((r,i) => `<label class="check"><input type="radio" name="ap-camera" value="${escapeHTML(r)}" id="ap-cam-${i}">${escapeHTML(r)}</label>`).join('')}
-      </fieldset>
+      <label for="ap-interests">What do you love making content about?</label>
+      <input id="ap-interests" type="text" maxlength="300" placeholder="Car seats, registry tips, day in the life…">
+      <label for="ap-exp">Any filming, editing, scripting or other creative experience?</label>
+      <textarea id="ap-exp" maxlength="800" placeholder="None yet is a perfectly good answer."></textarea>
+      <fieldset class="choices"><legend>How comfortable are you on camera?</legend>${radios('ap-camera',['Not yet, I’d rather stay behind the camera','Getting there','Love it'])}</fieldset>
+      <fieldset class="choices"><legend>Realistically, how much can you post each week?</legend>${radios('ap-capacity',['One post a week','Two posts a week','Three or more','Not sure yet'])}</fieldset>
+      <label for="ap-avail">When do you usually have time to film or post? (optional)</label>
+      <input id="ap-avail" type="text" maxlength="200" placeholder="Weekday mornings, after shifts…">
       <label for="ap-why">Why would you like to join?</label>
       <textarea id="ap-why" maxlength="800" placeholder="A sentence or two is perfect." required></textarea>
       <label for="ap-example">Link to something you’ve made (optional)</label>
       <input id="ap-example" type="url" inputmode="url" maxlength="300" placeholder="https://">
       <input class="hp" id="ap-website" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-      <label class="check agree"><input type="checkbox" id="ap-agree">I’ll follow the Tot Squad brand guidelines and only share content with the family’s consent.</label>
+      <div class="flow-note"><strong>Creators Club members agree to:</strong><ul class="club-expect">${CLUB_EXPECTATIONS.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul><p class="quiet">It’s voluntary and separate from your role as a specialist. Posts follow the Tot Squad brand guidelines and share families only with their consent.</p></div>
+      <label class="check agree"><input type="checkbox" id="ap-agree">I’ve read these and I’m in.</label>
       <div class="form-actions"><button class="button" type="submit" id="ap-go">Send application</button></div>
     </form>`;
   $('#apply-form').onsubmit = async ev => {
     ev.preventDefault();
-    const val = id => document.getElementById(id).value.trim();
-    const application = { name: val('ap-name'), region: val('ap-region'), instagram: val('ap-ig').replace(/^@/, ''),
+    const val = id => document.getElementById(id).value.trim(), radio = n => (document.querySelector(`input[name="${n}"]:checked`) || {}).value || '';
+    const application = { name: val('ap-name'), market: val('ap-market'), region: val('ap-region'), instagram: val('ap-ig').replace(/^@/, ''),
       roles: [...document.querySelectorAll('input[name="ap-role"]:checked')].map(i => i.value).join(', '),
-      camera: (document.querySelector('input[name="ap-camera"]:checked') || {}).value || '',
+      interests: val('ap-interests'), experience: val('ap-exp'), camera: radio('ap-camera'),
+      capacity: [radio('ap-capacity'), val('ap-avail')].filter(Boolean).join(' · '),
       why: val('ap-why'), example: val('ap-example'), agreed: document.getElementById('ap-agree').checked };
     if (!application.name) { status.textContent = 'Add your name first.'; return document.getElementById('ap-name').focus(); }
     if (!application.why) { status.textContent = 'Add a sentence about why you’d like to join.'; return document.getElementById('ap-why').focus(); }
-    if (!application.agreed) { status.textContent = 'Check the box about the brand guidelines first.'; return document.getElementById('ap-agree').focus(); }
+    if (!application.agreed) { status.textContent = 'Check the box to agree to the Creators Club expectations.'; return document.getElementById('ap-agree').focus(); }
     const go = document.getElementById('ap-go'); go.disabled = true; go.textContent = 'Sending…'; status.textContent = '';
     try {
       const res = await uploadRequest({ action:'apply', application, website: val('ap-website') });
       if (!res.ok) throw new Error(res.error || '');
-      body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. Sarah or Taylor will reach out in Disco. Once you’re in, you’ll get the creator password to sign in here.</p>`;
+      body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. A coordinator will review it and reach out in Disco. In the meantime, the Idea Bank, casting calls and creator resources are open to you.</p>`;
       status.textContent = '';
     } catch (err) { status.textContent = err.message || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send application'; }
   };
@@ -1213,9 +1229,9 @@ function openApply() {
 /* ---------- Live ideas + editing (apps-script/upload.gs: ?action=ideas, idea-save) ---------- */
 function rerenderIdeas() { if (has('#idea-grid')) renderIdeas(); if (has('#production-board')) renderProduction(); }
 async function loadIdeas() {
-  if (!UPLOAD_ON() || !mentorKey() || typeof fetch !== 'function') return;
+  if (!UPLOAD_ON() || typeof fetch !== 'function') return;
   try {
-    const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=ideas&key=${encodeURIComponent(mentorKey())}`); const data = await res.json();
+    const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=ideas`); const data = await res.json(); // open to everyone
     if (data.ok && Array.isArray(data.ideas) && data.ideas.length) { liveIdeas = data.ideas; rerenderIdeas(); }
   } catch {}
 }
@@ -1369,7 +1385,7 @@ function markActivitySeen() {
   const nb = document.getElementById ? document.getElementById('nav-new') : null; if (nb) nb.hidden = true;
   if (activityItems[0]) storageSet(SEEN_KEY, activityItems[0].when);
 }
-const ACTIVITY_ICON = { build:'🧱', pitch:'💡', edit:'✏️', video:'🎬', broll:'🎞️', review:'📬', apply:'👋' };
+const ACTIVITY_ICON = { build:'🧱', pitch:'💡', edit:'✏️', video:'🎬', broll:'🎞️', review:'📬', apply:'👋', post:'📲', join:'🎉', brief:'🗒️' };
 function uploadDone(fileId) { if (fileId && UPLOAD_ON()) uploadRequest({ action:'upload-done', fileId }).catch(() => {}); }
 function timeAgo(iso) {
   const t = Date.parse(iso); if (!t) return '';
@@ -1388,7 +1404,7 @@ function renderActivity() {
   box.innerHTML = activityItems.length ? `<ul class="activity">${shown.map(a => {
     const idea = /^idea:/.test(a.link) ? a.link.slice(5) : '';
     const what = `${a.who ? `<strong>${escapeHTML(a.who)}</strong> ` : ''}${escapeHTML(a.what)}`;
-    const open = idea ? `<button type="button" class="text-button" data-action="idea" data-id="${escapeHTML(idea)}">Open</button>` : a.type === 'apply' ? `<button type="button" class="text-button" data-action="applications">See it</button>` : publicUrl(a.link) ? externalLink(a.link,'Watch','text-button') : '';
+    const open = idea ? `<button type="button" class="text-button" data-action="idea" data-id="${escapeHTML(idea)}">Open</button>` : a.type === 'apply' ? `<button type="button" class="text-button" data-action="applications">See it</button>` : publicUrl(a.link) ? externalLink(a.link,a.type === 'post' ? 'View' : 'Watch','text-button') : '';
     return `<li class="${Date.parse(a.when) > seen ? 'fresh' : ''}"><span class="activity-icon" aria-hidden="true">${ACTIVITY_ICON[a.type] || '•'}</span><span class="activity-text">${what}<time datetime="${escapeHTML(a.when)}">${timeAgo(a.when)}</time></span>${open}</li>`;
   }).join('')}</ul>${activityItems.length > 6 ? `<button type="button" class="text-button" data-activity-more>${activityAll ? 'Show less' : `Show all ${activityItems.length}`}</button>` : ''}`
     : '<p class="quiet">Nothing yet. New pitches, videos and idea updates will show up here.</p>';
@@ -1461,6 +1477,8 @@ document.addEventListener('click', e => { if (e.target.closest && e.target.close
 const GATE_ON = () => /^[a-f0-9]{64}$/.test(content.mentorPasswordHash || '');
 const LANDING = () => !!(document.getElementById && document.getElementById('mentor-signin'));
 const LOCKED = () => GATE_ON() && !mentorKey();
+// Open to every specialist without signing in: the landing page, the Idea Bank and the B-roll library.
+const OPEN_PAGE = () => LANDING() || !!(document.getElementById && (document.getElementById('idea-grid') || document.getElementById('broll-grid')));
 async function mentorHash(key) { const bytes = new TextEncoder().encode(String(key).trim().toLowerCase()); const buf = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
 function unlock() { document.documentElement?.classList.add('unlocked'); document.getElementById?.('gate')?.remove(); }
 // Wires a password form. Returns nothing; on a match it saves the key, unlocks and re-renders.
@@ -1477,7 +1495,12 @@ function passwordForm(form, input, note$, go, label) {
   };
 }
 function askSignin(note = 'Sign in as a creator to do that.') {
-  const box = document.getElementById('mentor-signin'); if (!box) return;
+  const box = document.getElementById('mentor-signin');
+  if (!box) { // Idea Bank or B-roll page: point to the landing page, where anyone can pitch or sign in
+    if (!modal.open) opener = document.activeElement; title.textContent = 'Creators Club members only';
+    body.innerHTML = `<p>${escapeHTML(note)} Anyone can still pitch an idea, no password needed.</p><div class="button-row"><a class="button" href="${escapeHTML(pageUrl('index.html'))}#squad-pitch">Pitch an idea</a><a class="button secondary" href="${escapeHTML(pageUrl('index.html'))}#mentor-signin">Sign in</a><button class="button secondary" type="button" data-action="apply">Apply to join</button></div>`;
+    return showModal();
+  }
   document.getElementById('signin-note').textContent = note;
   box.scrollIntoView?.({ block: 'center', behavior: matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   box.classList.remove('nudge'); void box.offsetWidth; box.classList.add('nudge');
@@ -1504,13 +1527,14 @@ function showGate(note = '') {
 }
 // Signed-out visitors on the landing page: actions other than sharing a published Reel ask for the password.
 document.addEventListener('click', e => {
-  if (!LANDING() || !LOCKED()) return;
+  if (!OPEN_PAGE() || !LOCKED()) return;
   const a = e.target.closest && e.target.closest('[data-action],[data-reel]');
-  if (a && !['reel-share','apply','cast',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
+  if (a && !['reel-share','apply','cast','idea',...PUBLIC_GUIDES].includes(a.dataset.action)) { e.preventDefault(); e.stopImmediatePropagation(); askSignin(); }
 }, true);
 setupMenu();
 setupBell();
 watchScreen();
 if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); }
-else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
+else if (LANDING()) { renderContent(); loadIdeas(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in'); }
+else if (OPEN_PAGE()) { renderContent(); loadIdeas(); }
 else showGate();

@@ -383,3 +383,22 @@ console.log('PASS: new applications');
   t12.run('markActivitySeen(); renderActivity();'); assert.equal(t12.el('#nav-new').hidden, true);
 }
 console.log('PASS: bell badge');
+
+// Creators Club 2.0 dashboard (club.js): member view, outsider view, escaping, coordinator tabs.
+{
+  const t13 = boot(); t13.run(require('node:fs').readFileSync(root + '/club.js', 'utf8'));
+  t13.run(`storageSet(UPLOAD_NAME_KEY, 'Ana <i>'); club = { ok:true, settings:{ requiredThemed:1, requiredFlexible:1, creatorCircleUrl:'' }, roster:['Ana <i>'],
+    brief:{ id:'b1', title:'Registry <Mistakes>', theme:'Registry mistakes', weekStart:'2026-11-23', weekEnd:'2026-11-29', format:'Instagram Reel', cta:'Explore Baby Concierge' },
+    member:{ name:'Ana <i>', status:'Active', market:'Phoenix', joined:'2026-11-23' }, submissions:[{ id:'s1', submitted:'2026-11-24T10:00:00Z', kind:'themed', briefTitle:'Registry <Mistakes>', url:'https://www.instagram.com/reel/x/', status:'Submitted' }],
+    participation:{ standing:'Reminder', weeksMet:1, weeksFinished:2, history:[{ briefId:'b1', themed:1, flexible:0 }] } }; renderDashboard();`);
+  const d = t13.html('#club-dash');
+  assert.match(d, /Registry &lt;Mistakes&gt;/); assert.doesNotMatch(d, /<Mistakes>|<i>/);
+  assert.match(d, /data-action="club-submit" data-kind="themed"/); assert.match(d, /1 of 1/); assert.match(d, /Friendly reminder/);
+  assert.match(d, /tot-squad-hub\.disco\.co\/channel\/Q2hhdENoYW5uZWw6MjM0ODYw/); // Creator Circle falls back to content.js
+  t13.run(`club.member = null; club.application = { status:'Waitlisted' }; renderDashboard();`);
+  assert.match(t13.html('#club-dash'), /on the waitlist/); assert.doesNotMatch(t13.html('#club-dash'), /club-submit/);
+  t13.run(`coord = { applications:[{ id:'a1', name:'Bo', status:'Submitted', notes:'' }], members:[], briefs:[], submissions:[], participation:[], settings:{ requiredThemed:1, requiredFlexible:1, reminderAfter:1, reviewAfter:2 }, analytics:{ activeCreators:0, publishedLinks:0, repeatCreators:0, weeksRun:0, lastWeek:null, thisWeek:null }, current:'' };`);
+  for (const tab of ['applications','roster','briefs','content','participation','analytics','settings']) { t13.run(`coordTab = '${tab}'; renderCoord();`); assert.ok(t13.html('#modal-body').length > 100, tab); }
+  t13.run(`coordTab = 'analytics'; renderCoord();`); assert.match(t13.html('#modal-body'), /aren’t tracked yet/); // no invented reach numbers
+}
+console.log('PASS: Creators Club dashboard and coordinator tools');
