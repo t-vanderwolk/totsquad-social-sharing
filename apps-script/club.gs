@@ -456,6 +456,20 @@ function issueKey(a) {
   forgetTokens(dropped);
   return 'acct.' + a.id + '.' + secret;
 }
+// Accounts use full names ("Kristin Smith"). Creators set up their password with their first and last name.
+function fullNameProblem(name) {
+  const words = String(name || '').trim().split(/\s+/).filter(w => /\p{L}/u.test(w));
+  return words.length < 2 ? 'Enter your full name, first and last, as it appears in Disco.' : '';
+}
+// The roster may still list someone by first name only ("Kristin"): a signed-in full name maps to that entry when it's
+// the only one with that first name, so their posts and standing stay together. An exact roster match always wins.
+function rosterName(full) {
+  const ms = readTable(clubSheet('Members'), CLUB_TABS['Members']).filter(m => m.name);
+  const exact = ms.find(m => sameName(m.name, full)); if (exact) return String(exact.name);
+  const first = String(full || '').trim().split(/\s+/)[0];
+  const solo = ms.filter(m => !/\s/.test(String(m.name).trim()) && sameName(m.name, first));
+  return solo.length === 1 ? String(solo[0].name) : String(full);
+}
 function sharedPassword(key) {
   const want = PropertiesService.getScriptProperties().getProperty('MENTOR_PASSCODE');
   return !!want && String(key || '').trim().toLowerCase() === want.trim().toLowerCase();
@@ -475,12 +489,12 @@ function accountOut(a, key) {
 function accountSetup(req) {
   if (!sharedPassword(req.key) && !isCoordinator(req.key)) return locked();
   const name = clean(req.name);
-  if (!name) return reply({ ok: false, error: 'Choose your name first.' });
+  const nameProblem = fullNameProblem(name); if (nameProblem) return reply({ ok: false, fullName: true, error: nameProblem });
   const problem = passwordProblem(req.password, name); if (problem) return reply({ ok: false, error: problem });
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
   try {
     const sheet = accountsSheet(); let a = findAccount(name);
-    if (a && a.hash) return reply({ ok: false, taken: true, error: name + ' already has a password. Sign in with your name and your own password, or ask a coordinator to reset it.' });
+    if (a && a.hash) return reply({ ok: false, taken: true, error: a.name + ' already has a password. Sign in with your name and your own password, or ask a coordinator to reset it.' });
     const salt = Utilities.getUuid(), patch = { salt: salt, hash: pwHash(req.password, salt), tokens: '', resetBy: '' };
     if (a) writeRow(sheet, ACCOUNT_COLS, patch, a._row);
     else writeRow(sheet, ACCOUNT_COLS, Object.assign(patch, { id: 'a' + Utilities.getUuid().replace(/-/g, '').slice(0, 15), name: name, created: new Date() }), 0);
@@ -491,7 +505,8 @@ function accountSetup(req) {
 // POST account-login { name, password }: a few tries per name every 15 minutes.
 function accountLogin(req) {
   const name = clean(req.name), pw = String(req.password || '');
-  if (!name || !pw) return reply({ ok: false, wrong: true, error: 'Enter your name and your password.' });
+  if (!name || !pw) return reply({ ok: false, wrong: true, error: 'Enter your full name and your password.' });
+  if (fullNameProblem(name)) return reply({ ok: false, wrong: true, fullName: true, error: 'Use your full name, first and last.' });
   const cache = CacheService.getScriptCache(), k = 'login:' + name.toLowerCase(), tries = Number(cache.get(k) || 0);
   if (tries >= 10) return reply({ ok: false, error: 'Too many tries. Wait 15 minutes and try again, or ask a coordinator to reset your password.' });
   const a = findAccount(name);

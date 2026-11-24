@@ -278,13 +278,13 @@ function renderSquad() {
   const leader = leaderCard();
   const featured = (content.featuredSpecialists || []).map(p => typeof p === 'string' ? {name:p} : p).filter(p => p && p.name);
   const people = [...featured.map(p => ({ ...p, bio: bioFor(p) })), // bios creators wrote themselves win over content.js
-    ...(liveBios || []).filter(b => b.bio && !featured.some(p => sameName(p.name, b.name)) && !(content.leader && sameName(content.leader.name, b.name))).map(b => ({ name: b.name, bio: b.bio }))];
+    ...(liveBios || []).filter(b => b.bio && !featured.some(p => ownsCard(p, b.name)) && !(content.leader && ownsCard(content.leader, b.name))).map(b => ({ name: b.name, bio: b.bio }))];
   const me = myName();
   $('#squad-grid').innerHTML = people.length || leader ? leader + people.map((p,i) => {
     const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
     return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
       <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio" id="bio-${i}">${escapeHTML(p.bio)}</p>${p.bio.length > 110 ? `<button type="button" class="text-button bio-more" data-bio="bio-${i}" aria-expanded="false" aria-controls="bio-${i}">Read more</button>` : ''}` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-      <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}${me && sameName(p.name, me) ? `<button type="button" class="text-button" data-action="profile">${p.bio ? 'Edit my bio' : 'Add my bio'}</button>` : ''}</div></article>`;
+      <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}${ownsCard(p, me) ? `<button type="button" class="text-button" data-action="profile">${p.bio ? 'Edit my bio' : 'Add my bio'}</button>` : ''}</div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitBios);
 }
@@ -1613,8 +1613,7 @@ function unlock() { document.documentElement?.classList.add('unlocked'); documen
 /* Sign-in: your name and your own password. The shared creator password only opens "Set up your password";
    the coordinator password signs Taylor, Sarah and Linden in as coordinators. */
 function passwordForm(form, input, note$, go, label, nameEl) {
-  if (nameEl && !nameEl.value) nameEl.value = storageGet(ACCOUNT_NAME_KEY) || storageGet(UPLOAD_NAME_KEY) || '';
-  const list = nameEl && nameEl.list; if (list) list.innerHTML = squadNames().map(n => `<option value="${escapeHTML(n)}">`).join('');
+  if (nameEl && !nameEl.value) nameEl.value = storageGet(ACCOUNT_NAME_KEY) || [storageGet(UPLOAD_NAME_KEY)].find(isFullName) || '';
   form.onsubmit = async ev => {
     ev.preventDefault();
     const key = input.value.trim(), name = nameEl ? nameEl.value.trim() : '';
@@ -1623,7 +1622,7 @@ function passwordForm(form, input, note$, go, label, nameEl) {
     const ready = () => { go.disabled = false; go.textContent = label; };
     try {
       if (GATE_ON() && await mentorHash(key) === content.mentorPasswordHash) { ready(); input.value = ''; return openAccountSetup(key, name); } // first time here
-      if (name && UPLOAD_ON()) {
+      if (isFullName(name) && UPLOAD_ON()) {
         const res = await accountRequest({ action:'account-login', name, password: key });
         if (res && res.ok) { ready(); input.value = ''; return finishSignin(res); }
         if (res && !res.wrong) { note$.textContent = res.error || 'That didn’t work. Try again in a minute.'; return ready(); }
@@ -1631,8 +1630,8 @@ function passwordForm(form, input, note$, go, label, nameEl) {
       if (await coordinatorLogin(key)) { // not yours: maybe the coordinator password
         ready(); input.value = ''; mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(key); unlock(); renderContent(); loadIdeas(); loadActivity(); toast('You’re signed in as a coordinator.'); return;
       }
-      note$.textContent = name ? 'That name and password don’t match. First time here? Use the creator password from Sarah or Taylor to set up your own.' : 'Enter your name and your password.';
-      (name ? input : nameEl || input).focus(); if (name) input.select();
+      note$.textContent = !name ? 'Enter your full name and your password.' : !isFullName(name) ? 'Use your full name, first and last.' : 'That name and password don’t match. First time here? Use the creator password from Sarah or Taylor to set up your own.';
+      (isFullName(name) ? input : nameEl || input).focus(); if (isFullName(name)) input.select();
     } catch { note$.textContent = 'This browser couldn’t check the password. Try Chrome or Safari.'; }
     ready();
   };
@@ -1640,6 +1639,10 @@ function passwordForm(form, input, note$, go, label, nameEl) {
 /* ---------- Your own account: password and bio (apps-script/club.gs) ---------- */
 const ACCOUNT_NAME_KEY = 'totsquad-account-name';
 const isAccount = () => /^acct\./.test(mentorKey());
+// Accounts use full names: at least a first and a last name.
+const isFullName = n => String(n || '').trim().split(/\s+/).filter(w => /\p{L}/u.test(w)).length >= 2;
+// Meet the Squad cards may list a first name only. A card with fullName matches exactly; otherwise the first name does.
+const ownsCard = (p, name) => !!name && !!p && (p.fullName ? sameName(p.fullName, name) : sameName(p.name, name) || (!/\s/.test(String(p.name).trim()) && sameName(p.name, String(name).trim().split(/\s+/)[0])));
 const myName = () => isAccount() ? storageGet(ACCOUNT_NAME_KEY) || '' : '';
 async function accountRequest(payload) {
   const res = await fetch(content.uploadEndpoint, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) });
@@ -1655,10 +1658,10 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
   if (!modal.open) opener = document.activeElement;
   status.textContent = '';
   title.textContent = 'Set up your password';
-  body.innerHTML = `<p>${moving ? 'Each creator now has their own password. ' : 'Welcome to the Creators Club! '}Pick your name and a password only you know. You’ll sign in with these from now on, and you can write your own bio for Meet the Squad.</p>
+  body.innerHTML = `<p>${moving ? 'Each creator now has their own password. ' : 'Welcome to the Creators Club! '}Enter your full name and pick a password only you know. You’ll sign in with these from now on, and you can write your own bio for Meet the Squad.</p>
     <form id="acct-form" novalidate>
-      <label for="acct-name">Your name</label>
-      <input id="acct-name" type="text" list="acct-names" maxlength="80" autocomplete="username" placeholder="As it appears in Disco" value="${escapeHTML(name)}" required><datalist id="acct-names">${squadNames().map(n => `<option value="${escapeHTML(n)}">`).join('')}</datalist>
+      <label for="acct-name">Your full name</label>
+      <input id="acct-name" type="text" maxlength="80" autocomplete="username" autocapitalize="words" placeholder="First and last name, as in Disco" value="${escapeHTML(isFullName(name) ? name : '')}" required>
       <label for="acct-pw">New password</label>
       <input id="acct-pw" type="password" autocomplete="new-password" minlength="8" required>
       <p class="quiet">At least 8 characters, and not the shared creator password.</p>
@@ -1670,13 +1673,13 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
     ev.preventDefault();
     const nm = $('#acct-name').value.trim(), pw = $('#acct-pw').value, pw2 = $('#acct-pw2').value, go = $('#acct-go');
     status.textContent = '';
-    if (!nm) { status.textContent = 'Add your name first.'; return $('#acct-name').focus(); }
+    if (!isFullName(nm)) { status.textContent = 'Enter your full name, first and last, as it appears in Disco.'; return $('#acct-name').focus(); }
     if (pw.length < 8) { status.textContent = 'Use at least 8 characters.'; return $('#acct-pw').focus(); }
     if (pw !== pw2) { status.textContent = 'Those passwords don’t match.'; return $('#acct-pw2').focus(); }
     go.disabled = true; go.textContent = 'Saving…';
     try {
       const res = await accountRequest({ action:'account-setup', key: sharedKey, name: nm, password: pw });
-      if (!res || !res.ok) { status.textContent = res && res.locked ? 'The creator password has changed. Ask Sarah or Taylor for the new one.' : (res && res.error) || 'That didn’t save. Try again in a minute.'; go.disabled = false; go.textContent = 'Save my password'; return; }
+      if (!res || !res.ok) { status.textContent = res && res.locked ? 'The creator password has changed. Ask Sarah or Taylor for the new one.' : (res && res.error) || 'That didn’t save. Try again in a minute.'; go.disabled = false; go.textContent = 'Save my password'; if (res && res.fullName) $('#acct-name').focus(); return; }
       finishSignin(res);
       title.textContent = 'You’re all set';
       body.innerHTML = `<p>Next time, sign in with <strong>${escapeHTML(res.name)}</strong> and your new password. Your browser can save it for you.</p>
@@ -1684,11 +1687,11 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
       status.textContent = ''; $('#acct-done').onclick = () => modal.close();
     } catch { status.textContent = 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = 'Save my password'; }
   };
-  showModal(); $('#acct-pw').focus();
+  showModal(); $(isFullName(name) ? '#acct-pw' : '#acct-name').focus();
 }
 // The bio on someone's Meet the Squad card: theirs if they've written (or deleted) one, otherwise content.js.
 let liveBios = null;
-const bioFor = p => { const b = (liveBios || []).find(x => sameName(x.name, p.name)); return b ? b.bio : p.bio; };
+const bioFor = p => { const b = (liveBios || []).find(x => ownsCard(p, x.name)); return b ? b.bio : p.bio; };
 const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 async function loadBios() {
   if (!UPLOAD_ON() || typeof fetch !== 'function' || !has('#squad-grid')) return;
@@ -1712,7 +1715,7 @@ async function openProfile() {
   renderProfile(a);
 }
 function renderProfile(a, note = '') {
-  const card = (content.featuredSpecialists || []).find(p => p && sameName(p.name, a.name));
+  const card = (content.featuredSpecialists || []).find(p => p && ownsCard(p, a.name));
   const current = a.bioSet ? a.bio : (card && card.bio) || '';
   body.innerHTML = `<p>Signed in as <strong>${escapeHTML(a.name)}</strong>.</p>
     <section class="profile-part" aria-labelledby="bio-head"><h3 class="cal-head" id="bio-head">Your bio</h3>
@@ -1792,9 +1795,9 @@ function showGate(note = '') {
   gate.innerHTML = `<form class="gate-card" id="gate-form" novalidate>
     <img class="gate-logo" src="https://cdn.prod.website-files.com/5f4a9ffd91010361e130f380/68407ea76a2d0b8be6420f9e_Tot-Squad-Logo-NEW-REG.png" alt="Tot Squad">
     <h1 id="gate-title">Creators Club</h1>
-    <p>This page is for Tot Squad creators. Sign in with your name and password. First time? Use the creator password from Sarah or Taylor.</p>
-    <label for="gate-name">Your name</label>
-    <input id="gate-name" type="text" autocomplete="username" maxlength="80" list="gate-names" placeholder="As it appears in Disco"><datalist id="gate-names"></datalist>
+    <p>This page is for Tot Squad creators. Sign in with your full name and password. First time? Use the creator password from Sarah or Taylor.</p>
+    <label for="gate-name">Your full name</label>
+    <input id="gate-name" type="text" autocomplete="username" autocapitalize="words" maxlength="80" placeholder="First and last name">
     <label for="gate-key">Password</label>
     <input id="gate-key" type="password" autocomplete="current-password" required>
     <button class="button" type="submit" id="gate-go">Come in</button>

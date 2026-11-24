@@ -242,6 +242,7 @@ window.HUB_CONTENT = {
   // Approved first names.
   // region: East, Central or West (from the Squad Cup mentor sub-groups).
   // Optional: bio (one or two sentences), expertise, location, photo (https or images/ file), spotlight, link (https), instagram.
+  // fullName: their first and last name, so the bio they write in the app lands on this card even if two people share a first name.
   // disco: the link from their Disco profile (open the profile in Disco, copy the address bar). Adds a "Disco profile" button
   // and "Message <name>" on the Reels they lead.
   featuredSpecialists: [
