@@ -201,6 +201,13 @@ assert.match(t.html('#broll-grid'), /Aisle walk &lt;b&gt;/);
 assert.match(t.html('#broll-grid'), /data-copy="https:\/\/drive\.google\.com\/file\/d\/x"/);
 assert.doesNotMatch(t.html('#broll-grid'), /javascript:/);
 assert.doesNotMatch(t.html('#broll-filters'), /Feeding/); // only categories that have clips
+assert.match(t.html('#broll-grid'), /Open in Drive/); assert.equal(t.el('#broll-access').innerHTML, ''); // signed-in creators open and copy clips
+{ const out = boot(undefined, false, new Map()); out.run("brollPerson='Taylor';renderBroll()");
+  assert.match(out.html('#broll-add'), /data-action="upload" data-dest="broll"/); // anyone can add footage
+  assert.match(out.html('#broll-grid'), /Inside Target/); // previews stay open
+  assert.doesNotMatch(out.html('#broll-grid') + out.html('#broll-folders'), /Open in Drive|Open folder in Drive|data-copy|drive\.google/); // but Drive links are for members
+  assert.match(out.el('#broll-access').innerHTML, /Creators Club members/); }
+console.log('PASS: B-roll: anyone adds, members open and copy');
 t.run("brollFilter='strollers';renderBroll()");
 assert.doesNotMatch(t.html('#broll-grid'), /Aisle walk/);
 t = boot({ brollFolders: [{ name: 'Kristin', url: 'https://drive.google.com/drive/folders/k' }], brollClips: [] });

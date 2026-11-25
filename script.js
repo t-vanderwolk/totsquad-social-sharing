@@ -305,7 +305,7 @@ function clipCard(x, inFolder) {
   const thumb = imageUrl(x.thumbnail); const url = publicUrl(x.url);
   return `<article class="clip-card tint-${brollTint(x.category)}"><div class="clip-thumb">${thumb ? `<img src="${escapeHTML(thumb)}" alt="" loading="lazy">` : SVG(ART[BROLL_ART[x.category]] || ART.phone)}${x.length ? `<span class="clip-length">${escapeHTML(x.length)}</span>` : ''}</div>
     <h3>${escapeHTML(x.title)}</h3><p>${escapeHTML(brollLabel(x.category))}${x.credit && !inFolder ? ' · shot by '+escapeHTML(x.credit) : ''}</p>
-    <div class="button-row">${externalLink(url,'Open in Drive','button secondary')}${url ? `<button class="text-button" type="button" data-copy="${escapeHTML(url)}" data-done="Clip link copied.">Copy link</button>` : ''}</div></article>`;
+    ${LOCKED() ? '' : `<div class="button-row">${externalLink(url,'Open in Drive','button secondary')}${url ? `<button class="text-button" type="button" data-copy="${escapeHTML(url)}" data-done="Clip link copied.">Copy link</button>` : ''}</div>`}</article>`; // Drive links: Creators Club members only
 }
 const brollFolders = () => (content.brollFolders || []).filter(f => f && f.name);
 function personPhoto(name) { const p = [content.leader, ...(content.featuredSpecialists || [])].find(x => x && x.name === name); return p ? imageUrl(p.photo) : ''; }
@@ -325,13 +325,14 @@ function renderBroll() {
   const clips = open ? allClips.filter(x => x.credit === open.name) : allClips;
   const count = id => id === 'all' ? clips.length : clips.filter(x => x.category === id).length;
   const folder = (open && publicUrl(open.url)) || brollFolder();
-  if (has('#broll-add')) $('#broll-add').innerHTML = uploadButton('Add your clips','broll');
+  if (has('#broll-add')) $('#broll-add').innerHTML = uploadButton('Add your clips','broll'); // anyone can add footage
+  if (has('#broll-access')) $('#broll-access').innerHTML = LOCKED() ? `Anyone can add clips. Opening clips in Drive and copying links is for Creators Club members: <a href="${escapeHTML(pageUrl('index.html'))}#mentor-signin">sign in</a>.` : '';
   if (has('#broll-summary')) $('#broll-summary').textContent = allClips.length ? `${clipCount(allClips.length)} so far.` : '';
   if (has('#broll-folders')) $('#broll-folders').innerHTML = open
     ? `<div class="folder-open"><button type="button" class="text-button folder-back-link" data-broll-folder="">← All folders</button>
-        <div class="folder-open-head">${folderAvatar(open.name)}<div><h2>${escapeHTML(open.name)}’s folder</h2><p>${clipCount(clips.length)}</p></div>${externalLink(open.url,'Open folder in Drive','button secondary')}</div></div>`
+        <div class="folder-open-head">${folderAvatar(open.name)}<div><h2>${escapeHTML(open.name)}’s folder</h2><p>${clipCount(clips.length)}</p></div>${LOCKED() ? '' : externalLink(open.url,'Open folder in Drive','button secondary')}</div></div>`
     : folders.length ? `<h2 class="broll-head">Folders</h2><p class="folder-note">Open a folder to preview its clips.</p><div class="folder-grid">${folders.map(f => folderTile(f, allClips)).join('')}</div>`
-    : emptyState('No folders yet.', 'When a specialist sends clips, their folder shows up here.', externalLink(brollFolder(),'Add your clips'), ICON.play);
+    : emptyState('No folders yet.', 'When a specialist sends clips, their folder shows up here.', uploadButton('Add your clips','broll'), ICON.play);
   if (!open) { $('#broll-filters').innerHTML = ''; $('#broll-grid').innerHTML = ''; } // previews stay hidden until a folder is opened
   else {
     const usedCats = brollCats().filter(c => count(c.id));
@@ -339,7 +340,7 @@ function renderBroll() {
     $('#broll-filters').innerHTML = !usedCats.length ? '' : [{id:'all',label:'All'}, ...usedCats].map(f => `<button type="button" class="filter" data-broll="${escapeHTML(f.id)}" aria-pressed="${brollFilter === f.id}">${escapeHTML(f.label)} <span class="count">${count(f.id)}</span></button>`).join('');
     const shown = brollFilter === 'all' ? clips : clips.filter(x => x.category === brollFilter);
     $('#broll-grid').innerHTML = shown.length ? shown.map(x => clipCard(x, !!open)).join('')
-      : emptyState(clips.length ? 'No clips in this category yet.' : 'No clips here yet.', `Clips ${open.name} adds to the Drive folder show up here.`, externalLink(folder,'Open folder in Drive'), ICON.play);
+      : emptyState(clips.length ? 'No clips in this category yet.' : 'No clips here yet.', `Clips ${open.name} adds to the Drive folder show up here.`, LOCKED() ? uploadButton('Add your clips','broll') : externalLink(folder,'Open folder in Drive'), ICON.play);
   }
   if (has('#broll-wanted')) $('#broll-wanted').innerHTML = (content.brollWanted || []).map(w => `<li><span class="wanted-mark" aria-hidden="true"></span><div><strong>${escapeHTML(w.title)}</strong><span>${escapeHTML(brollLabel(w.category))}</span></div></li>`).join('');
 }
@@ -382,7 +383,7 @@ function toolkitItems() {
     { label:'Creators Club guidelines', action:'guidelines', desc:'Our purpose, expectations and community', icon:'heart' },
     ...(UPLOAD_ON() ? [{ label:'Upload clips', action:'upload', dest:'collab', desc:'Send footage straight to the Squad’s Drive', icon:'upload' }] : []),
     { label:'Idea Bank', page:'ideas.html', desc:'Every Squad idea, ready to lead or build on', icon:'bulb' },
-    { label:'B-roll library', page:'b-roll.html', desc:'Short clips anyone can reuse', icon:'film' },
+    { label:'B-roll library', page:'b-roll.html', desc:'Add clips anytime; members open them in Drive', icon:'film' },
     ...(UPLOAD_ON() && isCoord() ? [{ label:'New applications', action:'applications', desc:'Meet the creators who want to join', icon:'wave' }] : []), // applicants' details: coordinators only
     ...(content.resources || []).filter(r => r && r.label && (r.page || r.action)),
     { label:'My drafts', action:'drafts', desc:'Pitches saved on this device', icon:'draft' }
