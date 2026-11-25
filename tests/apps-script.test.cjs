@@ -339,4 +339,18 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   r = setup('Ana Lopez', ''); assert.equal(r.ok, true); assert.equal(r.claimed, '');
   assert.deepEqual(t8.get({ action: 'claimed' }).claimed.sort(), ['Kristin', 'Melissa']);
 }
+// Round Up casting call: answers land in the answers sheet, one column per question.
+{
+  const t9 = boot(), A = q => ({ q, a: 'x' });
+  assert.equal(t9.post({ action: 'cast-answers', name: 'Pat Lee', project: 'Nope', answers: [A('Favorite stroller?')] }).ok, false);
+  assert.equal(t9.post({ action: 'cast-answers', name: 'Pat Lee', project: 'Tot Squad Round Up: Point & Answer', answers: [] }).ok, false);
+  r = t9.post({ action: 'cast-answers', name: 'Pat Lee', contact: '@pat', project: 'Tot Squad Round Up: Point & Answer', answers: [{ q: 'Favorite stroller?', a: 'Bugaboo Fox 5' }, { q: 'Coffee order?', a: '=HYPERLINK("x")' }] });
+  assert.equal(r.ok, true);
+  t9.post({ action: 'cast-answers', name: 'Sam Day', project: 'Tot Squad Round Up: Point & Answer', answers: [{ q: 'Favorite car seat?', a: 'Nuna Pipa' }, { q: 'Favorite stroller?', a: 'UPPAbaby Vista' }] });
+  const sh = t9.g.books.get(vm.runInContext("PropertiesService.getScriptProperties().getProperty('ANSWERS_SHEET_ID')", t9.ctx)).getSheets()[0];
+  assert.deepEqual(sh.rows[0], ['Sent', 'Name', 'How to reach them', 'Casting call', 'Favorite stroller?', 'Coffee order?', 'Favorite car seat?']);
+  assert.equal(sh.rows[1][1], 'Pat Lee'); assert.equal(sh.rows[1][4], 'Bugaboo Fox 5'); assert.equal(sh.rows[1][5][0], "'"); // never a formula
+  assert.equal(sh.rows[2][4], 'UPPAbaby Vista'); assert.equal(sh.rows[2][6], 'Nuna Pipa');
+  assert.equal(t9.post({ action: 'cast-start', name: 'Pat Lee', project: 'Tot Squad Round Up: Point & Answer', agreed: true, type: 'video/mp4', size: 100, fileName: 'p.mp4' }).ok, true);
+}
 console.log('PASS: Creators Club 2.0 backend workflows');

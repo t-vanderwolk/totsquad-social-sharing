@@ -468,3 +468,18 @@ console.log('PASS: Creators Club guidelines');
   co.el('#ie-title').focus = () => {}; co.run(`openIdeaEdit('')`); assert.match(co.html('#modal-body'), /Add an idea|ie-credit/); assert.match(co.html('#modal-body'), /id="ie-credit"/);
 }
 console.log('PASS: idea bank permissions');
+
+// Second casting call: Round Up pointing clips + the Round Up questions (no toy step).
+{
+  const r = boot();
+  assert.match(r.html('#casting-projects'), /Tot Squad Round Up: Point &amp; Answer/);
+  assert.match(r.html('#casting-projects'), /data-action="cast" data-project="round-up-pointing">Film &amp; answer/);
+  r.run(`openCast('round-up-pointing', 1)`); let h = r.html('#modal-body');
+  assert.match(h, /1 · Film it/); assert.match(h, /2 · Answer the questions/); assert.match(h, /3 · Send it/); assert.doesNotMatch(h, /Find the toy/);
+  assert.match(h, /Tot Squad shirt/); assert.match(h, /doesn’t have to be filmed at Target|home, the office or Target/); assert.match(h, /3 to 5 clips/);
+  r.run(`openCast('round-up-pointing', 2)`); h = r.html('#modal-body');
+  for (const q of ['Favorite stroller?', 'Favorite car seat?', 'Best baby shower gift?', 'Song you could listen to on repeat?']) assert.ok(h.includes(q), q);
+  r.run(`openCast('round-up-pointing', 3)`); h = r.html('#modal-body'); assert.match(h, /accept="video\/\*" multiple/); assert.match(h, /Send my clips &amp; answers/);
+  r.run(`openCast('meet-the-squad-part-2', 1)`); assert.match(r.html('#modal-body'), /1 · Find the toy/); // the first call is unchanged
+}
+console.log('PASS: round up casting call');

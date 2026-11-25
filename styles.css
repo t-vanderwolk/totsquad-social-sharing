@@ -920,3 +920,6 @@ html:not(.coordinator) [data-coordinator]{display:none!important}
 .claim-list li span:first-child{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;border:2px solid var(--line);font-size:12px;color:var(--white)}
 .claim-list li.done span:first-child{background:var(--teal-dark);border-color:var(--teal-dark)}
 .claim-list .quiet{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Open casting call: the Round Up questions */
+.cast-questions{display:grid;gap:2px}
+.cast-questions textarea{min-height:44px;resize:vertical}

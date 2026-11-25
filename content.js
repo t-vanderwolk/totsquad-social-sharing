@@ -207,6 +207,30 @@ window.HUB_CONTENT = {
           'Keep it to about 5 seconds. Film two or three takes and send your favorite.'
         ],
         dont: 'No music or text on the video, and keep shoppers’ and babies’ faces out of the shot.'
+      } },
+    { id: 'round-up-pointing', title: 'Tot Squad Round Up: Point & Answer', status: 'casting', lead: 'Kristin',
+      description: 'Help us stock up for future Tot Squad Round Up posts! Film a few clips of you pointing up at the space above your head (that’s where your answer pops up in the Reel), then answer the Round Up questions so we can pair your clips with your picks.',
+      instructions: 'Short clips of you pointing up 3–5 different ways with different expressions. Your Tot Squad shirt is best, and it doesn’t have to be filmed at Target.',
+      thumbnail: 'images/round-up-strollers.jpg', exampleReelUrl: 'https://www.instagram.com/reel/DeIYf50zTwr/', exampleLabel: 'See a Round Up',
+      submissionDeadline: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=a92626f1-e32b-4c90-8cb2-d1fb97be5d93-L1Q8bG670t7qveiyVI5RD',
+      publishedReelUrl: '', participatingSpecialists: [],
+      // Open call: footage + answers to the Round Up questions (saved to the "Tot Squad Round Up answers" sheet), no password.
+      openCall: {
+        filmTitle: 'Film your pointing clips',
+        steps: [
+          'Wear your Tot Squad shirt if you can. Anywhere works: home, the office or Target, as long as the background is fairly plain and the light is good.',
+          'Prop your phone up vertically (9:16) at chest height and leave some empty space above your head. That’s where your answer will go.',
+          'Point up at that space a few different ways: right hand, left hand, both hands, a double point, a big “this one!” point.',
+          'Change your expression each time: excited, “trust me,” surprised, laughing. 3 to 5 clips is perfect.',
+          'Keep each clip about 2–3 seconds. No talking needed.'
+        ],
+        dont: 'No music or text on the clips, and keep shoppers’ and babies’ faces out of the shot.',
+        questionsIntro: 'Answer as many as you like. We’ll use them for future Round Ups, so short and specific is perfect (brand + product name).',
+        questions: [
+          'Favorite stroller?', 'Favorite car seat?', 'Registry item you think is overrated?', 'Favorite newborn must-have?', 'Best baby shower gift?',
+          'One registry item you couldn’t live without?', 'What item is worth the splurge?', 'Best registry advice?', 'What’s your coffee order?',
+          'What’s always in your Target cart?', 'Favorite childhood movie?', 'What TV show are you currently binging?', 'Song you could listen to on repeat?'
+        ]
       } }
   ],
   // These are known project titles, not verified completion or publication claims.

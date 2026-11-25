@@ -39,6 +39,7 @@ function doPost(e) {
     if (req.action === 'apply') return saveApplication(req); // open to anyone: it's how people ask to join
     if (req.action === 'squad-pitch') return saveSquadPitch(req); // open to anyone: ideas for Sarah to review
     if (req.action === 'cast-start') return startCastUpload(req); // open casting calls: video only, no password
+    if (req.action === 'cast-answers') return saveCastAnswers(req); // open casting calls: answers to its questions, no password
     if (req.action === 'broll-start') return startBrollUpload(req); // B-roll from any specialist, no password: lands in "B-roll to review"
     if (req.action === 'upload-done') return uploadDone(req); // logs finished uploads for What's new
     if (req.action === 'coord-login') return coordLogin(req); // sign-in with the coordinator password (club.gs)
@@ -314,7 +315,38 @@ function squadPitchSheet() {
   return sheet;
 }
 /* Open casting calls: anyone can send a video, no password. Only these projects, videos only, no folder link sent back. */
-const OPEN_CASTING = ['Meet the Squad, Part 2: Pass the Toy'];
+const OPEN_CASTING = ['Meet the Squad, Part 2: Pass the Toy', 'Tot Squad Round Up: Point & Answer'];
+/* Answers from an open casting call (the Round Up questions): one row per person in "Tot Squad Round Up answers",
+   one column per question. New questions add a column at the end; nothing is overwritten. */
+function answersSheet() {
+  const props = PropertiesService.getScriptProperties(), id = props.getProperty('ANSWERS_SHEET_ID');
+  if (id) { try { return SpreadsheetApp.openById(id).getSheets()[0]; } catch (err) { console.error(err); } }
+  const ss = SpreadsheetApp.create('Tot Squad Round Up answers'), sheet = ss.getSheets()[0];
+  sheet.setName('Answers'); sheet.appendRow(['Sent', 'Name', 'How to reach them', 'Casting call']); sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#f3eaf1');
+  DriveApp.getFileById(ss.getId()).moveTo(DriveApp.getFolderById(ROOTS.collab));
+  props.setProperty('ANSWERS_SHEET_ID', ss.getId());
+  return sheet;
+}
+function saveCastAnswers(req) {
+  const name = clean(req.name), project = clean(req.project);
+  if (OPEN_CASTING.indexOf(project) < 0) return reply({ ok: false, error: 'This casting call isn’t taking answers right now.' });
+  if (!name) return reply({ ok: false, error: 'Add your name first.' });
+  const answers = (Array.isArray(req.answers) ? req.answers : []).slice(0, 30).map(x => ({ q: text(x && x.q).slice(0, 200), a: text(x && x.a).slice(0, 500) })).filter(x => x.q && x.a);
+  if (!answers.length) return reply({ ok: false, error: 'Answer at least one question.' });
+  const cache = CacheService.getScriptCache(), count = Number(cache.get('answers-count') || 0);
+  if (count >= 60) return reply({ ok: false, error: 'Lots of answers are coming in right now. Try again in an hour.' });
+  cache.put('answers-count', String(count + 1), 3600);
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sheet = answersSheet(), width = Math.max(sheet.getLastColumn(), 4), head = sheet.getRange(1, 1, 1, width).getValues()[0].map(String);
+    answers.forEach(x => { if (head.indexOf(x.q) < 0) { head.push(x.q); sheet.getRange(1, head.length).setValue(x.q).setFontWeight('bold').setBackground('#f3eaf1'); } });
+    const row = head.map(h => h === 'Sent' ? new Date() : h === 'Name' ? name : h === 'How to reach them' ? text(req.contact).slice(0, 120) : h === 'Casting call' ? project : ((answers.find(x => x.q === h) || {}).a || ''));
+    sheet.appendRow(row);
+    logActivity('video', name, 'answered the questions for ' + project, '');
+    return reply({ ok: true });
+  } finally { lock.releaseLock(); }
+}
 function startCastUpload(req) {
   const name = clean(req.name), project = clean(req.project), type = String(req.type || ''), size = Number(req.size);
   if (OPEN_CASTING.indexOf(project) < 0) return reply({ ok: false, error: 'This casting call isn’t taking videos right now.' });

@@ -158,7 +158,7 @@ function renderCasting() {
     <div class="casting-copy"><span class="chip casting-chip">Casting now</span><h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
-    <div class="button-row">${p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">Send your video</button>${messageLead(p.lead)}` : `${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}`}${externalLink(p.exampleReelUrl,'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
+    <div class="button-row">${p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'}</button>${messageLead(p.lead)}` : `${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}`}${externalLink(p.exampleReelUrl,p.exampleLabel || 'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
     : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}" data-tool-page="ideas.html" data-label="Idea Bank">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
 }
 
@@ -1490,35 +1490,58 @@ function setupSquadPitch() {
 /* Open casting call ("Send your video"): a guided, no-password flow. 1 Find the toy · 2 Film it · 3 Send it.
    Videos go to the casting call's Drive folder through the script (cast-start); no Drive links are shown. */
 let castStep = 1, castProject = '';
+// Open casting calls: Find the toy (if there's one) → Film it → Answer the questions (if any) → Send it.
+const castAnswers = {}; // answers typed so far, per casting call, kept while the dialog moves between steps
+function castFlow(call) { return [call.toy && 'toy', 'film', (call.questions || []).length && 'questions', 'send'].filter(Boolean); }
+const CAST_LABEL = { toy:'Find the toy', film:'Film it', questions:'Answer the questions', send:'Send it' };
+function keepCastAnswers(id) {
+  const form = document.getElementById ? document.getElementById('cast-q-form') : null; if (!form) return;
+  castAnswers[id] = [...form.querySelectorAll('textarea[data-q]')].map(t => ({ q: t.dataset.q, a: t.value.trim() }));
+  storageSet('totsquad-cast-answers-' + id, JSON.stringify(castAnswers[id])); // a closed dialog doesn't lose them
+}
+function savedCastAnswers(id) { if (!castAnswers[id]) { try { castAnswers[id] = JSON.parse(storageGet('totsquad-cast-answers-' + id) || '[]'); } catch { castAnswers[id] = []; } } return castAnswers[id]; }
 function openCast(id, step = 1) {
   const p = allProjects.find(x => x.id === id); const call = p && p.openCall; if (!call) return;
-  castStep = step;
-  const toy = call.toy || {}, steps = call.steps || [];
-  const nav = `<ol class="steps cast-steps">${['Find the toy','Film it','Send it'].map((t,i) => `<li${i + 1 === step ? ' aria-current="step"' : ''}>${i + 1} · ${t}</li>`).join('')}</ol>`;
+  if (castProject === id) keepCastAnswers(id);
+  const flow = castFlow(call); step = Math.min(Math.max(step, 1), flow.length); castStep = step;
+  const key = flow[step - 1], next = step + 1, back = step - 1;
+  const toy = call.toy || {}, steps = call.steps || [], questions = call.questions || [];
+  const nav = `<ol class="steps cast-steps">${flow.map((k,i) => `<li${i + 1 === step ? ' aria-current="step"' : ''}>${i + 1} · ${CAST_LABEL[k]}</li>`).join('')}</ol>`;
+  const backBtn = back ? `<button class="button secondary" type="button" data-cast-step="${back}">Back</button>` : '';
   title.textContent = p.title;
-  if (step === 1) body.innerHTML = `${nav}
+  if (key === 'toy') body.innerHTML = `${nav}
     <div class="cast-toy">${imageUrl(toy.photo) ? `<img src="${escapeHTML(imageUrl(toy.photo))}" alt="The sunshine toy: a soft yellow sun with a smiling face, little arms and legs">` : ''}
       <div><h3>Find the sunshine toy</h3><p><strong>${escapeHTML(toy.name || '')}</strong></p><p>${escapeHTML(toy.note || '')}</p>
       ${toy.item ? `<p class="quiet">Can’t spot it? Search <strong>${escapeHTML(toy.item)}</strong> in the Target app, or ask a team member to look it up.</p>` : ''}
       ${externalLink(toy.url, 'See it on Target.com', 'text-button')}</div></div>
-    <div class="form-actions"><button class="button" type="button" data-cast-step="2">I have the toy</button>${p.exampleReelUrl ? externalLink(p.exampleReelUrl,'Watch Part 1','button secondary') : ''}</div>`;
-  if (step === 2) body.innerHTML = `${nav}
-    <h3>Film your part</h3><ol class="cast-howto">${steps.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ol>
+    <div class="form-actions"><button class="button" type="button" data-cast-step="${next}">I have the toy</button>${p.exampleReelUrl ? externalLink(p.exampleReelUrl,p.exampleLabel || 'Watch Part 1','button secondary') : ''}</div>`;
+  if (key === 'film') body.innerHTML = `${nav}
+    <h3>${escapeHTML(call.filmTitle || 'Film your part')}</h3>${p.description && !call.toy ? `<p>${escapeHTML(p.description)}</p>` : ''}<ol class="cast-howto">${steps.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ol>
     ${call.dont ? `<p class="flow-note">${escapeHTML(call.dont)}</p>` : ''}
-    <div class="form-actions"><button class="button" type="button" data-cast-step="3">I’ve filmed it</button><button class="button secondary" type="button" data-cast-step="1">Back</button></div>`;
-  if (step === 3) {
+    <div class="form-actions"><button class="button" type="button" data-cast-step="${next}">I’ve filmed it</button>${backBtn}${!call.toy && p.exampleReelUrl ? externalLink(p.exampleReelUrl,'See an example','button secondary') : ''}</div>`;
+  if (key === 'questions') {
+    const saved = savedCastAnswers(id), ans = q => (saved.find(x => x.q === q) || {}).a || '';
+    body.innerHTML = `${nav}
+    <form id="cast-q-form" novalidate><h3>Answer the questions</h3>${call.questionsIntro ? `<p>${escapeHTML(call.questionsIntro)}</p>` : ''}
+      <div class="cast-questions">${questions.map((q,i) => `<label for="cq-${i}">${escapeHTML(q)}</label><textarea id="cq-${i}" rows="1" maxlength="500" data-q="${escapeHTML(q)}">${escapeHTML(ans(q))}</textarea>`).join('')}</div>
+      <div class="form-actions"><button class="button" type="button" data-cast-step="${next}">Next</button>${backBtn}</div></form>`;
+    $('#cast-q-form').oninput = () => keepCastAnswers(id);
+  }
+  if (key === 'send') {
+    const answered = savedCastAnswers(id).filter(x => x.a).length;
     body.innerHTML = `${nav}
     <form id="cast-form" novalidate>
       <label for="cs-name">Your name</label>
-      <input id="cs-name" type="text" autocomplete="name" maxlength="80" value="${escapeHTML(storageGet(UPLOAD_NAME_KEY) || '')}" required>
+      <input id="cs-name" type="text" autocomplete="name" maxlength="80" value="${escapeHTML(storageGet(ACCOUNT_NAME_KEY) || storageGet(UPLOAD_NAME_KEY) || '')}" required>
       <label for="cs-contact">How can the team reach you? <span class="quiet">(optional)</span></label>
       <input id="cs-contact" type="text" maxlength="120" placeholder="Disco name, email or @handle">
-      <label for="cs-file">Your video</label>
-      <input id="cs-file" type="file" accept="video/*" required>
-      <p class="quiet">Vertical (9:16), up to 2 GB. It goes straight to the Squad’s private Drive; only the Creators Club team can see it.</p>
+      <label for="cs-file">${questions.length ? 'Your clips' : 'Your video'}</label>
+      <input id="cs-file" type="file" accept="video/*"${questions.length ? ' multiple' : ''} required>
+      <p class="quiet">Vertical (9:16), up to 2 GB each. ${questions.length ? 'Pick all your clips at once. ' : ''}They go straight to the Squad’s private Drive; only the Creators Club team can see them.</p>
+      ${questions.length ? `<p class="quiet">${answered ? `${plural2(answered, 'answer')} ready to send with your clips. ` : 'No answers yet. '}<button type="button" class="text-button" data-cast-step="${back}">${answered ? 'Review answers' : 'Answer the questions'}</button></p>` : ''}
       <label class="check agree"><input type="checkbox" id="cs-agree">Everyone in the video agreed to be filmed, and there are no shoppers’ or babies’ faces in it.</label>
       <ul class="upload-list" id="cast-list" aria-live="polite"></ul>
-      <div class="form-actions"><button class="button" type="submit" id="cs-go">Send my video</button><button class="button secondary" type="button" data-cast-step="2">Back</button></div>
+      <div class="form-actions"><button class="button" type="submit" id="cs-go">${questions.length ? 'Send my clips &amp; answers' : 'Send my video'}</button>${backBtn}</div>
     </form>`;
     $('#cast-form').onsubmit = ev => { ev.preventDefault(); sendCast(p); };
     $('#cast-form').oninput = () => { if (!document.getElementById('cs-go').disabled) status.textContent = ''; };
@@ -1526,30 +1549,40 @@ function openCast(id, step = 1) {
   castProject = id;
   showModal();
 }
+const plural2 = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 async function sendCast(p) {
   const val = id => document.getElementById(id).value.trim();
-  const name = val('cs-name'), file = (document.getElementById('cs-file').files || [])[0];
+  const name = val('cs-name'), files = [...(document.getElementById('cs-file').files || [])], answers = savedCastAnswers(p.id).filter(x => x.a);
+  const asks = (p.openCall.questions || []).length;
   if (!name) { status.textContent = 'Add your name first.'; return document.getElementById('cs-name').focus(); }
-  if (!file) { status.textContent = 'Choose your video.'; return document.getElementById('cs-file').focus(); }
-  if (!/^video\//.test(file.type) || file.size > 2*1024**3) { status.textContent = 'Choose a video up to 2 GB.'; return; }
-  if (!document.getElementById('cs-agree').checked) { status.textContent = 'Check the box first.'; return document.getElementById('cs-agree').focus(); }
-  const go = document.getElementById('cs-go'); go.disabled = true; go.textContent = 'Sending…'; status.textContent = '';
+  if (!files.length && !answers.length) { status.textContent = asks ? 'Choose your clips, or answer the questions first.' : 'Choose your video.'; return document.getElementById('cs-file').focus(); }
+  const bad = files.find(f => !/^video\//.test(f.type) || f.size > 2*1024**3);
+  if (bad) { status.textContent = `${bad.name} can’t be sent. Choose videos up to 2 GB.`; return; }
+  if (files.length && !document.getElementById('cs-agree').checked) { status.textContent = 'Check the box first.'; return document.getElementById('cs-agree').focus(); }
+  const go = document.getElementById('cs-go'), label = go.textContent; go.disabled = true; go.textContent = 'Sending…'; status.textContent = '';
   const list = document.getElementById('cast-list');
-  list.innerHTML = `<li><span>${escapeHTML(file.name)} <small>${sizeLabel(file.size)}</small></span><progress max="1" value="0"></progress><small class="up-state">Starting</small></li>`;
-  const bar = list.querySelector('progress'), state = list.querySelector('.up-state');
-  try {
-    const start = await uploadRequest({ action:'cast-start', name, contact: val('cs-contact'), project: p.title, agreed: true, fileName: file.name, type: file.type, size: file.size, origin: location.origin });
-    if (!start.ok) throw new Error(start.error || 'Couldn’t start');
-    state.textContent = 'Uploading';
-    uploadDone(await putFile(start.uploadUrl, file, f => { bar.value = f; state.textContent = Math.round(f*100)+'%'; }));
-    storageSet(UPLOAD_NAME_KEY, name);
-    body.innerHTML = `<div class="cast-done"><h3>Your video is in!</h3><p>Thanks, ${escapeHTML(name.split(/\s+/)[0])}. It’s safely in the Squad’s private Drive for ${escapeHTML(p.title)}. ${p.lead ? escapeHTML(p.lead)+' and the team will' : 'The team will'} reach out if they need anything.</p></div>`;
-    status.textContent = '';
-  } catch (err) {
-    state.textContent = 'Didn’t send'; list.querySelector('li').classList.add('failed');
-    status.textContent = /network|status/.test(err.message) ? 'The upload stopped. Check your connection and try again.' : err.message;
-    go.disabled = false; go.textContent = 'Try again';
+  list.innerHTML = files.map((f,i) => `<li id="cast-${i}"><span>${escapeHTML(f.name)} <small>${sizeLabel(f.size)}</small></span><progress max="1" value="0"></progress><small class="up-state">Waiting</small></li>`).join('');
+  let sent = 0, failed = '';
+  for (const [i, file] of files.entries()) {
+    const row = document.getElementById('cast-' + i), bar = row.querySelector('progress'), state = row.querySelector('.up-state');
+    try {
+      const start = await uploadRequest({ action:'cast-start', name, contact: val('cs-contact'), project: p.title, agreed: true, fileName: file.name, type: file.type, size: file.size, origin: location.origin });
+      if (!start.ok) throw new Error(start.error || 'Couldn’t start');
+      state.textContent = 'Uploading';
+      uploadDone(await putFile(start.uploadUrl, file, f => { bar.value = f; state.textContent = Math.round(f*100)+'%'; }));
+      bar.value = 1; state.textContent = 'Sent'; row.classList.add('done'); sent++;
+    } catch (err) { state.textContent = 'Didn’t send'; row.classList.add('failed'); failed = /network|status/.test(err.message) ? 'An upload stopped. Check your connection and try again.' : err.message; }
   }
+  let answersSent = false;
+  if (answers.length && !failed) {
+    try { const res = await uploadRequest({ action:'cast-answers', name, contact: val('cs-contact'), project: p.title, answers }); if (!res.ok) throw new Error(res.error || ''); answersSent = true; }
+    catch (err) { failed = err.message || 'Your answers didn’t send. Try again in a minute.'; }
+  }
+  if (failed) { status.textContent = failed; go.disabled = false; go.textContent = 'Try again'; return; }
+  storageSet(UPLOAD_NAME_KEY, name); delete castAnswers[p.id]; try { localStorage.removeItem('totsquad-cast-answers-' + p.id); } catch {}
+  const what = [sent ? (asks ? plural2(sent, 'clip') : 'your video') : '', answersSent ? 'your answers' : ''].filter(Boolean).join(' and ');
+  body.innerHTML = `<div class="cast-done"><h3>${asks ? 'Got it, thank you!' : 'Your video is in!'}</h3><p>Thanks, ${escapeHTML(name.split(/\s+/)[0])}. We have ${escapeHTML(what)} for ${escapeHTML(p.title)}, safe in the Squad’s private Drive. ${p.lead ? escapeHTML(p.lead)+' and the team will' : 'The team will'} reach out if they need anything.</p></div>`;
+  status.textContent = '';
 }
 
 /* ---------- What's new (creators only): apps-script ?action=activity ---------- */
