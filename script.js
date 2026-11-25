@@ -1820,6 +1820,9 @@ const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || 
 async function loadBios() {
   if (!UPLOAD_ON() || typeof fetch !== 'function' || !has('#squad-grid')) return;
   try { const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=bios`); const d = await res.json(); if (d && d.ok && Array.isArray(d.bios)) { liveBios = d.bios; renderSquad(); } } catch {}
+  if (isAccount() && !myClaim()) { // signed in before their name was claimed (or linked by a coordinator): pick it up now
+    try { const a = await uploadRequest({ action:'account-me' }); if (a && a.ok && a.claimed) { storageSet(ACCOUNT_CLAIM_KEY, a.claimed); renderSquad(); } } catch {}
+  }
 }
 function setMyBio(name, bio) {
   liveBios = [...(liveBios || []).filter(b => !sameName(b.name, name)), { name, bio }];
@@ -1836,6 +1839,7 @@ async function openProfile() {
   let a;
   try { a = await uploadRequest({ action:'account-me' }); } catch { a = null; }
   if (!a || !a.ok) { body.innerHTML = `<p>${escapeHTML(a && a.error || 'Your profile couldn’t load. Check your connection and try again.')}</p><div class="button-row"><button class="button secondary" type="button" data-signout>Sign out</button></div>`; return; }
+  if (a.claimed) storageSet(ACCOUNT_CLAIM_KEY, a.claimed);
   renderProfile(a);
 }
 function renderProfile(a, note = '') {

@@ -278,7 +278,9 @@ function coordClaims(c) {
   const done = squad.filter(holder).length;
   return `<div class="coord-card claims"><div class="app-top"><h3>Profiles claimed</h3><span class="stage ${done === squad.length ? 'stage-published' : 'stage-filming'}">${done} of ${squad.length}</span></div>
     <p class="quiet">Each current Squad member signs in once with the creator password, claims their name, adds their last name and sets a password. Their roster row switches to their full name.</p>
-    <ul class="claim-list">${squad.map(n => { const a = holder(n); return `<li class="${a ? 'done' : ''}"><span aria-hidden="true">${a ? '✓' : ''}</span><strong>${escapeHTML(n)}</strong><span class="quiet">${a ? escapeHTML(a.name) + (a.bioSet && a.bio ? ' · bio added' : ' · no bio yet') : 'Not yet'}</span></li>`; }).join('')}</ul></div>`;
+    <ul class="claim-list">${squad.map(n => { const a = holder(n), match = !a && list.find(x => x.hasPassword && !x.claimed && sameName(String(x.name).split(/\s+/)[0], n));
+      return `<li class="${a ? 'done' : ''}"><span aria-hidden="true">${a ? '✓' : ''}</span><strong>${escapeHTML(n)}</strong>${a ? `<span class="quiet">${escapeHTML(a.name) + (a.bioSet && a.bio ? ' · bio added' : ' · no bio yet')}</span>`
+        : match ? `<button class="text-button" type="button" data-coord-account="claim" data-name="${escapeHTML(match.name)}" data-claim="${escapeHTML(n)}">Link ${escapeHTML(match.name)}</button>` : '<span class="quiet">Not yet</span>'}</li>`; }).join('')}</ul></div>`;
 }
 function coordAccounts(c) {
   const list = c.accounts || []; if (!list.length) return '';
@@ -374,7 +376,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if ('coordCancel' in d || 'coordBack' in d) { briefDraft = null; briefView = null; status.textContent = ''; renderCoord(); return; }
     if (d.coordPreview) { briefView = { id: d.coordPreview, mode: 'preview' }; renderCoord(); return; }
     if (d.coordBriefDel) { briefDraft = null; briefView = { id: d.coordBriefDel, mode: 'delete' }; renderCoord(); return; }
-    if (d.coordAccount) { refreshCoord('admin-account', { name: d.name, op: d.coordAccount }, d.coordAccount === 'reset' ? `Password reset. ${d.name} can set a new one with the creator password.` : 'Bio taken down.'); return; }
+    if (d.coordAccount) { refreshCoord('admin-account', { name: d.name, op: d.coordAccount, claim: d.claim || '' }, d.coordAccount === 'reset' ? `Password reset. ${d.name} can set a new one with the creator password.` : d.coordAccount === 'claim' ? `${d.name} now has ${d.claim} on the roster.` : 'Bio taken down.'); return; }
     if (d.coordBrief) { briefView = null; refreshCoord('admin-brief', { op: d.coordBrief, brief: { id: d.id } }, { duplicate: 'Copied as a draft for the next brief.', publish: 'Published. Creators see it now.', unpublish: 'Back to draft.', archive: 'Archived.', delete: 'Brief deleted.' }[d.coordBrief]); return; }
   });
   document.addEventListener('submit', async e => {

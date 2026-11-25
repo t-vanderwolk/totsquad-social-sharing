@@ -338,6 +338,14 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   // New creators who aren't on the list just use their full name; nothing is claimed.
   r = setup('Ana Lopez', ''); assert.equal(r.ok, true); assert.equal(r.claimed, '');
   assert.deepEqual(t8.get({ action: 'claimed' }).claimed.sort(), ['Kristin', 'Melissa']);
+  // Accounts made before claiming existed: a coordinator links them, or they're linked on their next sign-in.
+  vm.runInContext(`(() => { const sh = accountsSheet(); ['Taylor Vanderwolk', 'Lora Bell'].forEach((n, i) => { const salt = 'salt' + i; writeRow(sh, ACCOUNT_COLS, { id: 'aold000000000' + i, name: n, salt: salt, hash: pwHash('old-pass-12' + i, salt), tokens: '' }, 0); }); })()`, t8.ctx);
+  t8.post({ action: 'admin-seed', ...ck, members: [{ name: 'Taylor' }] });
+  assert.match(t8.post({ action: 'admin-account', ...ck, name: 'Taylor Vanderwolk', op: 'claim', claim: 'Kristin' }).error, /doesn’t start with Kristin/);
+  r = t8.post({ action: 'admin-account', ...ck, name: 'Taylor Vanderwolk', op: 'claim', claim: 'Taylor' }); assert.equal(r.ok, true);
+  assert.equal(r.accounts.find(a => a.name === 'Taylor Vanderwolk').claimed, 'Taylor'); assert.ok(r.members.some(m => m.name === 'Taylor Vanderwolk')); assert.equal(r.members.some(m => m.name === 'Taylor'), false);
+  r = t8.post({ action: 'account-login', name: 'Lora Bell', password: 'old-pass-121' }); assert.equal(r.ok, true); assert.equal(r.claimed, 'Lora'); // Lora is on the roster, so she's linked
+  assert.ok(t8.post({ action: 'admin-data', ...ck }).members.some(m => m.name === 'Lora Bell'));
 }
 // Round Up casting call: answers land in the answers sheet, one column per question.
 {

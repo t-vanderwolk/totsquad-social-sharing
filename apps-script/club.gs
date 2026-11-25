@@ -529,6 +529,22 @@ function accountOut(a, key) {
    logged under the first name) move to the full name, so the roster ends up with everyone's full name. */
 const claimOf = a => String(a && a.claimed || '').trim();
 function claimedNames() { return allAccountRows().filter(a => a.hash && claimOf(a)).map(claimOf); }
+// Gives an account its Squad name, if nobody else has it; then syncs the roster. Returns an error message or ''.
+function claimFor(a, claim) {
+  if (!claim) return 'Choose the Squad name to link.';
+  if (!sameName(String(a.name).split(/\s+/)[0], claim)) return String(a.name) + ' doesn’t start with ' + claim + '.';
+  const holder = allAccountRows().find(x => x.hash && sameName(claimOf(x), claim) && !sameName(x.name, a.name));
+  if (holder) return claim + ' was already claimed by ' + holder.name + '.';
+  writeRow(accountsSheet(), ACCOUNT_COLS, { claimed: claim }, a._row);
+  syncRoster(String(a.name), claim); CacheService.getScriptCache().remove('bios');
+  return '';
+}
+// Accounts set up before claiming existed: on sign-in, claim the first name when it's on the roster and still free.
+function autoClaim(a) {
+  if (claimOf(a)) return;
+  const first = String(a.name).split(/\s+/)[0];
+  if (readTable(clubSheet('Members'), CLUB_TABS['Members']).some(m => sameName(m.name, first))) claimFor(a, first);
+}
 function syncRoster(full, claim) {
   const msheet = clubSheet('Members'), cols = CLUB_TABS['Members'], rows = readTable(msheet, cols);
   const exact = rows.find(r => sameName(r.name, full)), first = claim ? rows.find(r => sameName(r.name, claim)) : null;
@@ -574,7 +590,7 @@ function accountLogin(req) {
   }
   cache.remove(k);
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
-  try { return reply(accountOut(a, issueKey(findAccount(name)))); } finally { lock.releaseLock(); }
+  try { autoClaim(a); return reply(accountOut(findAccount(name), issueKey(findAccount(name)))); } finally { lock.releaseLock(); }
 }
 // Signed-in creators: read their account, change their password, sign out, and save or delete their bio.
 function accountReply(req, name) {
@@ -621,5 +637,6 @@ function adminAccount(req, who) {
   const a = findAccount(req.name); if (!a) throw new Error('No account for that name.');
   if (req.op === 'reset') { writeRow(accountsSheet(), ACCOUNT_COLS, { hash: '', salt: '', tokens: '', resetBy: who }, a._row); forgetTokens(tokenList(a)); }
   else if (req.op === 'clear-bio') { writeRow(accountsSheet(), ACCOUNT_COLS, { bio: '', bioUpdated: new Date() }, a._row); CacheService.getScriptCache().remove('bios'); }
+  else if (req.op === 'claim') { const err = claimFor(a, clean(req.claim)); if (err) throw new Error(err); } // link an account made before claiming existed
   else throw new Error('Unknown request.');
 }
