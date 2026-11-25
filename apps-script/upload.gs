@@ -7,8 +7,9 @@
  *   Collaborations: Content submission folder / <Collaboration> / <Name>
  *
  * Setup (once per Google account):
- *   1. Project Settings > Script properties: add MENTOR_PASSCODE (the creator password the Creators Club
- *      signs in with; not case-sensitive). Uploads, pitches and the Reels data all use it.
+ *   1. Project Settings > Script properties: add MENTOR_PASSCODE (the creator password; not case-sensitive).
+ *      It only opens "Set up your password" for new members: it never signs anyone in or reads any data.
+ *      Coordinators can change it from Coordinator tools > Settings. Never put it in this repo: the repo is public.
  *   2. Deploy > New deployment > Web app. Execute as: Me. Who has access: Anyone.
  *   3. Put the web app URL in content.js as uploadEndpoint.
  * Uploads land in the Tot Squad shared drive, so Tot Squad owns them and they use its storage.
@@ -134,11 +135,12 @@ function pitchSheet() {
    Columns after Notes were added for Creators Club 2.0; older rows simply leave them blank. Approving adds the
    person to the Members tab of the Creators Club program sheet (club.gs). */
 const APPLY_COLUMNS = [['submitted','Submitted'],['name','Name in Disco'],['region','Region'],['instagram','Instagram'],['roles','How they’d like to help'],['camera','On camera'],['why','Why they want to join'],['example','Example link'],['agreed','Agreed to guidelines'],['status','Status'],['notes','Notes'],
-  ['market','Home market'],['interests','Content interests'],['experience','Creative experience'],['capacity','Availability & weekly capacity'],['id','ID'],['reviewedBy','Reviewed by'],['reviewed','Reviewed']];
+  ['market','Home market'],['interests','Content interests'],['experience','Creative experience'],['capacity','Availability & weekly capacity'],['id','ID'],['reviewedBy','Reviewed by'],['reviewed','Reviewed'],['email','Email']];
 function saveApplication(req) {
   if (req.website) return reply({ ok: true }); // hidden field only bots fill in
   const a = req.application || {};
   if (!text(a.name) || !text(a.why)) return reply({ ok: false, error: 'Add your name and why you’d like to join.' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text(a.email)) && !text(a.instagram)) return reply({ ok: false, error: 'Add an email or your Instagram handle so we can reply.' });
   if (a.agreed !== true) return reply({ ok: false, error: 'Check the box about the Creators Club guidelines first.' });
   const cache = CacheService.getScriptCache(), count = Number(cache.get('apply-count') || 0);
   if (count >= 40) return reply({ ok: false, error: 'We’re getting a lot of applications right now. Try again in an hour.' });
@@ -146,13 +148,12 @@ function saveApplication(req) {
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
     const row = { submitted: new Date(), status: 'Submitted', agreed: 'Yes', id: newId('a') };
-    ['name','region','instagram','roles','camera','why','example','market','interests','experience','capacity'].forEach(k => { row[k] = text(a[k]).slice(0, 1000); });
-    writeRow(applySheet(), APPLY_COLUMNS, row, 0);
-    logActivity('apply', text(a.name).slice(0, 80), 'applied to join the Creators Club', '');
+    ['name','region','instagram','roles','camera','why','example','market','interests','experience','capacity','email'].forEach(k => { row[k] = text(a[k]).slice(0, 1000); });
+    writeRow(applySheet(), APPLY_COLUMNS, row, 0); // not in What's new: only coordinators see who applied
     return reply({ ok: true });
   } finally { lock.releaseLock(); }
 }
-// For signed-in creators: newest applications first. Declined ones and the Notes column stay private.
+// For coordinators: newest applications first. Declined ones and the Notes column stay out.
 function readApplications() {
   return readTable(applySheet(), APPLY_COLUMNS).filter(r => r.name).reverse()
     .filter(r => ['Submitted', 'Under Review', 'Approved'].indexOf(appStatus(r.status)) >= 0).slice(0, 60) // waitlisted and declined stay private
@@ -443,7 +444,7 @@ function doGet(e) {
   if (action === 'club') { const me = accountName(e.parameter.key); return reply(clubForCreator(me ? rosterName(me) : clean(e.parameter.name))); }
   if (action === 'gate') return reply({ ok: true });
   if (action === 'activity') return reply({ ok: true, activity: readActivity() });
-  if (action === 'applications') return reply({ ok: true, applications: readApplications() });
+  if (action === 'applications') { if (!isCoordinator(e.parameter.coord)) return locked(); return reply({ ok: true, applications: readApplications() }); } // applicants' details: coordinators only
   if (action === 'drivemap') { const all = PropertiesService.getScriptProperties().getProperties(), map = {}; Object.keys(all).filter(k => k.indexOf('C_') === 0).forEach(k => { map[k.slice(2)] = all[k]; }); return reply({ ok: true, map: map }); } // old Drive ID -> copy, for scripts/relink-drive.cjs
   if (action === 'brief') return briefReply(String(e.parameter.id || ''));
   if (action !== 'reels') return reply({ ok: true, service: 'Tot Squad Creators Club uploads' });
@@ -505,12 +506,10 @@ function readReels() {
 
 
 
-// The creator password on the Creators Club's sign-in. Every request from the page carries it.
-// The creator password, or the coordinator password (coordinators are creators too).
+// Who can use the members' tools: a creator signed in with their own password, or a coordinator.
+// The shared creator password (MENTOR_PASSCODE) is NOT a key: it only opens "Set up your password" (club.gs).
 function isMentor(key) {
-  const want = PropertiesService.getScriptProperties().getProperty('MENTOR_PASSCODE');
-  if (want && String(key || '').trim().toLowerCase() === want.trim().toLowerCase()) return true;
-  return !!String(key || '').trim() && (isCoordinator(key) || !!accountName(key)); // or a creator's own sign-in (club.gs)
+  return !!String(key || '').trim() && (isCoordinator(key) || !!accountName(key));
 }
 function locked() { return reply({ ok: false, locked: true, error: 'That mentor password doesn’t match.' }); }
 

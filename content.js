@@ -43,9 +43,9 @@ window.HUB_CONTENT = {
     commitment: 'By joining the Creator’s Club, you’re agreeing to invest in something bigger than your own platform. We’re here to share knowledge, amplify Tot Squad, build meaningful professional relationships, + create opportunities that might not exist if we were working alone!'
   },
   submissionFolderUrl: 'https://drive.google.com/drive/folders/0ADqEscN50JTEUk9PVA',
-  // Mentor password screen: SHA-256 of the lowercase password (see README). Leave blank to turn the screen off.
-  // Keep it in step with MENTOR_PASSCODE in the Creators Club script, which pitches still check.
-  mentorPasswordHash: 'e9bb17bbee033d2cee200d8e50793aa350a04a68367bda9a334fedaa4f7cc0a1',
+  // Members' tools need a sign-in. Only the Creators Club script checks passwords: never put a password,
+  // or a hash of one, in this file (the site and its repo are public).
+  signInRequired: true,
   // Upload form (apps-script/upload.gs). Leave blank to send people to the Drive folders instead.
   uploadEndpoint: 'https://script.google.com/macros/s/AKfycbyJrEWbDp0vWGU__88IlgRf7HXfGXYt6Em1lWOcjFgQhOVY5NGBjjYriE12qVsmXbxMBw/exec',
   submissionInstructionsUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA',
@@ -117,75 +117,9 @@ window.HUB_CONTENT = {
     'faster-notifications': { concept: 'Make sure Hub posts get noticed the day they go up, so time-sensitive asks like casting calls and deadlines aren’t missed.',
       howItWorks: ['Agree on which posts are time-sensitive.', 'Use push notifications or an @mention for those.', 'Post a short weekly recap of what’s new.'] }
   },
-  ideas: [
-    // Game Shows & Series — mostly from the Sep 2 founding brainstorm
-    { id: 'baby-gear-game-shows', title: 'Baby Gear Game Shows', series: 'game-shows', credit: ['Taylor'], date: '2026-09-02',
-      summary: 'The umbrella for the Squad’s game-show formats, including Fund or No Fund, The Stroller Dating Game and Say Yes to the Stroller.' },
-    { id: 'fund-or-no-fund', title: 'Fund or No Fund', series: 'game-shows', credit: ['Taylor'], date: '2026-09-02',
-      summary: 'A Deal or No Deal–style game, with Jen as the MotherFunder (the banker).' },
-    { id: 'stroller-dating-game', title: 'The Stroller Dating Game', series: 'game-shows', credit: ['Taylor'], date: '2026-09-02',
-      summary: 'A dating-game format with strollers as the contestants.' },
-    { id: 'say-yes-to-the-stroller', title: 'Say Yes to the Stroller', series: 'game-shows', credit: ['Taylor'], date: '2026-09-02',
-      summary: 'A Say Yes to the Dress–style show about finding the right stroller.' },
-    { id: 'like-box-buzzers', title: 'Target “like”-box buzzers', series: 'game-shows', credit: ['Sarah'], date: '2026-09-02',
-      summary: 'Use Target “like” boxes as game-show buzzers.' },
-    { id: 'registry-court', title: 'Registry Court', series: 'game-shows', credit: ['Aly'], date: '',
-      summary: 'Registry choices put on trial.', notes: ['This grew into Registry NOT Roast.'] },
-    { id: 'love-is-blind-stroller', title: 'Love Is Blind: Stroller Edition', series: 'game-shows', credit: ['Kristin'], date: '',
-      summary: 'A Love Is Blind–style format for choosing a stroller.' },
-    { id: 'explains-it-all', title: 'Clarissa Explains It All showcase', series: 'game-shows', credit: [], date: '',
-      summary: 'A Clarissa Explains It All–style showcase.' },
-    { id: 'anonymous-questions', title: 'Anonymous follower questions', series: 'game-shows', credit: [], date: '2026-09-02',
-      summary: 'Use anonymous questions from followers as the question source.',
-      notes: ['Revived on Nov 16 as the question source for Pop-Ins.'] },
-
-    // Content & Reels
-    { id: 'stroll-with-us', title: '#StrollWithUs', series: 'reels', credit: ['Kristin'], date: '', summary: '' },
-    { id: 'on-duty-off-duty', title: 'On-Duty vs Off-Duty', series: 'reels', credit: [], date: '',
-      summary: 'A carousel comparing specialists on duty and off duty.' },
-    { id: 'controversial-items-poll', title: 'Controversial-items poll', series: 'reels', credit: ['Constance'], date: '',
-      summary: 'A poll on the baby items people disagree about most.' },
-    { id: 'trick-or-treat', title: 'Trick or Treat', series: 'reels', credit: [], date: '', summary: 'A Halloween-season Reel.' },
-    { id: 'gotta-have', title: 'Gotta Have / Nice to Have / Could Survive Without', series: 'reels', credit: [], date: '2026-11-07',
-      summary: 'Sort baby gear into three friendly tiers.',
-      howItWorks: ['Gotta have', 'Nice to have', 'Could survive without'],
-      notes: ['Started as “Buy This, Not That” and was softened on Nov 7.'] },
-    { id: 'twas-the-night-before', title: '’Twas the Night Before Welcome Hours', series: 'reels', credit: ['Kristin'], date: '2026-11-15',
-      summary: 'A holiday montage about Welcome Hours.' },
-
-    // Registry & Client Experience — the flagship
-    { id: 'registry-not-roast', title: 'Registry NOT Roast', series: 'registry', credit: ['Taylor'], date: '2026-10-10',
-      titleNote: 'Working title. The final name is still open.',
-      summary: 'Real registries screen-shared on a group call and sorted into KEEP, SWAP or SKIP.',
-      howItWorks: ['Screen-share a real registry on a group call.', 'Sort each item into KEEP, SWAP or SKIP.'],
-      guidance: ['Get the family’s permission before showing their registry, and hide names, addresses and order details.'],
-      variations: [
-        { title: 'Shark Tank version', credit: ['Jessica'] },
-        { title: 'Spotlight recap', credit: ['Taylor'] },
-        { title: 'Long-form first, then slice it', text: 'Record the full session, then cut it into short clips.', credit: [] }
-      ],
-      notes: ['Started as Registry Roast on Oct 10, grown from Registry Court.', 'Kristin found a creator asking for exactly this.', '“Roast” was flagged twice. Taylor landed on “Registry NOT Roast” on Nov 2.'],
-      altNames: ['Hot Takes with the Squad', 'Registry Refresh', 'The Registry Edit'] },
-    { id: 'virtual-to-in-store', title: 'Virtual to in-store handoff', series: 'registry', credit: [], date: '',
-      summary: 'Start with a virtual appointment, then hand the family off to an in-store visit.' },
-    { id: 'two-specialist-welcome-hours', title: 'Two-specialist Welcome Hours', series: 'registry', credit: [], date: '',
-      summary: 'Welcome Hours led by two specialists together.' },
-    { id: 'event-style-welcome-hours', title: 'Event-style Welcome Hours', series: 'registry', credit: [], date: '',
-      summary: 'Welcome Hours run as an event.' },
-    { id: 'tipping-option', title: 'Tipping in the post-appointment survey', series: 'registry', credit: [], date: '',
-      summary: 'Add an option to tip in the post-appointment survey.' },
-
-    // Hub Improvements
-    { id: 'social-sharing-channel', title: 'A better Social & Sharing channel', series: 'hub', credit: ['Taylor'], date: '2026-11-15',
-      summary: 'One home for the Squad’s content work, which is spread across the Instagram chat, a Google Drive and the Hub.',
-      notes: ['This page is the first version.'] },
-    { id: 'specialist-finder', title: 'Specialist finder', series: 'hub', credit: ['Lora'], date: '2026-09-25',
-      summary: 'A way to find specialists by city or store in the Hub.',
-      notes: ['Lora had to work through a store list by hand.', 'Specialist locations are member data, so this belongs in Disco’s member directory, not on this public page.'] },
-    { id: 'faster-notifications', title: 'Faster notifications', series: 'hub', credit: ['Kristin', 'Linden'], date: '2026-10-27',
-      summary: 'Make sure Hub posts get noticed the day they go up.',
-      notes: ['Hub posts get noticed days late, which is why brainstorming moved to Instagram.'] }
-  ],
+  // The Idea Bank is creators-only: its ideas live in the "Creators Club ideas" sheet and load after sign-in
+  // (apps-script/upload.gs, ?action=ideas). Don't list ideas here: this file is public.
+  ideas: [],
 
   // status: idea, casting, filming, editing, published; null = unverified. Optional: lead, exampleReelUrl.
   activeCollaborations: [
@@ -272,9 +206,6 @@ window.HUB_CONTENT = {
     { title: 'Daddy’s Home', sheetTitle: "Daddy's Home", lead: 'Sarah', date: '2026-10-25', status: 'editing', briefUrl: 'https://docs.google.com/document/d/1abzRnKbHdlLk1Himey9XHMZgq-7YdRcRVhVWYo3PF4I/edit?usp=sharing', url: '' },
     { title: 'Tot Squad Round Up #3', sheetTitle: 'Tot Squad Round Up #3', lead: 'Kristin', date: '2026-11-08', status: 'scheduled', briefUrl: 'https://docs.google.com/document/d/1eiYurPKEKicMuBICFw52AjagtawhmNP_JL6sGaPT41Q/edit?usp=sharing', url: '' },
     { title: 'Meet the Squad, Part 2: Pass the Toy (Fall Recruits)', sheetTitle: 'Pass the Toy - Fall Recruits', project: 'meet-the-squad-part-2', lead: 'Kristin', date: '2026-11-13', status: 'casting', prompt: 'Intros passing the sunshine toy', url: '' },
-    { title: 'My “Why” carousel', sheetTitle: 'My "Why" - Carousel', lead: 'Kristin', date: '', status: 'idea', briefUrl: 'https://docs.google.com/document/d/1fgHTbjhL1w2xZuPffDQRrm0-FWhuxVFYkfuE3gr79KM/edit?usp=sharing', url: '' },
-    { title: 'Registry Roast on Google Meet', sheetTitle: 'Registry Roast Google Meet', lead: 'Taylor', date: '', status: 'idea', url: '' },
-    { title: 'Trick or Treat', sheetTitle: 'Trick or Treat', lead: 'Taylor', date: '', status: 'idea', url: '' }
   ],
 
   // weekday: 0 Sunday … 6 Saturday, or null when the schedule isn't set. time is optional text.

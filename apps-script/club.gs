@@ -379,6 +379,13 @@ function adminSubmission(req, who) {
 }
 function adminSettings(req) {
   const sheet = clubSheet('Settings'), cols = CLUB_TABS['Settings'], rows = readTable(sheet, cols), next = req.settings || {};
+  // A new shared creator password (for first-time set-up and resets). Kept in Script properties, never in the sheet or the page.
+  const fresh = String(req.creatorPassword || '').trim();
+  if (fresh) {
+    if (fresh.length < 8 || fresh.length > 60) throw new Error('The creator password needs 8 to 60 characters.');
+    if (isCoordinator(fresh)) throw new Error('The creator password can’t be the coordinator password.');
+    PropertiesService.getScriptProperties().setProperty('MENTOR_PASSCODE', fresh);
+  }
   CLUB_DEFAULTS.forEach(([k, , about]) => {
     if (next[k] == null || k === 'coordinatorCode') return; // the code is only changed in the sheet
     let v = String(next[k]).trim();
@@ -461,7 +468,7 @@ function reelsDone(row) {
 
 /* ---------- Creator accounts: your own password, and your bio ----------
    The shared creator password (MENTOR_PASSCODE) is only for setting up: a creator picks their name and a password of
-   their own, then signs in with those. Passwords are never stored, only a salted, stretched hash. Each signed-in
+   their own, then signs in with those. It never signs anyone in by itself (isMentor, upload.gs). Passwords are never stored, only a salted, stretched hash. Each signed-in
    device gets a random key; only its hash is kept (the last 5 devices). Coordinators can reset a password from the
    Roster tab, and the creator sets a new one with the creator password. Bios show on Meet the Squad. */
 const ACCOUNT_COLS = CLUB_TABS['Accounts'] = [['id', 'Account ID'], ['name', 'Name'], ['bio', 'Bio'], ['bioUpdated', 'Bio updated'], ['hash', 'Password hash'], ['salt', 'Salt'], ['tokens', 'Signed-in devices'], ['created', 'Created'], ['lastSignIn', 'Last sign-in'], ['resetBy', 'Reset by'], ['agreed', 'Agreed to guidelines'], ['claimed', 'Claimed Squad name']];
@@ -513,6 +520,14 @@ function sharedPassword(key) {
   const want = PropertiesService.getScriptProperties().getProperty('MENTOR_PASSCODE');
   return !!want && String(key || '').trim().toLowerCase() === want.trim().toLowerCase();
 }
+// Set-up and the name list take the shared creator password. Wrong guesses are capped, so it can't be brute-forced.
+function setupKeyProblem(key) {
+  if (sharedPassword(key) || isCoordinator(key)) return '';
+  const cache = CacheService.getScriptCache(), tries = Number(cache.get('setup-tries') || 0);
+  cache.put('setup-tries', String(tries + 1), 600);
+  return tries >= 30 ? 'Too many tries. Wait a few minutes and try again.' : 'locked';
+}
+function setupLocked(problem) { return problem === 'locked' ? locked() : reply({ ok: false, locked: true, error: problem }); }
 function passwordProblem(pw, name) {
   pw = String(pw || '');
   if (sharedPassword(pw) || isCoordinator(pw)) return 'Pick a password that’s yours, not the shared one.';
@@ -534,10 +549,10 @@ function claimedPairs() { return allAccountRows().filter(a => a.hash && claimOf(
 const claimFits = (name, claim) => sameName(name, claim) || sameName(String(name).trim().split(/\s+/)[0], claim);
 // POST account-claimable { key: the creator password }: roster names nobody has claimed yet, for the set-up form.
 function claimableRoster(req) {
-  if (!sharedPassword(req.key) && !isCoordinator(req.key)) return locked();
+  const keyProblem = setupKeyProblem(req.key); if (keyProblem) return setupLocked(keyProblem);
   const taken = allAccountRows().filter(a => a.hash), used = n => taken.some(a => sameName(a.name, n) || sameName(claimOf(a), n));
   const names = readTable(clubSheet('Members'), CLUB_TABS['Members']).filter(m => m.name && ['Active', 'Needs Check-In', 'Paused'].indexOf(pick(m.status, MEMBER_STATUSES, 'Active')) >= 0).map(m => String(m.name)).filter(n => !used(n));
-  return reply({ ok: true, names: names });
+  return reply({ ok: true, names: names, shared: sharedPassword(req.key) });
 }
 // Gives an account its Squad name, if nobody else has it; then syncs the roster. Returns an error message or ''.
 function claimFor(a, claim) {
@@ -566,7 +581,7 @@ function syncRoster(full, claim) {
 }
 // POST account-setup { key: the creator password, name (full), claim (their first name on the current Squad list, if any), password }
 function accountSetup(req) {
-  if (!sharedPassword(req.key) && !isCoordinator(req.key)) return locked();
+  const keyProblem = setupKeyProblem(req.key); if (keyProblem) return setupLocked(keyProblem);
   const name = clean(req.name), claim = clean(req.claim);
   const nameProblem = fullNameProblem(name); if (nameProblem) return reply({ ok: false, fullName: true, error: nameProblem });
   if (claim && !claimFits(name, claim)) return reply({ ok: false, fullName: true, error: 'Your full name should start with ' + claim + '.' });

@@ -3,12 +3,20 @@ const vm = require('node:vm'), fs = require('node:fs'), assert = require('node:a
 const root = require('node:path').join(__dirname, '..');
 const { validate, load } = require('../scripts/validate-content.cjs');
 
+// Made-up ideas for the Idea Bank tests (real ideas are private and never in this public repo).
+const FIXTURE_IDEAS = [
+  { id: 'fx-registry', title: 'Fixture Registry Idea', series: 'registry', credit: ['Taylor'], date: '2026-10-10', summary: 'A made-up registry idea for tests.', titleNote: 'Working title.' },
+  { id: 'fx-game', title: 'Fixture Game Show', series: 'game-shows', credit: ['Taylor'], date: '2026-09-02', summary: 'A made-up game show for tests.' },
+  { id: 'fx-reel', title: 'Fixture Reel Idea', series: 'reels', credit: ['Kristin'], date: '', summary: 'A made-up Reel idea for tests.' },
+  { id: 'fx-hub', title: 'Fixture Hub Idea', series: 'hub', credit: ['Lora'], date: '2026-09-25', summary: 'A made-up hub idea for tests.' }
+];
 function boot(config, storageFailure = false, stored = new Map([['totsquad-mentor-key','acct.testaccount1.testsecretsecretsecretsecret'],['totsquad-account-name','Taylor Vanderwolk'],['totsquad-account-claim','Taylor']])) {
   const elements = new Map();
   const el = id => { if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, addEventListener() {}, classList: { toggle() {} }, replaceChildren() {}, showModal() { this.open = true; } }); return elements.get(id); };
   const storage = { getItem(k) { if (storageFailure) throw Error('blocked'); return stored.get(k) ?? null; }, setItem(k, v) { if (storageFailure) throw Error('blocked'); stored.set(k, String(v)); }, removeItem(k) { if (storageFailure) throw Error('blocked'); stored.delete(k); } };
   const ctx = vm.createContext({ window: {}, document: { querySelector: el, querySelectorAll: () => [], body: { classList: { toggle() {} } }, addEventListener() {} }, URL, URLSearchParams, location: { search: '?embed=1' }, Intl, Date, Map, Set, console, localStorage: storage, FormData: class { constructor(form) { return form.formData || []; } } });
   vm.runInContext(fs.readFileSync(root + '/content.js', 'utf8'), ctx);
+  ctx.window.HUB_CONTENT.ideas = FIXTURE_IDEAS.map(i => ({ ...i })); // the real Idea Bank lives in a private sheet
   if (config) Object.assign(ctx.window.HUB_CONTENT, config);
   vm.runInContext(fs.readFileSync(root + '/script.js', 'utf8'), ctx);
   return { ctx, run: s => vm.runInContext(s, ctx), html: id => el(id).innerHTML, el };
@@ -29,7 +37,7 @@ assert.doesNotMatch(t.html('#idea-grid'), /Pass-the-item intro|>Tot Squad Round 
 assert.match(t.html('#idea-grid'), /class="idea-art"><svg/); // series illustration
 assert.equal(t.el('#production').hidden, true); // empty production board stays hidden
 assert.doesNotMatch(t.html('#resource-links'), /aria-disabled="true"/); // no unconfigured placeholder links
-assert.match(t.html('#idea-grid'), /Registry NOT Roast/);
+assert.match(t.html('#idea-grid'), /Fixture Registry Idea/);
 assert.match(t.html('#idea-filters'), /aria-pressed="true"/);
 assert.match(t.html('#squad-grid'), /Kristin/);
 assert.match(t.html('#squad-grid'), /class="bio"[^>]*>Mom of three in Holly Springs/);
@@ -43,10 +51,10 @@ assert.equal(t.el('#welcome').hidden, false);
 
 // Filtering the Idea Bank.
 t.run("ideaFilter='registry';renderIdeas()");
-assert.match(t.html('#idea-grid'), /Registry NOT Roast/);
-assert.doesNotMatch(t.html('#idea-grid'), /Fund or No Fund/);
+assert.match(t.html('#idea-grid'), /Fixture Registry Idea/);
+assert.doesNotMatch(t.html('#idea-grid'), /Fixture Game Show/);
 t.run("ideaFilter='missing';renderIdeas()");
-assert.match(t.html('#idea-grid'), /Fund or No Fund/); // unknown filter falls back to all
+assert.match(t.html('#idea-grid'), /Fixture Game Show/); // unknown filter falls back to all
 
 // Recurring events land on the right weekday, today or later.
 const next = t.run('nextOccurrence(4)');
@@ -84,7 +92,7 @@ assert.match(t.html('#project-gallery'), />Watch ↗</);
 // Drafts: share download only lists fields that exist in the form.
 t = boot();
 assert.doesNotMatch(t.run("draftText('share',{tone:'Warm invitation'})"), /Public link/);
-assert.match(t.run("draftText('pitch',{title:'T',basedOn:'registry-not-roast'})"), /Building on: Registry NOT Roast/);
+assert.match(t.run("draftText('pitch',{title:'T',basedOn:'fx-registry'})"), /Building on: Fixture Registry Idea/);
 
 // Storage blocked.
 t = boot(null, true);
@@ -152,7 +160,7 @@ assert.match(trk, /Intros passing the sunshine toy/); assert.match(trk, /Upload 
 assert.match(trk, /data-action="calendar"/); assert.doesNotMatch(trk, /Edit in Google Sheets|docs\.google|drive\.google/); // Tot Squad's Drive is private
 t.run("openPanel('calendar')");
 const cal = t.html('#modal-body');
-assert.ok(cal.indexOf('Up next') < cal.indexOf('Posted') && cal.indexOf('Posted') < cal.indexOf('Future ideas'));
+assert.ok(cal.indexOf('Up next') < cal.indexOf('Posted')); assert.doesNotMatch(cal, /Future ideas/); // the public copy has no future ideas: they load live after sign-in
 assert.match(cal, /Daddy’s Home/); assert.match(cal, /In edit/); assert.match(cal, /data-action="tracker">Open the Reels tracker/);
 assert.ok(validate({ ...load(), contentCalendar: [{ title: 'X', status: 'someday' }] }).some(e => /must be posted/.test(e)));
 
@@ -262,9 +270,15 @@ t = boot(undefined, false, new Map());
 assert.equal(t.html('#casting-projects'), ''); // still locked
 t = boot();
 assert.match(t.html('#casting-projects'), /Meet the Squad, Part 2/);
-t = boot({ mentorPasswordHash: '' }, false, new Map());
-assert.match(t.html('#casting-projects'), /Meet the Squad, Part 2/); // no password set, no password screen
-assert.ok(validate({ ...load(), mentorPasswordHash: 'footpop' }).some(e => /SHA-256/.test(e))); // never the password itself
+t = boot({ signInRequired: false }, false, new Map());
+assert.match(t.html('#casting-projects'), /Meet the Squad, Part 2/); // sign-in switched off, no password screen
+assert.ok(validate({ ...load(), mentorPasswordHash: 'ab'.repeat(32) }).some(e => /never holds a password/.test(e))); // not even a hash
+assert.ok(validate({ ...load(), ideas: [{ id: 'a', title: 'A', series: 'reels' }] }).some(e => /creators-only/.test(e))); // Idea Bank stays private
+assert.equal(validate(load()).length, 0);
+{ const pub = ['content.js', 'reels-data.js', 'index.html', 'script.js', 'club.js', 'README.md', 'TESTING.md', 'tests/content.test.cjs', 'tests/apps-script.test.cjs', 'scripts/sync-from-google.cjs', 'scripts/relink-drive.cjs', 'apps-script/upload.gs', 'apps-script/club.gs'].map(f => fs.readFileSync(root + '/' + f, 'utf8')).join('\n');
+  assert.doesNotMatch(pub, /[0-9a-f]{64}/); // no password hashes anywhere in the public site
+  const reelsFile = fs.readFileSync(root + '/reels-data.js', 'utf8');
+  assert.doesNotMatch(reelsFile, /"html"|"status": "IDEA"/); } // no briefs or future ideas in the public copy
 
 // Reels page reads the copy in reels-data.js (scripts/sync-from-google.cjs), not Google.
 t = boot();
@@ -309,7 +323,7 @@ console.log('PASS: apply to join, single password');
   const t5 = boot();
   t5.run(`liveIdeas = [{ id:'pitch-1', title:'Car Seat Speed Round', series:'reels', stage:'idea', summary:'Install race.', status:'Pitched', credit:['Taylor'], date:'2026-11-21' }]; renderIdeas();`);
   assert.match(t5.html('#idea-grid'), /Car Seat Speed Round/); assert.match(t5.html('#idea-grid'), /Just pitched/);
-  assert.doesNotMatch(t5.html('#idea-grid'), /Fund or No Fund/);
+  assert.doesNotMatch(t5.html('#idea-grid'), /Fixture Game Show/);
   t5.run("openPanel('idea',{id:'pitch-1'})"); assert.match(t5.html('#modal-body'), /data-action="idea-edit"/);
   t5.run("openPanel('idea-edit',{id:'pitch-1'})"); assert.match(t5.html('#modal-body'), /id="idea-edit-form"/); assert.match(t5.html('#modal-body'), /value="Car Seat Speed Round"/);
   t5.run("upsertIdea({ id:'pitch-1', title:'Renamed', series:'reels', stage:'idea', summary:'', credit:[], date:'' })"); assert.match(t5.html('#idea-grid'), /Renamed/);
@@ -330,8 +344,8 @@ console.log('PASS: open casting call');
 // What's new: creators-only feed, newest first, links ideas in the app.
 {
   const t8 = boot();
-  t8.run(`activityItems = [{ when: new Date().toISOString(), type:'pitch', who:'Lora', what:'pitched “Car Seat Speed Round”', link:'idea:fund-or-no-fund' }, { when: '2026-11-01T10:00:00Z', type:'apply', who:'', what:'A new creator application came in', link:'' }]; renderActivity();`);
-  assert.match(t8.html('#activity-list'), /<strong>Lora<\/strong> pitched/); assert.match(t8.html('#activity-list'), /data-action="idea" data-id="fund-or-no-fund"/);
+  t8.run(`activityItems = [{ when: new Date().toISOString(), type:'pitch', who:'Lora', what:'pitched “Car Seat Speed Round”', link:'idea:fx-game' }, { when: '2026-11-01T10:00:00Z', type:'apply', who:'', what:'A new creator application came in', link:'' }]; renderActivity();`);
+  assert.match(t8.html('#activity-list'), /<strong>Lora<\/strong> pitched/); assert.match(t8.html('#activity-list'), /data-action="idea" data-id="fx-game"/);
   assert.match(t8.html('#activity-list'), /A new creator application came in/); assert.doesNotMatch(t8.html('#activity-list'), /drive\.google/);
 }
 console.log('PASS: what’s new feed');
@@ -363,9 +377,10 @@ console.log('PASS: idea concepts, examples, build-ons');
 }
 console.log('PASS: toolkit panel keeps your place');
 
-// New applications: visible to signed-in creators, escaped, linked from What's new.
+// New applications: coordinators only (applicants' details stay private), escaped.
 {
-  const t11 = boot();
+  assert.doesNotMatch(boot().html('#resource-links'), /data-action="applications"/); // creators don't see applicants
+  const t11 = boot(undefined, false, new Map([['totsquad-mentor-key', 'Coord-123'], ['totsquad-coordinator-code', 'Coord-123']]));
   assert.match(t11.html('#resource-links'), /data-action="applications"/);
   const card = t11.run(`applicationCard({ submitted:'2026-11-22T18:00:00Z', name:'Ana <b>', region:'West', instagram:'@ana.babygear', roles:'Be on camera, Film B-roll', camera:'Yes', why:'I love helping families.', example:'javascript:alert(1)', status:'Approved' })`);
   assert.match(card, /Ana &lt;b&gt;/); assert.match(card, /Welcome aboard/); assert.match(card, /instagram\.com\/ana\.babygear/);
@@ -416,8 +431,8 @@ console.log('PASS: Creators Club dashboard and coordinator tools');
 
 // Own accounts: the shared creator password never stays signed in; bios creators write show on Meet the Squad.
 {
-  const shared = boot(null, false, new Map([['totsquad-mentor-key', 'footpop'], ['totsquad-upload-name', 'Kristin']]));
-  assert.equal(shared.run('mentorKey()'), ''); assert.equal(shared.run('movingKey'), 'footpop'); // goes to "Set up your password"
+  const shared = boot(null, false, new Map([['totsquad-mentor-key', 'shared-test-pass'], ['totsquad-upload-name', 'Kristin']]));
+  assert.equal(shared.run('mentorKey()'), ''); assert.equal(shared.run('movingKey'), 'shared-test-pass'); // goes to "Set up your password"
   const coordDevice = boot(null, false, new Map([['totsquad-mentor-key', 'Coord-123'], ['totsquad-coordinator-code', 'Coord-123']]));
   assert.equal(coordDevice.run('mentorKey()'), 'Coord-123'); // coordinators keep their sign-in
   const me = boot(); // signed in as Taylor (see boot)

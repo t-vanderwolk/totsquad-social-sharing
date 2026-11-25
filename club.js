@@ -255,7 +255,7 @@ function coordApps(c) {
     ${list.length ? list.map(a => `<form class="coord-card" data-coord-form="app" data-id="${escapeHTML(a.id)}">
       <div class="app-top"><strong>${escapeHTML(a.name)}</strong><span class="quiet">${escapeHTML([a.market || a.region, a.submitted ? 'applied ' + shortDate(a.submitted.slice(0, 10)) : ''].filter(Boolean).join(' · '))}</span></div>
       <dl class="coord-facts">${[['Roles', a.roles], ['Interests', a.interests], ['Experience', a.experience], ['On camera', a.camera], ['Capacity', a.capacity], ['Why', a.why]].filter(x => x[1]).map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHTML(v)}</dd></div>`).join('')}</dl>
-      <div class="trk-links">${instagramLink(a.instagram)}${externalLink(a.example, 'Their work', 'text-button')}</div>
+      <div class="trk-links">${/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email || '') ? `<a class="text-button" href="mailto:${escapeHTML(a.email)}">${escapeHTML(a.email)}</a>` : ''}${instagramLink(a.instagram)}${externalLink(a.example, 'Their work', 'text-button')}</div>
       <div class="coord-row"><label>Status ${selectHTML('name="status"', ['Submitted', 'Under Review', 'Approved', 'Waitlisted', 'Declined'], a.status)}</label><label class="grow">Notes (coordinators only)<input name="notes" type="text" maxlength="1000" value="${escapeHTML(a.notes || '')}"></label><button class="button" type="submit">Save</button></div>
       ${a.reviewedBy ? `<p class="quiet">Last reviewed by ${escapeHTML(a.reviewedBy)}</p>` : ''}
     </form>`).join('') : '<p class="quiet">Nothing here right now.</p>'}
@@ -361,6 +361,9 @@ function coordSettings(c) {
     <div class="brief-fields">${num('requiredPosts', 'Feed posts each month')}${num('requiredStories', 'Stories each week')}${num('storyReminderWeeks', 'Weeks without a story before a reminder')}${num('storyReviewWeeks', 'Weeks without a story before a check-in')}${num('postReminderMonths', 'Months without a feed post before a reminder')}${num('postReviewMonths', 'Months without a feed post before a check-in')}${num('briefEveryWeeks', 'Weeks between briefs')}
     <label class="wide">Creator Circle link<input name="creatorCircleUrl" type="url" value="${escapeHTML(s.creatorCircleUrl || content.creatorCircleUrl || '')}" placeholder="https://tot-squad-hub.disco.co/channel/…"></label></div>
     <div class="form-actions"><button class="button" type="submit">Save settings</button></div></form>
+    <form class="coord-card" data-coord-form="creator-password"><h3>Creator password</h3><p class="quiet">The shared password new and reset members use once, to set up their own. It can’t sign anyone in or open any data by itself. Changing it doesn’t affect anyone who already has their own password.</p>
+    <div class="brief-fields"><label class="wide">New creator password<input name="creatorPassword" type="text" minlength="8" maxlength="60" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="At least 8 characters"></label></div>
+    <div class="form-actions"><button class="button" type="submit">Change the creator password</button></div></form>
     <div class="flow-note"><strong>Coming later: brand partnerships.</strong><p>Briefs are all voluntary community content today. Sponsored campaigns, paid UGC, licensing and compensation would be a separate brief type with its own consent and disclosure steps, and aren’t live.</p></div>
 `;
 }
@@ -394,6 +397,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (kind === 'member') refreshCoord('admin-member', { name: f.dataset.name, status: v.status, notes: v.notes }, 'Saved.');
     if (kind === 'member-new') refreshCoord('admin-member', { name: v.name, status: 'Active' }, 'Added.');
     if (kind === 'settings') refreshCoord('admin-settings', { settings: v }, 'Settings saved.');
+    if (kind === 'creator-password') { if (String(v.creatorPassword || '').length < 8) return toast('Use at least 8 characters.'); refreshCoord('admin-settings', { settings: {}, creatorPassword: v.creatorPassword }, 'Creator password changed. Share the new one privately, like in the Creator Circle.'); }
     if (kind === 'brief') { const publish = !!(e.submitter && 'publish' in e.submitter.dataset), live = briefDraft && briefDraft.status === 'Published';
       const res = await refreshCoord('admin-brief', { op: 'save', publish, brief: { ...v, id: briefDraft && briefDraft.id || '' } }, publish ? 'Saved and published. Creators see it now.' : live ? 'Saved. Creators see the changes now.' : 'Saved as a draft. Publish it when it’s ready.');
       if (res) { briefDraft = null; briefView = null; renderCoord(); } }

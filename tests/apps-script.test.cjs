@@ -53,7 +53,7 @@ function fakeGoogle(props) {
     UrlFetchApp: { fetch: (url, opts) => { made.push(JSON.parse(opts.payload).parents[0]); return { getHeaders: () => ({ Location: 'https://upload.example/x' }), getResponseCode: () => 200 }; } }, ScriptApp: { getOAuthToken: () => "" }, Session: {}, console: { log: console.log, error() {} }
   };
 }
-function boot(props = { MENTOR_PASSCODE: 'footpop', COORDINATOR_PASSCODE: 'Coord-123' }) {
+function boot(props = { MENTOR_PASSCODE: 'shared-test-pass', COORDINATOR_PASSCODE: 'Coord-123' }) {
   const g = fakeGoogle(props), ctx = vm.createContext({ ...g, Date, Math, JSON, Intl, String, Number, Object, Array, Set, Map, RegExp, Error, isFinite, isNaN });
   for (const f of ['upload.gs', 'club.gs']) vm.runInContext(fs.readFileSync(path.join(root, 'apps-script', f), 'utf8'), ctx, { filename: f });
   const post = body => ctx.doPost({ postData: { contents: JSON.stringify(body) } });
@@ -62,14 +62,20 @@ function boot(props = { MENTOR_PASSCODE: 'footpop', COORDINATOR_PASSCODE: 'Coord
 }
 // Dates in Phoenix time, like the script (todayIso).
 const iso = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Phoenix' }).format(d), day = n => iso(new Date(Date.now() + n * 864e5));
-const key = 'footpop', coord = { key, coordKey: 'Coord-123', coordName: 'Taylor' };
+// The shared creator password is never a key: members use their own sign-in. Most checks below act with the
+// coordinator password as the key (like the old shared key, it carries no account name).
+const key = 'Coord-123', coord = { key, coordKey: 'Coord-123', coordName: 'Taylor' };
 
 const t = boot();
 // Workflow: specialist applies (no password needed).
 let r = t.post({ action: 'apply', application: { name: 'Ana Lopez', region: 'West', market: 'Phoenix', instagram: 'ana.babygear', roles: 'On-camera creator, Editor', camera: 'Love it', why: 'I love teaching.', capacity: '1–2 posts a week', interests: 'Car seats', experience: 'Beginner', agreed: true } });
 assert.equal(r.ok, true);
-// Creators see it (no notes), status Submitted.
-r = t.get({ action: 'applications', key }); assert.equal(r.applications.length, 1); assert.equal(r.applications[0].status, 'Submitted'); assert.equal(r.applications[0].notes, undefined);
+// The shared creator password opens nothing by itself.
+for (const a of ['ideas', 'club', 'activity', 'applications', 'reels', 'drivemap', 'gate']) assert.equal(t.get({ action: a, key: 'shared-test-pass' }).locked, true, a);
+for (const a of ['idea-save', 'club-submit', 'pitch', 'start', 'admin-data', 'account-me']) assert.equal(t.post({ action: a, key: 'shared-test-pass', coordKey: 'nope' }).locked, true, a);
+// Applicants' details: coordinators only (no notes), status Submitted.
+assert.equal(t.get({ action: 'applications', key }).locked, true);
+r = t.get({ action: 'applications', key, coord: 'Coord-123' }); assert.equal(r.applications.length, 1); assert.equal(r.applications[0].status, 'Submitted'); assert.equal(r.applications[0].notes, undefined);
 // Locked without the password; admin needs the coordinator code too.
 assert.equal(t.get({ action: 'club', name: 'Ana Lopez' }).locked, true);
 assert.equal(t.post({ action: 'admin-data', key }).coordLocked, true);
@@ -149,24 +155,36 @@ assert.equal(r.settings.requiredStories, 0); assert.equal(r.settings.postReviewM
 assert.equal(t.post({ action: 'admin-settings', ...coord, settings: { creatorCircleUrl: 'javascript:x' } }).ok, false);
 assert.equal(t.post({ action: 'admin-settings', ...coord, settings: { requiredPosts: '-1' } }).ok, false);
 // Declined/Waitlisted stay off the creators' list; Idea Bank is open; nothing was deleted.
-t.post({ action: 'apply', application: { name: 'Bo', why: 'Hi', agreed: true } });
+assert.match(t.post({ action: 'apply', application: { name: 'Bo', why: 'Hi', agreed: true } }).error, /email or your Instagram/); // we need a way to reply
+t.post({ action: 'apply', application: { name: 'Bo', email: 'bo@example.com', why: 'Hi', agreed: true } });
 r = t.post({ action: 'admin-data', ...coord }); t.post({ action: 'admin-app', ...coord, id: r.applications.find(a => a.name === 'Bo').id, status: 'Waitlisted' });
-assert.deepEqual(t.get({ action: 'applications', key }).applications.map(a => a.name), ['Ana Lopez']);
+assert.deepEqual(t.get({ action: 'applications', key, coord: 'Coord-123' }).applications.map(a => a.name), ['Ana Lopez']);
+assert.equal(t.post({ action: 'admin-data', ...coord }).applications.find(a => a.name === 'Bo').email, 'bo@example.com');
 assert.equal(t.get({ action: 'ideas' }).locked, true); assert.equal(t.get({ action: 'ideas', key }).ok, true); // Idea Bank: creators only
 assert.equal(t.post({ action: 'admin-data', ...coord }).briefs.length, 4);
 // Coordinator tools stay off until COORDINATOR_PASSCODE is set.
-assert.equal(boot({ MENTOR_PASSCODE: 'footpop' }).post({ action: 'admin-data', key }).coordLocked, true);
+assert.equal(boot({ MENTOR_PASSCODE: 'shared-test-pass' }).post({ action: 'admin-data', key }).locked, true); // no coordinator code set up: nothing opens
 // Older application rows (before 2.0) still read, get an ID, and "New" reads as Submitted.
 const t2 = boot(); const sh = t2.ctx.applySheet(); sh.appendRow([new Date(), 'Old Timer', 'East', '', '', '', 'Because', '', 'Yes', 'New', '']);
 r = t2.post({ action: 'admin-data', ...coord }); assert.equal(r.applications[0].status, 'Submitted'); assert.ok(r.applications[0].id);
 // Without the script property, the code can live on the Settings tab instead, and it's never sent to the browser.
-const t3 = boot({ MENTOR_PASSCODE: 'footpop' });
-assert.equal(t3.post({ action: 'admin-data', key }).coordLocked, true);
+const t3 = boot({ MENTOR_PASSCODE: 'shared-test-pass' });
+assert.equal(t3.post({ action: 'admin-data', key }).locked, true); // no coordinator code yet
 vm.runInContext(`(() => { clubSettings(); const sh = clubSheet('Settings'); const r = readTable(sh, CLUB_TABS['Settings']).find(x => x.key === 'coordinatorCode'); writeRow(sh, CLUB_TABS['Settings'], { value: 'bossy' }, r._row); })()`, t3.ctx);
-assert.equal(t3.post({ action: 'admin-data', key, coordKey: 'nope' }).coordLocked, true);
-r = t3.post({ action: 'admin-data', key, coordKey: 'bossy' }); assert.equal(r.ok, true); assert.equal(r.settings.coordinatorCode, undefined);
-assert.equal(t3.get({ action: 'club', key, name: 'x' }).settings.coordinatorCode, undefined);
-t3.post({ action: 'admin-settings', key, coordKey: 'bossy', settings: { coordinatorCode: 'hacked' } }); assert.equal(t3.post({ action: 'admin-data', key, coordKey: 'bossy' }).ok, true);
+assert.equal(t3.post({ action: 'admin-data', key: 'bossy', coordKey: 'nope' }).coordLocked, true);
+r = t3.post({ action: 'admin-data', key: 'bossy', coordKey: 'bossy' }); assert.equal(r.ok, true); assert.equal(r.settings.coordinatorCode, undefined);
+assert.equal(t3.get({ action: 'club', key: 'bossy', name: 'x' }).settings.coordinatorCode, undefined);
+t3.post({ action: 'admin-settings', key: 'bossy', coordKey: 'bossy', settings: { coordinatorCode: 'hacked' } }); assert.equal(t3.post({ action: 'admin-data', key: 'bossy', coordKey: 'bossy' }).ok, true);
+// Coordinators can change the shared creator password; it's never sent back to the browser.
+assert.equal(t3.post({ action: 'admin-settings', key: 'bossy', coordKey: 'bossy', creatorPassword: 'short' }).ok, false);
+assert.equal(t3.post({ action: 'admin-settings', key: 'bossy', coordKey: 'bossy', creatorPassword: 'bossy' }).ok, false);
+r = t3.post({ action: 'admin-settings', key: 'bossy', coordKey: 'bossy', creatorPassword: 'New-Creator-2026' }); assert.equal(r.ok, true); assert.doesNotMatch(JSON.stringify(r), /New-Creator-2026/);
+assert.equal(t3.post({ action: 'account-claimable', key: 'shared-test-pass' }).locked, true); // the old one stops working
+r = t3.post({ action: 'account-claimable', key: 'new-creator-2026' }); assert.equal(r.ok, true); assert.equal(r.shared, true); // not case-sensitive
+assert.equal(t3.post({ action: 'account-claimable', key: 'bossy' }).shared, false); // coordinators can open set-up too, but it isn't the shared one
+// Wrong set-up passwords are capped.
+for (let i = 0; i < 30; i++) t3.post({ action: 'account-claimable', key: 'guess' + i });
+assert.match(t3.post({ action: 'account-claimable', key: 'guess-x' }).error, /Too many tries/);
 // Signing in with the coordinator password: it works as a creator password too, and the check is rate-limited.
 assert.equal(t.post({ action: 'coord-login', code: 'nope' }).ok, false);
 assert.equal(t.post({ action: 'coord-login', code: 'Coord-123' }).ok, true);
@@ -226,10 +244,10 @@ assert.ok(!reels().some(x => x.title === 'Car Seat Check')); assert.equal(reels(
 r = t5.post({ action: 'admin-reel', ...rc, op: 'create', reel: { title: '=IMPORTXML("x")', status: 'upcoming', folderUrl: 'javascript:alert(1)' } });
 assert.equal(r.reels.find(x => x.title.includes('IMPORTXML')).title[0], "'"); assert.equal(r.reels.find(x => x.title.includes('IMPORTXML')).folderUrl, '');
 // Creator accounts: the shared password only sets up your own; then you sign in with your name and password, and own your bio.
-const t6 = boot(), shared = 'footpop';
+const t6 = boot(), shared = 'shared-test-pass';
 r = t6.post({ action: 'account-setup', agreed: true, key: 'nope', name: 'Kristin Smith', password: 'sunshine-toy-9' }); assert.equal(r.locked, true);
 assert.match(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin Smith', password: 'short' }).error, /8 characters/);
-assert.match(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin Smith', password: 'FOOTPOP' }).error, /yours/);
+assert.match(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin Smith', password: 'SHARED-TEST-PASS' }).error, /yours/);
 assert.match(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin Smith', password: 'Coord-123' }).error, /yours/);
 assert.equal(t6.post({ action: 'account-setup', agreed: true, key: shared, name: 'Kristin', password: 'sunshine-toy-9' }).fullName, true); // first name alone isn't enough
 assert.match(t6.post({ action: 'account-setup', key: shared, name: 'Kristin Smith', password: 'sunshine-toy-9' }).error, /guidelines/); // has to agree to the guidelines
@@ -250,7 +268,7 @@ assert.equal(t6.post({ action: 'account-login', name: 'Kristin', password: 'suns
 r = t6.post({ action: 'account-login', name: 'KRISTIN SMITH', password: 'sunshine-toy-9' }); assert.equal(r.ok, true); const kKey2 = r.key; assert.notEqual(kKey2, kKey);
 // Bio: create, read (public), update, delete.
 assert.deepEqual(t6.get({ action: 'bios' }).bios, []);
-assert.equal(t6.post({ action: 'bio-save', key: shared, bio: 'Hi' }).noAccount, true); // the shared password alone can't write a bio
+assert.equal(t6.post({ action: 'bio-save', key: shared, bio: 'Hi' }).locked, true); // the shared password alone can't write a bio
 assert.equal(t6.post({ action: 'bio-save', key: kKey, bio: '   ' }).ok, false);
 r = t6.post({ action: 'bio-save', key: kKey, bio: 'Mom of three in Holly Springs, NC.\nFormer TV producer.' }); assert.equal(r.ok, true); assert.equal(r.bio, 'Mom of three in Holly Springs, NC. Former TV producer.');
 assert.deepEqual(t6.get({ action: 'bios' }).bios, [{ name: 'Kristin Smith', claimed: '', bio: 'Mom of three in Holly Springs, NC. Former TV producer.' }]);
@@ -282,7 +300,7 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
 {
   const t7 = boot(), ck = { key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Sarah' };
   t7.post({ action: 'admin-seed', ...ck, members: [{ name: 'Kristin' }, { name: 'Lora' }] });
-  const acct = (name, pw) => t7.post({ action: 'account-setup', agreed: true, key: 'footpop', name, password: pw }).key;
+  const acct = (name, pw) => t7.post({ action: 'account-setup', agreed: true, key: 'shared-test-pass', name, password: pw }).key;
   const kris = acct('Kristin Smith', 'kristin-pass-1'), lora = acct('Lora Jones', 'lora-pass-123'), ana = acct('Ana Lopez', 'ana-pass-1234');
   r = t7.post({ action: 'pitch', key: kris, name: 'Somebody', pitch: { title: 'Car seat myths', idea: 'Three myths in 30 seconds' } });
   const kid = r.idea.id; assert.deepEqual(r.idea.credit, ['Kristin']); // credited to the signed-in creator, by roster name
@@ -290,7 +308,7 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   // Someone else can't change or delete it; the shared password alone can't either.
   assert.match(t7.post({ action: 'idea-save', key: lora, idea: { id: kid, title: 'Mine now' } }).error, /credited to you/);
   assert.match(t7.post({ action: 'idea-delete', key: lora, id: kid }).error, /credited to you/);
-  assert.match(t7.post({ action: 'idea-save', key: 'footpop', idea: { id: kid, title: 'x' } }).error, /own name and password/);
+  assert.equal(t7.post({ action: 'idea-save', key: 'shared-test-pass', idea: { id: kid, title: 'x' } }).locked, true);
   assert.equal(one(kid).title, 'Car seat myths');
   // The creator edits their own idea; credit stays as it was.
   r = t7.post({ action: 'idea-save', key: kris, idea: { id: kid, title: 'Car seat myths, busted', summary: 'Updated', credit: ['Lora'] } });
@@ -316,7 +334,7 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   const t8 = boot(), ck = { key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Taylor' };
   t8.post({ action: 'admin-seed', ...ck, members: [{ name: 'Kristin', market: 'East' }, { name: 'Lora' }] });
   vm.runInContext(`writeRow(clubSheet('Submissions'), CLUB_TABS['Submissions'], { id: 'k1', submitted: new Date(), date: todayIso(), name: 'Kristin', kind: 'story', status: 'Submitted' }, 0)`, t8.ctx);
-  const setup = (name, claim, pw = 'squad-pass-1') => t8.post({ action: 'account-setup', agreed: true, key: 'footpop', name, claim, password: pw });
+  const setup = (name, claim, pw = 'squad-pass-1') => t8.post({ action: 'account-setup', agreed: true, key: 'shared-test-pass', name, claim, password: pw });
   assert.deepEqual(t8.get({ action: 'claimed' }).claimed, []); // public: no password needed
   assert.match(setup('Kris Smith', 'Kristin').error, /start with Kristin/);
   r = setup('Kristin Smith', 'Kristin'); assert.equal(r.ok, true); assert.equal(r.claimed, 'Kristin'); const kk = r.key;
@@ -348,12 +366,12 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   r = t8.post({ action: 'account-login', name: 'Lora Bell', password: 'old-pass-121' }); assert.equal(r.ok, true); assert.equal(r.claimed, 'Lora'); // Lora is on the roster, so she's linked
   assert.ok(t8.post({ action: 'admin-data', ...ck }).members.some(m => m.name === 'Lora Bell'));
   // Approved applicants: on the roster by their full name, they claim it the same way with the creator password.
-  t8.post({ action: 'apply', application: { name: 'Dana Park', why: 'Love it', agreed: true } });
+  t8.post({ action: 'apply', application: { name: 'Dana Park', email: 'dana@example.com', why: 'Love it', agreed: true } });
   r = t8.post({ action: 'admin-data', ...ck }); t8.post({ action: 'admin-app', ...ck, id: r.applications.find(a => a.name === 'Dana Park').id, status: 'Approved' });
   assert.equal(t8.post({ action: 'account-claimable', key: 'nope' }).locked, true);
-  let cl = t8.post({ action: 'account-claimable', key: 'footpop' }).names; assert.ok(cl.includes('Dana Park')); assert.ok(!cl.includes('Kristin Smith')); assert.ok(!cl.includes('Lora Bell'));
+  let cl = t8.post({ action: 'account-claimable', key: 'shared-test-pass' }).names; assert.ok(cl.includes('Dana Park')); assert.ok(!cl.includes('Kristin Smith')); assert.ok(!cl.includes('Lora Bell'));
   r = setup('Dana Park', 'Dana Park'); assert.equal(r.ok, true); assert.equal(r.claimed, 'Dana Park');
-  assert.ok(!t8.post({ action: 'account-claimable', key: 'footpop' }).names.includes('Dana Park'));
+  assert.ok(!t8.post({ action: 'account-claimable', key: 'shared-test-pass' }).names.includes('Dana Park'));
   assert.equal(t8.post({ action: 'admin-data', ...ck }).members.filter(m => m.name === 'Dana Park').length, 1); // no duplicate roster row
 }
 // Round Up casting call: answers land in the answers sheet, one column per question.

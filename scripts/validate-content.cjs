@@ -101,7 +101,8 @@ function validate(c) {
   });
   optUrl('brollFolderUrl', c.brollFolderUrl);
   optUrl('uploadEndpoint', c.uploadEndpoint);
-  if (c.mentorPasswordHash && !/^[a-f0-9]{64}$/.test(c.mentorPasswordHash)) err('mentorPasswordHash', 'should be the SHA-256 of the password (64 hex characters), never the password itself');
+  if ('mentorPasswordHash' in c) err('mentorPasswordHash', 'remove it: this file is public, so it never holds a password or a hash of one. Only the Creators Club script checks passwords.');
+  if (Array.isArray(c.ideas) && c.ideas.length) err('ideas', 'the Idea Bank is creators-only: keep ideas in the "Creators Club ideas" sheet, not in this public file.');
   if (c.uploadEndpoint && !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(c.uploadEndpoint)) err('uploadEndpoint', 'should be the Apps Script web app URL ending in /exec');
   const brollIds = new Set(list('brollCategories').map(x => x && x.id));
   list('brollClips').forEach((x, i) => {

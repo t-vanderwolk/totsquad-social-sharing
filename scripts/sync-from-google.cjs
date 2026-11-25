@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /*
- * Copies the Reels tracker and every brief from Google into the site (reels-data.js),
- * so the Reels page reads the site's own file instead of Google.
+ * Copies the Reels tracker from Google into the site (reels-data.js), so the public pages can show
+ * what's casting and what's been posted without asking Google.
  *
- *   MENTOR_KEY=yourpassword node scripts/sync-from-google.cjs
+ *   MENTOR_KEY='<coordinator password>' node scripts/sync-from-google.cjs
+ *
+ * reels-data.js is public, so it never holds briefs or the "Future ideas" rows: signed-in creators read
+ * those live from the Creators Club script. Never write a password into this repo: it's public.
  *
  * Uses the Creators Club script (uploadEndpoint in content.js). Videos stay in Drive.
  * The GitHub workflow .github/workflows/sync.yml runs this every hour when the
@@ -20,12 +23,12 @@ vm.runInContext(fs.readFileSync(path.join(root, 'content.js'), 'utf8'), ctx);
 const endpoint = ctx.window.HUB_CONTENT.uploadEndpoint;
 
 if (!endpoint) { console.error('No uploadEndpoint in content.js.'); process.exit(1); }
-if (!key) { console.error('Set MENTOR_KEY to the mentor password, e.g. MENTOR_KEY=footpop node scripts/sync-from-google.cjs'); process.exit(1); }
+if (!key) { console.error("Set MENTOR_KEY to the coordinator password: MENTOR_KEY='<coordinator password>' node scripts/sync-from-google.cjs"); process.exit(1); }
 
 const get = async (action, extra = '') => {
   const res = await fetch(`${endpoint}?action=${action}&key=${encodeURIComponent(key)}${extra}`);
   const data = await res.json();
-  if (data.locked) throw new Error('The mentor password was refused.');
+  if (data.locked) throw new Error('The coordinator password was refused.');
   if (!data.ok) throw new Error(data.error || `Request for ${action} failed.`);
   return data;
 };
@@ -55,12 +58,8 @@ function cleanBrief(html) {
 
 (async () => {
   const sheet = await get('reels');
-  const briefs = {};
-  for (const id of [...new Set(sheet.reels.map(r => docId(r.briefUrl)).filter(Boolean))]) {
-    try { const b = await get('brief', `&id=${id}`); briefs[id] = { title: b.title, html: cleanBrief(b.html) }; }
-    catch (e) { console.warn(`Skipped a brief (${id}): ${e.message}`); }
-  }
-  const reels = sheet.reels.map(({ row, ...r }) => r);
+  const briefs = {}; // briefs stay private: creators read them live after signing in
+  const reels = sheet.reels.filter(r => !/^idea$/i.test(String(r.status || '').trim())).map(({ row, ...r }) => r); // "Future ideas" stay private too
   // Keep the old timestamp when nothing changed, so the hourly sync doesn't make empty commits.
   let updated = new Date().toISOString();
   try {
@@ -74,5 +73,5 @@ function cleanBrief(html) {
 window.HUB_REELS = ${JSON.stringify(data, null, 1)};
 `;
   fs.writeFileSync(path.join(root, 'reels-data.js'), out);
-  console.log(`Saved ${data.reels.length} Reels and ${Object.keys(briefs).length} briefs to reels-data.js.`);
+  console.log(`Saved ${data.reels.length} Reels to reels-data.js (no briefs or future ideas: those stay private).`);
 })().catch(e => { console.error(e.message); process.exit(1); });

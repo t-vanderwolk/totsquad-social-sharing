@@ -155,7 +155,7 @@ function renderCasting() {
   const casting = openProjects();
   $('#casting-projects').innerHTML = casting.length ? casting.map(p => `<article class="casting">
     ${publicUrl(p.exampleReelUrl) && imageUrl(p.thumbnail) ? `<a class="casting-art" href="${escapeHTML(publicUrl(p.exampleReelUrl))}" target="_blank" rel="noopener noreferrer" aria-label="Watch the example Reel on Instagram"><img src="${escapeHTML(imageUrl(p.thumbnail))}" alt=""><span class="play">${ICON.play}</span></a>` : `<div class="casting-art">${imageUrl(p.thumbnail) ? `<img src="${escapeHTML(imageUrl(p.thumbnail))}" alt="">` : ICON.people}</div>`}
-    <div class="casting-copy"><span class="chip casting-chip">Casting now</span><h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
+    <div class="casting-copy"><span class="chip casting-chip">Casting now</span>${p.openCall ? '<span class="who who-open">Open to every specialist, no sign-in</span>' : '<span class="who who-member">Creators Club members</span>'}<h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
     <div class="button-row">${p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'}</button>${messageLead(p.lead)}` : `${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}`}${externalLink(p.exampleReelUrl,p.exampleLabel || 'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
@@ -383,7 +383,7 @@ function toolkitItems() {
     ...(UPLOAD_ON() ? [{ label:'Upload clips', action:'upload', dest:'collab', desc:'Send footage straight to the Squad’s Drive', icon:'upload' }] : []),
     { label:'Idea Bank', page:'ideas.html', desc:'Every Squad idea, ready to lead or build on', icon:'bulb' },
     { label:'B-roll library', page:'b-roll.html', desc:'Short clips anyone can reuse', icon:'film' },
-    ...(UPLOAD_ON() ? [{ label:'New applications', action:'applications', desc:'Meet the creators who want to join', icon:'wave' }] : []),
+    ...(UPLOAD_ON() && isCoord() ? [{ label:'New applications', action:'applications', desc:'Meet the creators who want to join', icon:'wave' }] : []), // applicants' details: coordinators only
     ...(content.resources || []).filter(r => r && r.label && (r.page || r.action)),
     { label:'My drafts', action:'drafts', desc:'Pitches saved on this device', icon:'draft' }
   ];
@@ -628,7 +628,7 @@ function trackerRow(x) {
   const [cls,label] = CAL_STATUS[x.status] || CAL_STATUS.idea;
   const due = dateValid(x.date) ? (x.status === 'posted' ? '' : 'Due ')+fmt(x.date,{month:'short',day:'numeric'}) : (['idea','posted'].includes(x.status) ? '' : 'Date TBD');
   const meta = [x.lead ? 'Led by '+x.lead : '', due].filter(Boolean).join(' · ');
-  const doc = briefDocId(x.briefUrl), synced = doc && syncedReels() && window.HUB_REELS.briefs && window.HUB_REELS.briefs[doc];
+  const doc = briefDocId(x.briefUrl), synced = doc && (!LOCKED() || !!(syncedReels() && window.HUB_REELS.briefs && window.HUB_REELS.briefs[doc])); // briefs are for signed-in creators
   const links = [synced ? `<button type="button" class="text-button" data-action="brief" data-doc="${escapeHTML(doc)}" data-project="${escapeHTML(x.title)}">Read the brief</button>` : '',
     x.status === 'posted' ? externalLink(x.url,'Watch','text-button') : x.status !== 'idea' ? (UPLOAD_ON() ? `<button type="button" class="text-button" data-action="upload" data-dest="collab" data-project="${escapeHTML(x.title)}">Upload your clips</button>` : externalLink(content.submissionFolderUrl,'Upload your clips','text-button')) : ''].filter(Boolean).join('');
   return `<li class="trk-row"><div class="trk-top"><strong>${escapeHTML(x.title)}</strong><span class="stage stage-${cls}">${label}</span></div>${meta ? `<span class="trk-meta">${escapeHTML(meta)}</span>` : ''}${x.prompt ? `<p class="trk-prompt">${escapeHTML(x.prompt)}</p>` : ''}${links ? `<div class="trk-links">${links}</div>` : ''}</li>`;
@@ -1069,12 +1069,15 @@ function loadBrief(r) {
     .then(d => { if (d && d.ok && d.html) renderBrief(box, d.html, r.title); else later(); }).catch(later);
 }
 
-// A Reel's brief, read in the app (the doc itself is in Tot Squad's private Drive).
+// A Reel's brief, read in the app (the doc itself is in Tot Squad's private Drive). Signed-in creators read it live:
+// briefs are never copied into the public site.
 function openBrief(doc, project) {
-  const brief = syncedReels() && window.HUB_REELS.briefs && window.HUB_REELS.briefs[doc]; if (!brief) return;
-  title.textContent = project || brief.title || 'The brief';
-  body.innerHTML = `<div class="brief-body" id="brief-body"></div><div class="button-row"><button type="button" class="button secondary" data-action="tracker">Back to the Reels tracker</button></div>`;
-  renderBrief(document.getElementById('brief-body'), brief.html, project);
+  const brief = syncedReels() && window.HUB_REELS.briefs && window.HUB_REELS.briefs[doc];
+  if (!brief && LOCKED()) return;
+  title.textContent = project || (brief && brief.title) || 'The brief';
+  body.innerHTML = `<div class="brief-body" id="brief-body"><p class="quiet">Loading the brief…</p></div><div class="button-row"><button type="button" class="button secondary" data-action="tracker">Back to the Reels tracker</button></div>`;
+  if (brief) renderBrief(document.getElementById('brief-body'), brief.html, project);
+  else loadBrief({ briefUrl: 'https://docs.google.com/document/d/' + doc + '/edit', title: project, lead: '' });
   showModal();
 }
 function openReel(id) {
@@ -1288,13 +1291,13 @@ function openPanel(action,data={}) {
   title.textContent = item[0]; body.innerHTML = item[1]; showModal();
 }
 
-/* New applications: every creator can see who has applied (from the "Creators Club applications" sheet).
-   The script leaves out declined applications and the Notes column. */
+/* New applications (coordinators only): who has applied, from the "Creators Club applications" sheet.
+   The script leaves out declined applications and the Notes column, and refuses anyone without the coordinator password. */
 async function openApplications() {
   title.textContent = 'New applications';
   body.innerHTML = '<p class="quiet">Loading applications…</p>'; showModal();
   let list = null;
-  try { const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=applications&key=${encodeURIComponent(mentorKey())}`); const data = await res.json(); if (data.ok && Array.isArray(data.applications)) list = data.applications; } catch {}
+  try { const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=applications&key=${encodeURIComponent(mentorKey())}&coord=${encodeURIComponent(storageGet(COORD_CODE_KEY) || '')}`); const data = await res.json(); if (data.ok && Array.isArray(data.applications)) list = data.applications; } catch {}
   if (title.textContent !== 'New applications') return; // they opened something else meanwhile
   if (!list) { body.innerHTML = '<p>Applications couldn’t load right now. Try again in a minute.</p>'; return; }
   body.innerHTML = `<p>Specialists who asked to join the Creators Club, newest first. Say hi in Disco and help them find their first Reel.</p>`
@@ -1340,10 +1343,13 @@ function openApply() {
   title.textContent = 'Apply to join the Creators Club';
   if (!UPLOAD_ON()) { body.innerHTML = `<p>Applications open soon. In the meantime, say hi in ${externalLink(content.discoUrl,'Social & Sharing','text-button')}.</p>`; return showModal(); }
   const radios = (name, list) => list.map((r,i) => `<label class="check"><input type="radio" name="${name}" value="${escapeHTML(r)}" id="${name}-${i}">${escapeHTML(r)}</label>`).join('');
-  body.innerHTML = `<p>The Creators Club is a group of Baby Specialists building visibility, credibility and real relationships together. Beginners are welcome: it’s about consistency, not perfection, and never follower count. It takes about three minutes, and a coordinator will reach out in Disco.</p>
+  body.innerHTML = `<p>The Creators Club is a group of Baby Specialists building visibility, credibility and real relationships together. Beginners are welcome: it’s about consistency, not perfection, and never follower count. It takes about three minutes. A coordinator reads every application and replies by email or Instagram DM.</p>
     <form id="apply-form" novalidate>
       <div class="field-pair">
-        <div><label for="ap-name">Your name, as it appears in Disco</label><input id="ap-name" type="text" autocomplete="name" maxlength="80" required></div>
+        <div><label for="ap-name">Your full name</label><input id="ap-name" type="text" autocomplete="name" maxlength="80" required></div>
+        <div><label for="ap-email">Email <span class="quiet">(so we can reply)</span></label><input id="ap-email" type="email" autocomplete="email" inputmode="email" maxlength="120" placeholder="you@example.com"></div>
+      </div>
+      <div class="field-pair">
         <div><label for="ap-market">Home market</label><input id="ap-market" type="text" maxlength="80" placeholder="For example, North Phoenix Target stores"></div>
       </div>
       <div class="field-pair">
@@ -1368,24 +1374,26 @@ function openApply() {
       <input class="hp" id="ap-website" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
       <div class="flow-note"><strong>Creators Club members agree to:</strong><ul class="club-expect">${CLUB_EXPECTATIONS.map(x => `<li>${escapeHTML(x)}</li>`).join('')}<li>Give as much as you take, keep it authentic and professional, and say so when you need a break</li></ul>${guidelinesFold()}<p class="quiet">It’s voluntary and separate from your role as a specialist. Posts follow the Tot Squad brand guidelines and share families only with their consent.</p></div>
       <label class="check agree"><input type="checkbox" id="ap-agree">I’ve read the Creators Club guidelines and I’m in.</label>
+      <div class="flow-note"><strong>What happens next</strong><ul><li>Applying doesn’t make you a member, and it doesn’t add you to any group.</li><li>A coordinator reviews your application and replies by email or Instagram DM.</li><li>If you’re accepted, you’ll get the creator password. Sign in here to set up your own password and claim your profile, and you’re in.</li></ul><p class="quiet">Only coordinators see your application.</p></div>
       <div class="form-actions"><button class="button" type="submit" id="ap-go">Send application</button></div>
     </form>`;
   $('#apply-form').onsubmit = async ev => {
     ev.preventDefault();
     const val = id => document.getElementById(id).value.trim(), radio = n => (document.querySelector(`input[name="${n}"]:checked`) || {}).value || '';
-    const application = { name: val('ap-name'), market: val('ap-market'), region: val('ap-region'), instagram: val('ap-ig').replace(/^@/, ''),
+    const application = { name: val('ap-name'), email: val('ap-email'), market: val('ap-market'), region: val('ap-region'), instagram: val('ap-ig').replace(/^@/, ''),
       roles: [...document.querySelectorAll('input[name="ap-role"]:checked')].map(i => i.value).join(', '),
       interests: val('ap-interests'), experience: val('ap-exp'), camera: radio('ap-camera'),
       capacity: [radio('ap-capacity'), val('ap-avail')].filter(Boolean).join(' · '),
       why: val('ap-why'), example: val('ap-example'), agreed: document.getElementById('ap-agree').checked };
     if (!application.name) { status.textContent = 'Add your name first.'; return document.getElementById('ap-name').focus(); }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(application.email) && !application.instagram) { status.textContent = 'Add an email or your Instagram handle so we can reply.'; return document.getElementById('ap-email').focus(); }
     if (!application.why) { status.textContent = 'Add a sentence about why you’d like to join.'; return document.getElementById('ap-why').focus(); }
     if (!application.agreed) { status.textContent = 'Check the box to agree to the Creators Club guidelines.'; return document.getElementById('ap-agree').focus(); }
     const go = document.getElementById('ap-go'); go.disabled = true; go.textContent = 'Sending…'; status.textContent = '';
     try {
       const res = await uploadRequest({ action:'apply', application, website: val('ap-website') });
       if (!res.ok) throw new Error(res.error || '');
-      body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. A coordinator will review it and reach out in Disco. In the meantime, casting calls and creator resources are open to you.</p>`;
+      body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. A coordinator will review it and reply ${application.email ? 'by email' : 'on Instagram'}. You’re not a member until you hear back. In the meantime, the Instagram community, open casting calls and creator resources are open to every specialist.</p>`;
       status.textContent = '';
     } catch (err) { status.textContent = err.message || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send application'; }
   };
@@ -1689,8 +1697,8 @@ modal.addEventListener('close', () => {
 modal.addEventListener('click', e => { if (e.target === modal) { const r = modal.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) modal.close(); } });
 /* ---------- Mentor password ----------
    The landing page is open to everyone; its mentor-only parts ([data-mentor]) appear after sign-in.
-   The other pages stay behind the password screen. The password is checked against mentorPasswordHash
-   in content.js, remembered on the device, and sent with pitches (checked against MENTOR_PASSCODE). */
+   The other pages stay behind the password screen. Only the script checks passwords: nothing in the page can
+   tell whether a password is right. The shared creator password only opens "Set up your password". */
 const MENTOR_KEY = 'totsquad-mentor-key';
 let mentorMemory = '';
 function mentorKey() { return mentorMemory || storageGet(MENTOR_KEY) || ''; }
@@ -1710,12 +1718,13 @@ function signOut() {
   location.href = pageUrl('index.html');
 }
 document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-signout]')) { e.preventDefault(); signOut(); } });
-const GATE_ON = () => /^[a-f0-9]{64}$/.test(content.mentorPasswordHash || '');
+const GATE_ON = () => !!content.signInRequired;
 const LANDING = () => !!(document.getElementById && document.getElementById('mentor-signin'));
 const LOCKED = () => GATE_ON() && !mentorKey();
 // Open to every specialist without signing in: the landing page and the B-roll library. The Idea Bank stays creators-only.
 const OPEN_PAGE = () => LANDING() || !!(document.getElementById && document.getElementById('broll-grid'));
-async function mentorHash(key) { const bytes = new TextEncoder().encode(String(key).trim().toLowerCase()); const buf = await crypto.subtle.digest('SHA-256', bytes); return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join(''); }
+// Asks the script whether this is the shared creator password (it also caps wrong guesses).
+const isSharedPassword = async key => { if (!UPLOAD_ON()) return {}; try { const r = await accountRequest({ action:'account-claimable', key }); return r && r.ok ? { shared: !!r.shared } : { error: r && /Too many/.test(r.error || '') ? r.error : '' }; } catch (e) { return {}; } };
 function unlock() { document.documentElement?.classList.add('unlocked'); document.getElementById?.('gate')?.remove(); }
 // Wires a password form. Returns nothing; on a match it saves the key, unlocks and re-renders.
 /* Sign-in: your name and your own password. The shared creator password only opens "Set up your password";
@@ -1729,12 +1738,14 @@ function passwordForm(form, input, note$, go, label, nameEl) {
     go.disabled = true; go.textContent = 'Checking…'; note$.textContent = '';
     const ready = () => { go.disabled = false; go.textContent = label; };
     try {
-      if (GATE_ON() && await mentorHash(key) === content.mentorPasswordHash) { ready(); input.value = ''; return openAccountSetup(key, name); } // first time here
       if (isFullName(name) && UPLOAD_ON()) {
         const res = await accountRequest({ action:'account-login', name, password: key });
         if (res && res.ok) { ready(); input.value = ''; return finishSignin(res); }
         if (res && !res.wrong) { note$.textContent = res.error || 'That didn’t work. Try again in a minute.'; return ready(); }
       }
+      const setup = await isSharedPassword(key); // first time here: the creator password opens "Set up your password"
+      if (setup.shared) { ready(); input.value = ''; return openAccountSetup(key, name); }
+      if (setup.error) { note$.textContent = setup.error; return ready(); }
       if (await coordinatorLogin(key)) { // not yours: maybe the coordinator password
         ready(); input.value = ''; mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(key); unlock(); renderContent(); loadIdeas(); loadActivity(); goToDashboard(); toast('You’re signed in as a coordinator.'); return;
       }
@@ -1985,4 +1996,4 @@ else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.get
 else if (OPEN_PAGE()) renderContent();
 else showGate();
 loadBios(); loadClaims();
-if (movingKey && typeof crypto !== 'undefined' && crypto.subtle) mentorHash(movingKey).then(h => { if (h === content.mentorPasswordHash) openAccountSetup(movingKey, storageGet(UPLOAD_NAME_KEY) || '', true); }).catch(() => {});
+if (movingKey) isSharedPassword(movingKey).then(r => { if (r.shared) openAccountSetup(movingKey, storageGet(UPLOAD_NAME_KEY) || '', true); }).catch(() => {});
