@@ -262,7 +262,7 @@ function leaderCard() {
   if (!p || !p.name) return '';
   const photo = imageUrl(p.photo);
   return `<article class="leader">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
-    <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(p.name)}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.bio ? `<p>${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
+    <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(shownName(p))}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.bio ? `<p>${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
     <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
 }
 // Show "Read more" only on bios that are actually cut off (phones clamp bios to three lines).
@@ -283,7 +283,7 @@ function renderSquad() {
   $('#squad-grid').innerHTML = people.length || leader ? leader + people.map((p,i) => {
     const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
     return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
-      <div class="person-head"><h3>${escapeHTML(p.name)}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio" id="bio-${i}">${escapeHTML(p.bio)}</p>${p.bio.length > 110 ? `<button type="button" class="text-button bio-more" data-bio="bio-${i}" aria-expanded="false" aria-controls="bio-${i}">Read more</button>` : ''}` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
+      <div class="person-head"><h3>${escapeHTML(shownName(p))}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio" id="bio-${i}">${escapeHTML(p.bio)}</p>${p.bio.length > 110 ? `<button type="button" class="text-button bio-more" data-bio="bio-${i}" aria-expanded="false" aria-controls="bio-${i}">Read more</button>` : ''}` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
       <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}${ownsCard(p, me, myClaim()) ? `<button type="button" class="text-button" data-action="profile">${p.bio ? 'Edit my bio' : 'Add my bio'}</button>` : ''}</div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
   if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitBios);
@@ -1129,7 +1129,27 @@ function uploadTargets() {
     ...(reelsData || []).filter(r => ['filming','editing','upcoming'].includes(r.status)).map(r => r.title)];
   return [...new Set(titles.filter(Boolean))];
 }
-function squadNames() { return [...new Set([...(content.featuredSpecialists || []).map(p => p && p.name), content.leader && content.leader.name].filter(Boolean))].sort(); }
+// Meet the Squad: a card shows the full name once that person has claimed it.
+const shownName = p => (squadClaims.find(c => sameName(c.claimed, p.name)) || {}).name || p.name;
+function baseSquadNames() { return [...new Set([...(content.featuredSpecialists || []).map(p => p && p.name), content.leader && content.leader.name].filter(Boolean))].sort(); }
+/* Once someone claims their Squad name and adds their last name, name pickers show "Kristin Jenkins" instead of the
+   "Kristin" placeholder (apps-script ?action=claimed). The claim list and the set-up form still use baseSquadNames(). */
+let squadClaims = (() => { try { return JSON.parse(storageGet('totsquad-claims') || '[]'); } catch { return []; } })();
+function squadNames() {
+  const full = n => (squadClaims.find(c => sameName(c.claimed, n)) || {}).name || n;
+  return [...new Set(baseSquadNames().map(full))].sort();
+}
+async function loadClaims() {
+  if (!UPLOAD_ON() || typeof fetch !== 'function') return;
+  try {
+    const d = await (await fetch(`${publicUrl(content.uploadEndpoint)}?action=claimed`)).json();
+    if (!d || !Array.isArray(d.claims)) return;
+    const changed = JSON.stringify(d.claims) !== JSON.stringify(squadClaims);
+    squadClaims = d.claims; storageSet('totsquad-claims', JSON.stringify(d.claims));
+    if (changed && typeof renderDashboard === 'function' && has('#club-dash')) renderDashboard();
+    if (changed && has('#squad-grid')) renderSquad();
+  } catch {}
+}
 // Upload button when the form is set up, otherwise a link to the Drive folder.
 function uploadButton(label, dest, project, cls='button', fallbackUrl) {
   if (!UPLOAD_ON()) return externalLink(fallbackUrl || (dest === 'broll' ? brollFolder() : content.submissionFolderUrl), label, cls);
@@ -1754,7 +1774,7 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
   if (!modal.open) opener = document.activeElement;
   status.textContent = '';
   title.textContent = 'Set up your password';
-  const squad = squadNames(), words = String(name || '').trim().split(/\s+/).filter(Boolean);
+  const squad = baseSquadNames(), words = String(name || '').trim().split(/\s+/).filter(Boolean);
   const pre = squad.find(n => sameName(n, words[0])) || '', preLast = pre && words.length > 1 ? words.slice(1).join(' ') : '';
   body.innerHTML = `<p>${moving ? 'Each creator now has their own password. ' : 'Welcome to the Creators Club! '}Claim your name, add your last name and pick a password only you know. You’ll sign in with these from now on, and you can write your own bio for Meet the Squad.</p>
     <form id="acct-form" novalidate>
@@ -1762,7 +1782,7 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
       <select id="acct-claim"><option value="">Choose your name</option>${squad.map(n => `<option value="${escapeHTML(n)}"${n === pre ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}<option value="-">I’m new, my name isn’t here</option></select>
       <div class="field-pair">
         <div id="acct-first-row" hidden><label for="acct-first">First name</label><input id="acct-first" type="text" maxlength="40" autocomplete="given-name" autocapitalize="words"></div>
-        <div><label for="acct-last">Last name</label><input id="acct-last" type="text" maxlength="40" autocomplete="family-name" autocapitalize="words" value="${escapeHTML(preLast)}"></div>
+        <div id="acct-last-row"><label for="acct-last">Last name</label><input id="acct-last" type="text" maxlength="40" autocomplete="family-name" autocapitalize="words" value="${escapeHTML(preLast)}"></div>
       </div>
       <p class="quiet" id="acct-preview" aria-live="polite"></p>
       <label for="acct-pw">New password</label>
@@ -1780,7 +1800,7 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
     status.textContent = '';
     if (!pick) { status.textContent = 'Choose your name, or “I’m new” if it isn’t on the list.'; return $('#acct-claim').focus(); }
     if (claimedNow.some(n => sameName(n, claim))) { status.textContent = `${claim} has already been claimed. If that isn’t you, ask a coordinator.`; return $('#acct-claim').focus(); }
-    if (!isFullName(nm)) { status.textContent = claim ? 'Add your last name.' : 'Add your first and last name, as they appear in Disco.'; return $(claim ? '#acct-last' : '#acct-first').focus(); }
+    if (!isFullName(nm)) { status.textContent = claim ? 'Add your last name.' : 'Add your first and last name, as they appear in Disco.'; return $(claim ? '#acct-last' : '#acct-first').focus(); } // a single-word roster name needs a last name too
     if (pw.length < 8) { status.textContent = 'Use at least 8 characters.'; return $('#acct-pw').focus(); }
     if (pw !== pw2) { status.textContent = 'Those passwords don’t match.'; return $('#acct-pw2').focus(); }
     const agree = document.getElementById('acct-agree'); if (agree && !agree.checked) { status.textContent = 'Check the box to agree to the Creators Club guidelines.'; return agree.focus(); }
@@ -1790,7 +1810,7 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
       if (!res || !res.ok) { status.textContent = res && res.locked ? 'The creator password has changed. Ask Sarah or Taylor for the new one.' : (res && res.error) || 'That didn’t save. Try again in a minute.'; go.disabled = false; go.textContent = 'Save my password'; if (res && res.fullName) $('#acct-last').focus(); return; }
       finishSignin(res);
       title.textContent = 'You’re all set';
-      body.innerHTML = `<p>${res.claimed ? `You’ve claimed ${escapeHTML(res.claimed)} and you’re on the roster as <strong>${escapeHTML(res.name)}</strong>. ` : ''}Next time, sign in with <strong>${escapeHTML(res.name)}</strong> and your new password. Your browser can save it for you.</p>
+      body.innerHTML = `<p>${res.claimed ? (sameName(res.claimed, res.name) ? `You’re on the roster as <strong>${escapeHTML(res.name)}</strong>. ` : `You’ve claimed ${escapeHTML(res.claimed)} and you’re on the roster as <strong>${escapeHTML(res.name)}</strong>. `) : ''}Next time, sign in with <strong>${escapeHTML(res.name)}</strong> and your new password. Your browser can save it for you.</p>
         <p>Last step: add a sentence or two about yourself for Meet the Squad.</p>
         <div class="button-row"><button class="button" type="button" data-action="profile">${res.bio ? 'Edit my bio' : 'Write my bio'}</button><button class="button secondary" type="button" id="acct-done">Done</button></div>`;
       status.textContent = ''; $('#acct-done').onclick = () => modal.close();
@@ -1799,9 +1819,11 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
   // Who's who: names already claimed can't be picked again; "I'm new" asks for a first name too.
   let claimedNow = [];
   const v = id => String($(id).value || '').trim();
-  const fullFromForm = () => { const pick = v('#acct-claim'), first = pick === '-' ? v('#acct-first') : pick; return [first, v('#acct-last')].filter(Boolean).join(' ').replace(/\s+/g, ' '); };
+  const fullPick = pick => pick !== '-' && /\s/.test(pick); // a roster name that's already a full name (an approved applicant)
+  const fullFromForm = () => { const pick = v('#acct-claim'); if (fullPick(pick)) return pick; const first = pick === '-' ? v('#acct-first') : pick; return [first, v('#acct-last')].filter(Boolean).join(' ').replace(/\s+/g, ' '); };
   const refresh = () => {
     const pick = v('#acct-claim'); $('#acct-first-row').hidden = pick !== '-';
+    const lastRow = $('#acct-last-row'); if (lastRow) lastRow.hidden = fullPick(pick);
     const nm = fullFromForm(); $('#acct-preview').textContent = isFullName(nm) ? `You’ll sign in as ${nm}.` : '';
   };
   ['acct-claim', 'acct-first', 'acct-last'].forEach(id => { const el = $('#' + id); el.oninput = el.onchange = refresh; });
@@ -1810,6 +1832,14 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
     if (!d || !Array.isArray(d.claimed)) return; claimedNow = d.claimed;
     [...document.querySelectorAll('#acct-claim option')].forEach(o => { if (o.value && o.value !== '-' && claimedNow.some(n => sameName(n, o.value))) { o.disabled = true; o.textContent = `${o.value} (claimed)`; if (o.selected) $('#acct-claim').value = ''; } });
     refresh();
+  }).catch(() => {});
+  // Approved applicants are on the roster by the name they applied with: add them to the list.
+  if (UPLOAD_ON()) accountRequest({ action:'account-claimable', key: sharedKey }).then(d => {
+    const sel = document.getElementById ? document.getElementById('acct-claim') : null; if (!sel || !d || !Array.isArray(d.names)) return;
+    const have = [...sel.options].map(o => o.value), newOpt = sel.querySelector('option[value="-"]');
+    d.names.filter(n => !have.some(h => sameName(h, n)) && !baseSquadNames().some(b => sameName(b, n.split(/\s+/)[0]) && squadClaims.some(c => sameName(c.claimed, b))))
+      .sort().forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = n; sel.insertBefore(o, newOpt); });
+    const mine = d.names.find(n => sameName(n, name)); if (mine && !v('#acct-claim')) { sel.value = mine; refresh(); }
   }).catch(() => {});
   showModal(); $(pre ? (preLast ? '#acct-pw' : '#acct-last') : '#acct-claim').focus();
 }
@@ -1954,5 +1984,5 @@ if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadAct
 else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in', f.querySelector('#signin-name')); }
 else if (OPEN_PAGE()) renderContent();
 else showGate();
-loadBios();
+loadBios(); loadClaims();
 if (movingKey && typeof crypto !== 'undefined' && crypto.subtle) mentorHash(movingKey).then(h => { if (h === content.mentorPasswordHash) openAccountSetup(movingKey, storageGet(UPLOAD_NAME_KEY) || '', true); }).catch(() => {});

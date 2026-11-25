@@ -483,3 +483,25 @@ console.log('PASS: idea bank permissions');
   r.run(`openCast('meet-the-squad-part-2', 1)`); assert.match(r.html('#modal-body'), /1 · Find the toy/); // the first call is unchanged
 }
 console.log('PASS: round up casting call');
+
+// Claimed names replace the first-name placeholders in name pickers.
+{
+  const n = boot(); n.run(require('node:fs').readFileSync(root + '/club.js', 'utf8'));
+  n.run(`squadClaims = [{ claimed:'Taylor', name:'Taylor Vanderwolk' }, { claimed:'Kristin', name:'Kristin Jenkins' }, { claimed:'Jessica', name:'Jessica Crim' }]; club = { roster:['Jen','Kristin Jenkins','Jessica Crim','Taylor Vanderwolk','Lora'] };`);
+  const names = n.run('clubNames()');
+  for (const x of ['Taylor Vanderwolk', 'Kristin Jenkins', 'Jessica Crim', 'Aly', 'Lora']) assert.ok(names.includes(x), x);
+  for (const x of ['Taylor', 'Kristin', 'Jessica']) assert.ok(!names.includes(x), x);
+  assert.ok(n.run('baseSquadNames()').includes('Kristin')); // the claim list still shows the Squad by first name
+  assert.ok(n.run('squadNames()').includes('Kristin Jenkins') && !n.run('squadNames()').includes('Kristin'));
+}
+console.log('PASS: claimed names replace placeholders');
+
+// Meet the Squad shows the full name on a claimed card; the coordinator checklist includes approved applicants.
+{
+  const q = boot(); q.run(`squadClaims = [{ claimed:'Kristin', name:'Kristin Jenkins' }]; renderSquad();`);
+  assert.match(q.html('#squad-grid'), /<h3>Kristin Jenkins<\/h3>/); assert.match(q.html('#squad-grid'), /<h3>Aly<\/h3>/);
+  q.run(require('node:fs').readFileSync(root + '/club.js', 'utf8'));
+  const html = q.run(`coordClaims({ accounts:[{ name:'Kristin Jenkins', claimed:'Kristin', hasPassword:true }], members:[{ name:'Kristin Jenkins', status:'Active' }, { name:'Dana Park', status:'Active' }, { name:'Old Timer', status:'Alumni' }] })`);
+  assert.match(html, /Dana Park/); assert.doesNotMatch(html, /Old Timer/); assert.equal((html.match(/Kristin Jenkins/g) || []).length, 1);
+}
+console.log('PASS: claimed cards and applicants');

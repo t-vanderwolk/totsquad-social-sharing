@@ -30,7 +30,12 @@ async function loadClub() {
   } catch { club = { ok: false }; }
   clubBusy = false; renderDashboard();
 }
-function clubNames() { return [...new Set([...squadNames(), ...((club && club.roster) || [])])].sort(); }
+// Roster names win: a placeholder first name ("Taylor") drops out once the roster has someone's full name ("Taylor Vanderwolk").
+function clubNames() {
+  const roster = (club && club.roster) || [], first = n => String(n).trim().split(/\s+/)[0];
+  const placeholder = n => !/\s/.test(String(n).trim()) && roster.some(r => /\s/.test(String(r).trim()) && sameName(first(r), n) && squadClaims.some(c => sameName(c.claimed, n)));
+  return [...new Set([...squadNames(), ...roster])].filter(n => !placeholder(n)).sort();
+}
 function namePickerHTML(id, label) {
   if (typeof isAccount === 'function' && isAccount()) return `<p class="club-who"><span>Signed in as</span><button type="button" class="text-button" data-action="profile">${escapeHTML(clubName())}</button></p>`;
   const saved = clubName();
@@ -258,7 +263,7 @@ function coordApps(c) {
 }
 function coordRoster(c) {
   const part = n => c.participation.find(p => p.name === n) || {};
-  const seed = squadNames().filter(n => !c.members.some(m => m.name.toLowerCase() === n.toLowerCase()) && !(c.accounts || []).some(a => a.hasPassword && sameName(a.claimed, n)));
+  const seed = baseSquadNames().filter(n => !c.members.some(m => m.name.toLowerCase() === n.toLowerCase()) && !(c.accounts || []).some(a => a.hasPassword && sameName(a.claimed, n)));
   return `${coordClaims(c)}${seed.length ? `<div class="flow-note"><strong>${c.members.length ? 'Add the rest of the current Squad?' : 'Start the roster'}</strong><p>${escapeHTML(seed.join(', '))} ${seed.length === 1 ? 'isn’t' : 'aren’t'} on the roster yet. Add them as Active founding members?</p><button class="button" type="button" data-coord-seed>Add ${plural(seed.length, 'founding member')}</button></div>` : ''}
     ${c.members.map(m => `<form class="coord-card" data-coord-form="member" data-name="${escapeHTML(m.name)}">
       <div class="app-top"><strong>${escapeHTML(m.name)}</strong><span class="stage ${standingClass(part(m.name).standing)}">${escapeHTML(part(m.name).standing || m.status)}</span></div>
@@ -273,11 +278,14 @@ function coordRoster(c) {
 // Creators' own passwords and bios: a coordinator can reset a forgotten password or take a bio down.
 // Before launch: who on the current Squad list has claimed their name and set their password.
 function coordClaims(c) {
-  const list = c.accounts || [], squad = squadNames();
-  const holder = n => list.find(a => a.hasPassword && sameName(a.claimed, n));
+  const list = c.accounts || [], base = baseSquadNames();
+  const holder = n => list.find(a => a.hasPassword && (sameName(a.claimed, n) || sameName(a.name, n)));
+  // The current Squad by first name, plus everyone else on the roster (approved applicants) by the name they applied with.
+  const isBaseClaim = m => base.some(b => sameName(b, m) || (holder(b) && sameName(holder(b).name, m)));
+  const squad = [...base, ...c.members.filter(m => !['Inactive', 'Alumni'].includes(m.status) && !isBaseClaim(m.name)).map(m => m.name)];
   const done = squad.filter(holder).length;
   return `<div class="coord-card claims"><div class="app-top"><h3>Profiles claimed</h3><span class="stage ${done === squad.length ? 'stage-published' : 'stage-filming'}">${done} of ${squad.length}</span></div>
-    <p class="quiet">Each current Squad member signs in once with the creator password, claims their name, adds their last name and sets a password. Their roster row switches to their full name.</p>
+    <p class="quiet">Everyone on the roster, including approved applicants, signs in once with the creator password, claims their name (adding their last name if it’s missing) and sets a password. Their roster row switches to their full name.</p>
     <ul class="claim-list">${squad.map(n => { const a = holder(n), match = !a && list.find(x => x.hasPassword && !x.claimed && sameName(String(x.name).split(/\s+/)[0], n));
       return `<li class="${a ? 'done' : ''}"><span aria-hidden="true">${a ? '✓' : ''}</span><strong>${escapeHTML(n)}</strong>${a ? `<span class="quiet">${escapeHTML(a.name) + (a.bioSet && a.bio ? ' · bio added' : ' · no bio yet')}</span>`
         : match ? `<button class="text-button" type="button" data-coord-account="claim" data-name="${escapeHTML(match.name)}" data-claim="${escapeHTML(n)}">Link ${escapeHTML(match.name)}</button>` : '<span class="quiet">Not yet</span>'}</li>`; }).join('')}</ul></div>`;

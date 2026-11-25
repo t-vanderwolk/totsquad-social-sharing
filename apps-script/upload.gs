@@ -36,6 +36,7 @@ function doPost(e) {
     if (req.action === 'pitch') { if (!isMentor(req.key)) return locked(); const by = accountName(req.key); if (by) req.name = rosterName(by); return savePitch(req); } // pitches need a creator sign-in
     if (req.action === 'account-setup') return accountSetup(req); // creator password -> your own password (club.gs)
     if (req.action === 'account-login') return accountLogin(req); // your name + your own password (club.gs)
+    if (req.action === 'account-claimable') return claimableRoster(req); // roster names still to claim, for the set-up form (club.gs)
     if (req.action === 'apply') return saveApplication(req); // open to anyone: it's how people ask to join
     if (req.action === 'squad-pitch') return saveSquadPitch(req); // open to anyone: ideas for Sarah to review
     if (req.action === 'cast-start') return startCastUpload(req); // open casting calls: video only, no password
@@ -436,7 +437,7 @@ const REELS_SHEET_ID = moved('1onXGs-dUEvschflMisc0GW0ozzqsRimchQuYtzxbtfg');
 function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
   if (action === 'bios') return reply({ ok: true, bios: readBios() }); // public: the bios creators wrote for Meet the Squad
-  if (action === 'claimed') return reply({ ok: true, claimed: claimedNames() }); // public: Squad names already claimed (club.gs)
+  if (action === 'claimed') return reply({ ok: true, claimed: claimedNames(), claims: claimedPairs() }); // public: Squad names already claimed, with the full names (club.gs)
   if (action && !isMentor(e.parameter.key)) return locked();
   if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // creators only
   if (action === 'club') { const me = accountName(e.parameter.key); return reply(clubForCreator(me ? rosterName(me) : clean(e.parameter.name))); }

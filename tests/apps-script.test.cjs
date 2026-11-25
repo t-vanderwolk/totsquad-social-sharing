@@ -321,6 +321,7 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   assert.match(setup('Kris Smith', 'Kristin').error, /start with Kristin/);
   r = setup('Kristin Smith', 'Kristin'); assert.equal(r.ok, true); assert.equal(r.claimed, 'Kristin'); const kk = r.key;
   assert.deepEqual(t8.get({ action: 'claimed' }).claimed, ['Kristin']);
+  assert.deepEqual(t8.get({ action: 'claimed' }).claims, [{ claimed: 'Kristin', name: 'Kristin Smith' }]);
   assert.match(setup('Kristin Jones', 'Kristin').error, /already claimed by Kristin Smith/); // one claim per name
   // The roster row and her logged story moved to her full name; market and status are kept.
   r = t8.post({ action: 'admin-data', ...ck });
@@ -346,6 +347,14 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   assert.equal(r.accounts.find(a => a.name === 'Taylor Vanderwolk').claimed, 'Taylor'); assert.ok(r.members.some(m => m.name === 'Taylor Vanderwolk')); assert.equal(r.members.some(m => m.name === 'Taylor'), false);
   r = t8.post({ action: 'account-login', name: 'Lora Bell', password: 'old-pass-121' }); assert.equal(r.ok, true); assert.equal(r.claimed, 'Lora'); // Lora is on the roster, so she's linked
   assert.ok(t8.post({ action: 'admin-data', ...ck }).members.some(m => m.name === 'Lora Bell'));
+  // Approved applicants: on the roster by their full name, they claim it the same way with the creator password.
+  t8.post({ action: 'apply', application: { name: 'Dana Park', why: 'Love it', agreed: true } });
+  r = t8.post({ action: 'admin-data', ...ck }); t8.post({ action: 'admin-app', ...ck, id: r.applications.find(a => a.name === 'Dana Park').id, status: 'Approved' });
+  assert.equal(t8.post({ action: 'account-claimable', key: 'nope' }).locked, true);
+  let cl = t8.post({ action: 'account-claimable', key: 'footpop' }).names; assert.ok(cl.includes('Dana Park')); assert.ok(!cl.includes('Kristin Smith')); assert.ok(!cl.includes('Lora Bell'));
+  r = setup('Dana Park', 'Dana Park'); assert.equal(r.ok, true); assert.equal(r.claimed, 'Dana Park');
+  assert.ok(!t8.post({ action: 'account-claimable', key: 'footpop' }).names.includes('Dana Park'));
+  assert.equal(t8.post({ action: 'admin-data', ...ck }).members.filter(m => m.name === 'Dana Park').length, 1); // no duplicate roster row
 }
 // Round Up casting call: answers land in the answers sheet, one column per question.
 {

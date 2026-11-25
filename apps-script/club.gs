@@ -529,10 +529,20 @@ function accountOut(a, key) {
    logged under the first name) move to the full name, so the roster ends up with everyone's full name. */
 const claimOf = a => String(a && a.claimed || '').trim();
 function claimedNames() { return allAccountRows().filter(a => a.hash && claimOf(a)).map(claimOf); }
+function claimedPairs() { return allAccountRows().filter(a => a.hash && claimOf(a)).map(a => ({ claimed: claimOf(a), name: String(a.name) })); }
+// A claim is a Squad first name ("Kristin" -> "Kristin Jenkins") or a full roster name (an approved applicant, "Ana Lopez").
+const claimFits = (name, claim) => sameName(name, claim) || sameName(String(name).trim().split(/\s+/)[0], claim);
+// POST account-claimable { key: the creator password }: roster names nobody has claimed yet, for the set-up form.
+function claimableRoster(req) {
+  if (!sharedPassword(req.key) && !isCoordinator(req.key)) return locked();
+  const taken = allAccountRows().filter(a => a.hash), used = n => taken.some(a => sameName(a.name, n) || sameName(claimOf(a), n));
+  const names = readTable(clubSheet('Members'), CLUB_TABS['Members']).filter(m => m.name && ['Active', 'Needs Check-In', 'Paused'].indexOf(pick(m.status, MEMBER_STATUSES, 'Active')) >= 0).map(m => String(m.name)).filter(n => !used(n));
+  return reply({ ok: true, names: names });
+}
 // Gives an account its Squad name, if nobody else has it; then syncs the roster. Returns an error message or ''.
 function claimFor(a, claim) {
   if (!claim) return 'Choose the Squad name to link.';
-  if (!sameName(String(a.name).split(/\s+/)[0], claim)) return String(a.name) + ' doesn’t start with ' + claim + '.';
+  if (!claimFits(String(a.name), claim)) return String(a.name) + ' doesn’t start with ' + claim + '.';
   const holder = allAccountRows().find(x => x.hash && sameName(claimOf(x), claim) && !sameName(x.name, a.name));
   if (holder) return claim + ' was already claimed by ' + holder.name + '.';
   writeRow(accountsSheet(), ACCOUNT_COLS, { claimed: claim }, a._row);
@@ -559,7 +569,7 @@ function accountSetup(req) {
   if (!sharedPassword(req.key) && !isCoordinator(req.key)) return locked();
   const name = clean(req.name), claim = clean(req.claim);
   const nameProblem = fullNameProblem(name); if (nameProblem) return reply({ ok: false, fullName: true, error: nameProblem });
-  if (claim && !sameName(name.split(/\s+/)[0], claim)) return reply({ ok: false, fullName: true, error: 'Your full name should start with ' + claim + '.' });
+  if (claim && !claimFits(name, claim)) return reply({ ok: false, fullName: true, error: 'Your full name should start with ' + claim + '.' });
   if (req.agreed !== true) return reply({ ok: false, error: 'Check the box to agree to the Creators Club guidelines.' });
   const problem = passwordProblem(req.password, name); if (problem) return reply({ ok: false, error: problem });
   const lock = LockService.getScriptLock(); lock.waitLock(15000);
