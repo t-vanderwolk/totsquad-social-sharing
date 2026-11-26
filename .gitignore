@@ -2,3 +2,4 @@
 *.image_*.jpg
 _to_delete/
 .DS_Store
+Claude outputs/

@@ -87,7 +87,21 @@ function renderDashboard() {
       <a href="#made"><span aria-hidden="true">🌟</span><span><strong>Community highlights</strong>What the Squad has published</span></a>
       ${publicUrl(content.squadChatUrl) ? `<a href="${escapeHTML(publicUrl(content.squadChatUrl))}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><span><strong>Squad group chat</strong>Our open Instagram chat</span></a>` : ''}
     </article>
+    ${myIdeasCard()}
   </div>${(club.upcoming || []).length ? `<p class="quiet club-next">Coming up: ${club.upcoming.map(u => `${escapeHTML(u.title || u.theme)} (${escapeHTML(weekRange(u))})`).join(' · ')}</p>` : ''}`;
+}
+// My ideas on the dashboard: your ideas by stage and your casting calls, with the full list one tap away (script.js).
+function myIdeasCard() {
+  if (typeof isMine !== 'function') return '';
+  const mine = ideas().filter(isMine), calls = myCalls().filter(c => c.status !== 'closed' && c.open !== false);
+  const waiting = calls.filter(c => c.audience === 'public' && c.review === 'waiting').length, responses = calls.reduce((n, c) => n + (c.responses || 0), 0);
+  return `<article class="club-card club-ideas">
+    <div class="club-ideas-head"><div><p class="club-kicker">My ideas</p><h3>${mine.length ? plural(mine.length, 'idea') : 'Your ideas live here'}</h3>
+      <p>${mine.length ? 'Credited to you or led by you, from first spark to published Reel.' : liveIdeas ? 'Pitch an idea, or take the lead on one in the Idea Bank, and it shows up here.' : 'Loading your ideas…'}</p></div>
+      <div class="button-row"><button class="button" type="button" data-action="my-ideas">Open My ideas</button><button class="button secondary" type="button" data-action="call-new">Post a casting call</button></div></div>
+    <ol class="stage-track" aria-label="Your ideas by stage">${STAGE_ORDER.map(st => `<li class="stage-step stage-step-${st}"><b>${mine.filter(i => stageKey(i.stage) === st).length}</b><span>${STAGES[st]}</span></li>`).join('')}</ol>
+    <p class="quiet">${calls.length ? `${plural(calls.length, 'casting call')} open${waiting ? `, ${waiting} waiting for public approval` : ''} · ${plural(responses, 'response')} so far.` : 'No casting calls open. Post one to find creators for your idea.'}</p>
+  </article>`;
 }
 function memberLine(m) {
   const bits = [m.status === 'Active' ? 'Creators Club member' : m.status === 'Needs Check-In' ? 'Creators Club member · check-in pending' : `Creators Club · ${m.status}`, m.market, m.joined ? `since ${shortDate(m.joined)}` : ''];
@@ -238,14 +252,15 @@ function coordGone() {
   body.innerHTML = `<p>Coordinator tools open when you sign in with the coordinator password. If it changed, sign out and sign back in with the new one.</p><div class="button-row"><button class="button" type="button" data-signout>Sign out</button></div>`;
   if (!modal.open) showModal();
 }
-const COORD_TABS = [['applications', 'Applications'], ['roster', 'Roster'], ['briefs', 'Briefs'], ['content', 'Content'], ['participation', 'Participation'], ['analytics', 'Analytics'], ['settings', 'Settings']];
+const COORD_TABS = [['applications', 'Applications'], ['roster', 'Roster'], ['briefs', 'Briefs'], ['calls', 'Casting calls'], ['content', 'Content'], ['participation', 'Participation'], ['analytics', 'Analytics'], ['settings', 'Settings']];
 function renderCoord() {
   const c = coord; if (!c) return;
   const openApps = c.applications.filter(a => ['Submitted', 'Under Review'].includes(a.status)).length;
   const flags = c.participation.filter(p => p.standing === 'Needs review').length + c.members.filter(m => m.request).length;
-  const badge = { applications: openApps, participation: flags };
+  const waitingCalls = (c.calls || []).filter(x => x.audience === 'public' && x.review === 'waiting' && x.status !== 'closed').length;
+  const badge = { applications: openApps, participation: flags, calls: waitingCalls };
   body.innerHTML = `<nav class="flow-nav coord-tabs" aria-label="Coordinator tools">${COORD_TABS.map(([id, label]) => `<button type="button" class="flow-tab${coordTab === id ? ' selected' : ''}" data-coord-tab="${id}"${coordTab === id ? ' aria-current="true"' : ''}>${label}${badge[id] ? ` <span class="nav-badge">${badge[id]}</span>` : ''}</button>`).join('')}</nav>
-    <div class="coord-body">${({ applications: coordApps, roster: coordRoster, briefs: coordBriefs, content: coordContent, participation: coordParticipation, analytics: coordAnalytics, settings: coordSettings })[coordTab](c)}</div>`;
+    <div class="coord-body">${({ applications: coordApps, roster: coordRoster, briefs: coordBriefs, calls: coordCalls, content: coordContent, participation: coordParticipation, analytics: coordAnalytics, settings: coordSettings })[coordTab](c)}</div>`;
 }
 const selectHTML = (attr, list, value) => `<select ${attr}>${list.map(x => `<option${x === value ? ' selected' : ''}>${escapeHTML(x)}</option>`).join('')}</select>`;
 function coordApps(c) {
@@ -323,6 +338,22 @@ function coordBriefs(c) {
       : emptyState('No briefs yet.', 'Create the first brief: trending audios, hooks, concepts or upcoming launches. One every other week; it stays a draft until you publish it.', '', ICON.spark)}
     <p class="quiet">You can also edit briefs right in the “Creators Club program” sheet in the shared drive.</p>`;
 }
+/* Casting calls creators posted. Public ones wait here: approve them for the public page, or keep them in the Creators Club. */
+function coordCalls(c) {
+  const calls = c.calls || [], waits = x => x.audience === 'public' && x.review === 'waiting' && x.status !== 'closed';
+  const card = x => { const [cls, label] = callState(x); return `<li class="coord-card">
+    <div class="app-top"><strong>${escapeHTML(x.title)}</strong><span class="quiet">${escapeHTML([x.lead ? 'Posted by ' + x.lead : '', x.posted ? shortDate(x.posted.slice(0, 10)) : ''].filter(Boolean).join(' · '))}</span></div>
+    <p>${escapeHTML(x.description)}</p>
+    <dl class="coord-facts">${[['What to film', x.instructions], ['How to film', (x.steps || []).join(' / ')], ['Questions', (x.questions || []).join(' / ')], ['Due', x.deadline ? shortDate(x.deadline) : ''], ['Responses', String(x.responses || 0)]].filter(f => f[1]).map(([k, v]) => `<div><dt>${k}</dt><dd>${escapeHTML(v)}</dd></div>`).join('')}</dl>
+    ${waits(x) ? `<div class="coord-row"><label class="grow">Note to ${escapeHTML(String(x.lead || 'the poster').split(/\s+/)[0])} (optional)<input type="text" maxlength="300" data-call-note="${escapeHTML(x.id)}"></label></div>
+      <div class="button-row"><button class="button" type="button" data-coord-call="${escapeHTML(x.id)}" data-decision="approve">Approve for the public page</button><button class="button secondary" type="button" data-coord-call="${escapeHTML(x.id)}" data-decision="club">Keep it in the Creators Club</button></div>`
+      : `<div class="coord-row"><span class="call-state call-${cls}">${label}</span><button class="text-button" type="button" data-action="call-edit" data-call="${escapeHTML(x.id)}">Edit</button><button class="text-button" type="button" data-coord-call="${escapeHTML(x.id)}" data-decision="${x.status === 'closed' ? 'open' : 'close'}">${x.status === 'closed' ? 'Reopen' : 'Close'}</button></div>`}
+  </li>`; };
+  const waiting = calls.filter(waits), rest = calls.filter(x => !waits(x));
+  return `<p class="quiet">Any creator can post a casting call. Creators Club calls go live right away; public calls wait here until one of you approves them.</p>
+    <h3 class="cal-head">Waiting for public approval</h3>${waiting.length ? `<ul class="coord-list">${waiting.map(card).join('')}</ul>` : '<p class="quiet">Nothing waiting.</p>'}
+    <h3 class="cal-head">All casting calls</h3>${rest.length ? `<ul class="coord-list">${rest.map(card).join('')}</ul>` : '<p class="quiet">No casting calls posted yet.</p>'}`;
+}
 function coordContent(c) {
   return c.submissions.length ? `<ul class="coord-list">${c.submissions.map(s => `<li class="coord-card coord-sub"><div class="app-top"><strong>${escapeHTML(s.name)}</strong><span class="quiet">${escapeHTML(shortDate(s.date || s.submitted.slice(0, 10)))}</span></div>
       <p>${escapeHTML(subLabel(s))}${s.note ? ` · “${escapeHTML(s.note)}”` : ''}</p>
@@ -375,9 +406,10 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (t.matches && t.matches('[data-coord-sub]')) refreshCoord('admin-sub', { id: t.dataset.coordSub, status: t.value }, 'Saved.');
   });
   document.addEventListener('click', e => {
-    const t = e.target.closest && e.target.closest('[data-coord-tab],[data-coord-filter],[data-coord-seed],[data-coord-request],[data-coord-new-brief],[data-coord-edit],[data-coord-brief],[data-coord-cancel],[data-coord-account],[data-coord-preview],[data-coord-brief-del],[data-coord-back]');
+    const t = e.target.closest && e.target.closest('[data-coord-call],[data-coord-tab],[data-coord-filter],[data-coord-seed],[data-coord-request],[data-coord-new-brief],[data-coord-edit],[data-coord-brief],[data-coord-cancel],[data-coord-account],[data-coord-preview],[data-coord-brief-del],[data-coord-back]');
     if (!t || !coord) return;
     const d = t.dataset;
+    if (d.coordCall) { const note = document.querySelector(`[data-call-note="${CSS.escape(d.coordCall)}"]`); refreshCoord('admin-call', { id: d.coordCall, decision: d.decision, note: note ? note.value : '' }, { approve: 'Approved. It’s on the public page now.', club: 'Kept in the Creators Club. It stays live for creators.', close: 'Closed.', open: 'Reopened.' }[d.decision] || 'Saved.').then(() => { if (typeof loadCalls === 'function') loadCalls(); }); return; }
     if (d.coordTab) { coordTab = d.coordTab; briefDraft = null; briefView = null; status.textContent = ''; renderCoord(); return; }
     if (d.coordFilter) { coordFilter = d.coordFilter; renderCoord(); return; }
     if ('coordSeed' in d) { const people = [content.leader, ...(content.featuredSpecialists || [])].filter(p => p && p.name).map(p => ({ name: p.name, market: p.region || '', instagram: p.instagram || '' })); refreshCoord('admin-seed', { members: people }, 'Roster updated.'); return; }

@@ -40,8 +40,8 @@ function doPost(e) {
     if (req.action === 'account-claimable') return claimableRoster(req); // roster names still to claim, for the set-up form (club.gs)
     if (req.action === 'apply') return saveApplication(req); // open to anyone: it's how people ask to join
     if (req.action === 'squad-pitch') return saveSquadPitch(req); // open to anyone: ideas for Sarah to review
-    if (req.action === 'cast-start') return startCastUpload(req); // open casting calls: video only, no password
-    if (req.action === 'cast-answers') return saveCastAnswers(req); // open casting calls: answers to its questions, no password
+    if (req.action === 'cast-start') return startCastUpload(req); // casting calls: video only. Public calls need no password; Creators Club calls need a sign-in
+    if (req.action === 'cast-answers') return saveCastAnswers(req); // casting calls: answers to its questions, same rule
     if (req.action === 'broll-start') return startBrollUpload(req); // B-roll from any specialist, no password: lands in "B-roll to review"
     if (req.action === 'upload-done') return uploadDone(req); // logs finished uploads for What's new
     if (req.action === 'coord-login') return coordLogin(req); // sign-in with the coordinator password (club.gs)
@@ -51,6 +51,8 @@ function doPost(e) {
     if (req.action === 'idea-save') return saveIdea(req);
     if (req.action === 'idea-delete') return deleteIdea(req);
     if (req.action === 'idea-build') return buildOnIdea(req);
+    if (req.action === 'call-save') return saveCall(req); // post or edit a casting call
+    if (req.action === 'call-status') return setCallStatus(req); // close or reopen your casting call
     if (req.action === 'club-submit') return saveSubmission(req);
     if (req.action === 'club-request') return saveRequest(req);
     if (/^admin-/.test(String(req.action))) return adminReply(req); // coordinators only (club.gs)
@@ -331,8 +333,8 @@ function answersSheet() {
   return sheet;
 }
 function saveCastAnswers(req) {
-  const name = clean(req.name), project = clean(req.project);
-  if (OPEN_CASTING.indexOf(project) < 0) return reply({ ok: false, error: 'This casting call isn’t taking answers right now.' });
+  const me = accountName(req.key), name = me ? rosterName(me) : clean(req.name), project = clean(req.project);
+  if (!castOpenFor(project, req.key)) return reply({ ok: false, error: 'This casting call isn’t taking answers right now.' });
   if (!name) return reply({ ok: false, error: 'Add your name first.' });
   const answers = (Array.isArray(req.answers) ? req.answers : []).slice(0, 30).map(x => ({ q: text(x && x.q).slice(0, 200), a: text(x && x.a).slice(0, 500) })).filter(x => x.q && x.a);
   if (!answers.length) return reply({ ok: false, error: 'Answer at least one question.' });
@@ -345,13 +347,14 @@ function saveCastAnswers(req) {
     answers.forEach(x => { if (head.indexOf(x.q) < 0) { head.push(x.q); sheet.getRange(1, head.length).setValue(x.q).setFontWeight('bold').setBackground('#f3eaf1'); } });
     const row = head.map(h => h === 'Sent' ? new Date() : h === 'Name' ? name : h === 'How to reach them' ? text(req.contact).slice(0, 120) : h === 'Casting call' ? project : ((answers.find(x => x.q === h) || {}).a || ''));
     sheet.appendRow(row);
+    countCallResponse(project);
     logActivity('video', name, 'answered the questions for ' + project, '');
     return reply({ ok: true });
   } finally { lock.releaseLock(); }
 }
 function startCastUpload(req) {
-  const name = clean(req.name), project = clean(req.project), type = String(req.type || ''), size = Number(req.size);
-  if (OPEN_CASTING.indexOf(project) < 0) return reply({ ok: false, error: 'This casting call isn’t taking videos right now.' });
+  const me = accountName(req.key), name = me ? rosterName(me) : clean(req.name), project = clean(req.project), type = String(req.type || ''), size = Number(req.size);
+  if (!castOpenFor(project, req.key)) return reply({ ok: false, error: 'This casting call isn’t taking videos right now.' });
   if (!name) return reply({ ok: false, error: 'Add your name first.' });
   if (req.agreed !== true) return reply({ ok: false, error: 'Check the box first.' });
   if (!/^video\//.test(type)) return reply({ ok: false, error: 'Choose a video file.' });
@@ -375,6 +378,141 @@ function startCastUpload(req) {
 /* B-roll uploads, from creators and from any specialist, land in "B-roll to review" (private to the shared drive's
    members). The B-Roll Library itself is link-viewable, so clips only move there once a coordinator has checked them
    for faces, client details and permission. */
+/* ---------- Casting calls posted by creators ("Casting calls" tab of the Creators Club program sheet) ----------
+   Any creator signed in with their own password, or a coordinator, can post one.
+   Creators Club calls are live right away for signed-in creators. Public calls are live for the Creators Club right
+   away and show on the public page only after a coordinator approves them. A creator's edit to an approved public
+   call's wording sends it back for approval. Videos go to a folder named after the call, like every casting call. */
+const CALL_TAB = 'Casting calls';
+const callCols = () => CLUB_TABS[CALL_TAB];
+// Reads without creating anything: a page view must never make a sheet or a tab.
+function callSheetIfAny() {
+  const id = PropertiesService.getScriptProperties().getProperty('CLUB_SHEET_ID'); if (!id) return null;
+  try { return SpreadsheetApp.openById(id).getSheetByName(CALL_TAB); } catch (err) { console.error(err); return null; }
+}
+function callRows() { const sh = callSheetIfAny(); return sh ? readTable(sh, callCols()).filter(r => r.id && r.title) : []; }
+const callLines = v => String(v || '').split('\n').map(x => x.trim()).filter(Boolean);
+const listOf = (v, n, max) => (Array.isArray(v) ? v : String(v || '').split('\n')).map(x => text(x).slice(0, max)).filter(Boolean).slice(0, n);
+function callOpen(r) { const due = isoDay(r.deadline); return sameName(r.status, 'Open') && (!due || due >= todayIso()); }
+function callPublic(r) { return callOpen(r) && sameName(r.audience, 'Public') && sameName(r.review, 'Approved'); }
+function callOut(r, full) {
+  const o = { id: r.id, title: r.title, audience: sameName(r.audience, 'Public') ? 'public' : 'network', description: r.description, instructions: r.instructions,
+    steps: callLines(r.steps), questions: callLines(r.questions), deadline: isoDay(r.deadline), lead: full ? r.lead : String(r.lead || '').split(/\s+/)[0] }; // first name only in public
+  if (full) Object.assign(o, { open: callOpen(r), status: sameName(r.status, 'Closed') ? 'closed' : 'open', review: sameName(r.review, 'Approved') ? 'approved' : sameName(r.review, 'Waiting') ? 'waiting' : '',
+    reviewNote: r.reviewNote, ideaId: r.ideaId, responses: Number(r.responses) || 0, posted: isoTime(r.posted), updated: isoTime(r.updated) });
+  return o;
+}
+function allCalls() { return callRows().map(r => callOut(r, true)).reverse(); }
+const ownsCall = (r, me) => !!me && sameName(r.owner, me);
+/* GET ?action=casting. Signed out: approved public calls only (no contact details, cached for 2 minutes).
+   Signed in: every open call, plus your own closed ones. Coordinators: every call. */
+function castingReply(p) {
+  const coord = isCoordinator(p.coord) || isCoordinator(p.key), me = accountName(p.key);
+  if (!coord && !me) {
+    const cache = CacheService.getScriptCache(), hit = cache.get('calls-public');
+    if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
+    const out = JSON.stringify({ ok: true, calls: callRows().filter(callPublic).map(r => callOut(r, false)) });
+    cache.put('calls-public', out, 120);
+    return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
+  }
+  return reply({ ok: true, calls: callRows().filter(r => coord || callOpen(r) || ownsCall(r, me)).map(r => Object.assign(callOut(r, true), { mine: coord || ownsCall(r, me) })).reverse() });
+}
+// Casting calls in content.js (OPEN_CASTING) take videos from anyone; posted calls follow their own audience.
+function castOpenFor(project, key) {
+  if (OPEN_CASTING.indexOf(project) >= 0) return true;
+  const r = callRows().find(x => sameName(x.title, project) && callOpen(x)); if (!r) return false;
+  return callPublic(r) || isMentor(key);
+}
+function countCallResponse(project) {
+  try {
+    const sh = callSheetIfAny(); if (!sh) return;
+    const r = readTable(sh, callCols()).find(x => x.id && sameName(x.title, project)); if (!r) return;
+    writeRow(sh, callCols(), { responses: (Number(r.responses) || 0) + 1 }, r._row);
+  } catch (err) { console.error(err); }
+}
+function callEditor(req) {
+  if (isCoordinator(req.coordKey) || isCoordinator(req.key)) return { coord: true, name: clean(req.coordName) || 'Coordinator', full: '' };
+  const full = accountName(req.key); return full ? { coord: false, name: rosterName(full), full: full } : null;
+}
+// POST call-save { call: { id?, title, description, instructions, steps, questions, deadline, audience: 'network'|'public', ideaId? } }
+function saveCall(req) {
+  const ed = callEditor(req); if (!ed) return reply({ ok: false, error: 'Sign in with your own name and password to post a casting call.' });
+  const c = req.call || {}, title = clean(c.title), description = text(c.description).slice(0, 600), instructions = text(c.instructions).slice(0, 300);
+  if (!title) return reply({ ok: false, error: 'Give your casting call a title.' });
+  if (!description) return reply({ ok: false, error: 'Say what the video is about.' });
+  if (!instructions) return reply({ ok: false, error: 'Say what people should film.' });
+  const deadline = /^\d{4}-\d{2}-\d{2}$/.test(String(c.deadline || '')) ? String(c.deadline) : '';
+  if (deadline && deadline < todayIso()) return reply({ ok: false, error: 'Pick a due date that hasn’t passed.' });
+  const audience = c.audience === 'public' ? 'Public' : 'Creators Club';
+  const fields = { title: title, description: description, instructions: instructions, steps: listOf(c.steps, 8, 200).join('\n'), questions: listOf(c.questions, 10, 200).join('\n'), deadline: deadline, audience: audience };
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sheet = clubSheet(CALL_TAB), rows = readTable(sheet, callCols()).filter(r => r.id);
+    const id = String(c.id || '').replace(/[^\w-]/g, '').slice(0, 60), before = id ? rows.find(r => r.id === id) : null;
+    if (id && !before) return reply({ ok: false, error: 'That casting call wasn’t found. Refresh the page and try again.' });
+    if (before && !ed.coord && !ownsCall(before, ed.full)) return reply({ ok: false, error: 'You can edit the casting calls you posted. Ask a coordinator about this one.' });
+    if (rows.some(r => r.id !== id && sameName(r.title, title)) || OPEN_CASTING.some(x => sameName(x, title))) return reply({ ok: false, error: 'Another casting call already uses that title. Try a different one.' });
+    if (before && (Number(before.responses) || 0) > 0 && !sameName(before.title, title)) return reply({ ok: false, error: 'People have already sent videos for this call, so its title can’t change. Its videos are filed under it.' });
+    // Public calls: a coordinator's own call is approved; a creator's waits. Changing only the due date keeps an approval.
+    const wording = ['title', 'description', 'instructions', 'steps', 'questions'].some(k => !before || String(before[k]) !== fields[k]);
+    fields.review = audience !== 'Public' ? '' : ed.coord ? 'Approved' : before && sameName(before.audience, 'Public') && sameName(before.review, 'Approved') && !wording ? 'Approved' : 'Waiting';
+    if (fields.review === 'Approved' && ed.coord) fields.reviewedBy = ed.name;
+    if (audience === 'Public' && fields.review === 'Waiting') fields.reviewNote = '';
+    Object.assign(fields, { updated: new Date(), updatedBy: ed.name });
+    let row;
+    if (before) row = writeRow(sheet, callCols(), fields, before._row);
+    else {
+      const ideaId = String(c.ideaId || '').replace(/[^\w-]/g, '').slice(0, 80);
+      Object.assign(fields, { id: newId('call'), status: 'Open', lead: ed.name, owner: ed.full, ideaId: ideaId, responses: 0, posted: new Date() });
+      row = writeRow(sheet, callCols(), fields, 0);
+      if (ideaId) moveIdeaToCasting(ideaId, ed);
+    }
+    CacheService.getScriptCache().remove('calls-public');
+    const saved = readTable(sheet, callCols()).find(r => r._row === row);
+    if (!before) logActivity('cast', ed.name, 'posted a casting call: “' + title + '”' + (audience === 'Public' ? ' (public once a coordinator approves it)' : ''), 'call:' + saved.id);
+    return reply({ ok: true, call: Object.assign(callOut(saved, true), { mine: true }) });
+  } finally { lock.releaseLock(); }
+}
+// A call posted from an idea moves that idea from Idea to Casting, when the poster can edit it (credited or leading).
+function moveIdeaToCasting(id, ed) {
+  try {
+    const found = ideaRowAt(id); if (found.at < 1) return;
+    const idea = readIdeas().find(x => x.id === id); if (!idea || idea.stage !== 'idea') return;
+    const leads = String(idea.lead || '').split(/\s*&\s*/).map(x => x.trim());
+    const mine = ed.coord || creditedTo(idea, { name: ed.full, roster: ed.name, claimed: ed.full ? claimOf(findAccount(ed.full)) : '' }) || leads.some(l => sameName(l, ed.name));
+    if (!mine) return;
+    idea.stage = 'casting';
+    found.sheet.getRange(found.at + 1, 1, 1, IDEA_COLUMNS.length).setValues([ideaRow(idea, ed.name)]);
+  } catch (err) { console.error(err); }
+}
+// POST call-status { id, status: 'open'|'closed' }: the poster or a coordinator closes or reopens a call.
+function setCallStatus(req) {
+  const ed = callEditor(req); if (!ed) return reply({ ok: false, error: 'Sign in with your own name and password first.' });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const sheet = clubSheet(CALL_TAB), r = readTable(sheet, callCols()).find(x => x.id && x.id === String(req.id || ''));
+    if (!r) return reply({ ok: false, error: 'That casting call wasn’t found. Refresh the page and try again.' });
+    if (!ed.coord && !ownsCall(r, ed.full)) return reply({ ok: false, error: 'You can close the casting calls you posted.' });
+    const open = req.status === 'open';
+    if (open && isoDay(r.deadline) && isoDay(r.deadline) < todayIso()) return reply({ ok: false, error: 'Its due date has passed. Edit the call and pick a new date to reopen it.' });
+    writeRow(sheet, callCols(), { status: open ? 'Open' : 'Closed', updated: new Date(), updatedBy: ed.name }, r._row);
+    CacheService.getScriptCache().remove('calls-public');
+    const saved = readTable(sheet, callCols()).find(x => x._row === r._row);
+    return reply({ ok: true, call: Object.assign(callOut(saved, true), { mine: true }) });
+  } finally { lock.releaseLock(); }
+}
+// Coordinator tools (club.gs adminReply): decision approve | club (keep it in the Creators Club) | close | open.
+function adminCall(req, who) {
+  const sheet = clubSheet(CALL_TAB), r = readTable(sheet, callCols()).find(x => x.id && x.id === String(req.id || ''));
+  if (!r) throw new Error('That casting call wasn’t found. Refresh and try again.');
+  const note = text(req.note).slice(0, 300), patch = { reviewedBy: who, updated: new Date(), updatedBy: who };
+  if (req.decision === 'approve') Object.assign(patch, { audience: 'Public', review: 'Approved', reviewNote: note });
+  else if (req.decision === 'club') Object.assign(patch, { audience: 'Creators Club', review: '', reviewNote: 'Kept in the Creators Club' + (note ? ': ' + note : '') });
+  else if (req.decision === 'close' || req.decision === 'open') patch.status = req.decision === 'open' ? 'Open' : 'Closed';
+  else throw new Error('Unknown decision.');
+  writeRow(sheet, callCols(), patch, r._row);
+  CacheService.getScriptCache().remove('calls-public');
+}
 const BROLL_REVIEW = 'B-roll to review';
 function brollReviewFolder() { return childFolder(DriveApp.getFolderById(ROOTS.collab), BROLL_REVIEW); }
 function startBrollUpload(req) {
@@ -426,7 +564,7 @@ function uploadDone(req) {
   const top = up.getParents().hasNext() ? up.getParents().next() : null;
   if (up.getId() === ROOTS.broll) logActivity('broll', person.getName(), 'added B-roll: ' + file.getName(), file.getUrl());
   else if (up.getName() === BROLL_REVIEW && top && top.getId() === ROOTS.collab) logActivity('broll', person.getName(), 'sent B-roll for review: ' + file.getName(), ''); // private until reviewed
-  else if (top && top.getId() === ROOTS.collab) logActivity('video', person.getName(), 'sent a video for ' + up.getName(), file.getUrl());
+  else if (top && top.getId() === ROOTS.collab) { logActivity('video', person.getName(), 'sent a video for ' + up.getName(), file.getUrl()); countCallResponse(up.getName()); }
   else return reply({ ok: false });
   return reply({ ok: true });
 }
@@ -439,6 +577,7 @@ function doGet(e) {
   const action = e && e.parameter && e.parameter.action;
   if (action === 'bios') return reply({ ok: true, bios: readBios() }); // public: the bios creators wrote for Meet the Squad
   if (action === 'claimed') return reply({ ok: true, claimed: claimedNames(), claims: claimedPairs() }); // public: Squad names already claimed, with the full names (club.gs)
+  if (action === 'casting') return castingReply(e.parameter); // public calls for everyone; Creators Club calls only with a sign-in
   if (action && !isMentor(e.parameter.key)) return locked();
   if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // creators only
   if (action === 'club') { const me = accountName(e.parameter.key); return reply(clubForCreator(me ? rosterName(me) : clean(e.parameter.name))); }

@@ -388,4 +388,74 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   assert.equal(sh.rows[2][4], 'UPPAbaby Vista'); assert.equal(sh.rows[2][6], 'Nuna Pipa');
   assert.equal(t9.post({ action: 'cast-start', name: 'Pat Lee', project: 'Tot Squad Round Up: Point & Answer', agreed: true, type: 'video/mp4', size: 100, fileName: 'p.mp4' }).ok, true);
 }
+// Casting calls any creator can post: Creators Club calls are live at once; public calls wait for a coordinator.
+{
+  const t10 = boot(), ck = { key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Sarah' };
+  t10.post({ action: 'admin-seed', ...ck, members: [{ name: 'Kristin' }, { name: 'Lora' }] });
+  const acct = (name, claim) => t10.post({ action: 'account-setup', agreed: true, key: 'shared-test-pass', name, claim, password: 'squad-pass-1' }).key;
+  const kk = acct('Kristin Smith', 'Kristin'), lk = acct('Lora Bell', 'Lora');
+  const book = () => t10.g.books.get(vm.runInContext("PropertiesService.getScriptProperties().getProperty('CLUB_SHEET_ID')", t10.ctx));
+  // Reading before anything is posted creates nothing.
+  assert.deepEqual(t10.get({ action: 'casting' }).calls, []); assert.equal(book().getSheetByName('Casting calls'), null);
+  // Signed out, or with the shared password: no posting.
+  assert.equal(t10.post({ action: 'call-save', call: { title: 'X' } }).locked, true);
+  assert.equal(t10.post({ action: 'call-save', key: 'shared-test-pass', call: { title: 'X' } }).locked, true);
+  assert.match(t10.post({ action: 'call-save', key: kk, call: { title: 'Stroller Fold Race', description: 'Fastest fold wins.' } }).error, /film/);
+  assert.match(t10.post({ action: 'call-save', key: kk, call: { title: 'Stroller Fold Race', description: 'x', instructions: 'y', deadline: '2020-01-01' } }).error, /passed/);
+  assert.match(t10.post({ action: 'call-save', key: kk, call: { title: 'Meet the Squad, Part 2: Pass the Toy', description: 'x', instructions: 'y' } }).error, /already uses/);
+  // A Creators Club call: live for signed-in creators, never shown signed out.
+  r = t10.post({ action: 'call-save', key: kk, call: { title: 'Stroller Fold Race', description: 'Fastest fold wins.', instructions: 'Film one fold, start to finish.', steps: 'Hold the phone upright\nStart with the stroller open', questions: ['Which stroller?'], deadline: day(10), audience: 'network', ideaId: 'fx-1' } });
+  assert.equal(r.ok, true); assert.equal(r.call.audience, 'network'); assert.equal(r.call.lead, 'Kristin Smith'); assert.deepEqual(r.call.steps, ['Hold the phone upright', 'Start with the stroller open']); assert.equal(r.call.review, '');
+  const net = r.call.id;
+  assert.deepEqual(t10.get({ action: 'casting' }).calls, []);
+  assert.equal(t10.get({ action: 'casting', key: lk }).calls.find(c => c.id === net).mine, false);
+  assert.equal(t10.get({ action: 'casting', key: kk }).calls.find(c => c.id === net).mine, true);
+  assert.equal(book().getSheetByName('Casting calls').rows[1].includes('Kristin Smith'), true); // the poster's account, so only they can edit it
+  // Uploads: a Creators Club call needs a sign-in; signed in, the video is filed under the poster's call by the uploader's name.
+  const vid = { project: 'Stroller Fold Race', agreed: true, type: 'video/mp4', size: 100, fileName: 'fold.mp4' };
+  assert.equal(t10.post({ action: 'cast-start', name: 'Pat Lee', ...vid }).ok, false);
+  assert.equal(t10.post({ action: 'cast-start', name: 'Pat Lee', key: lk, ...vid }).ok, true);
+  assert.ok(t10.g.made.some(f => /Stroller Fold Race\/Lora Bell$/.test(f)));
+  assert.equal(t10.post({ action: 'cast-answers', key: lk, project: 'Stroller Fold Race', answers: [{ q: 'Which stroller?', a: 'Vista' }] }).ok, true);
+  assert.equal(t10.get({ action: 'casting', key: kk }).calls.find(c => c.id === net).responses, 1);
+  assert.match(t10.post({ action: 'call-save', key: kk, call: { id: net, title: 'Renamed', description: 'x', instructions: 'y' } }).error, /title can’t change/);
+  // Only the poster (or a coordinator) edits or closes it.
+  assert.match(t10.post({ action: 'call-save', key: lk, call: { id: net, title: 'Stroller Fold Race', description: 'Mine now', instructions: 'y' } }).error, /you posted/);
+  assert.match(t10.post({ action: 'call-status', key: lk, id: net, status: 'closed' }).error, /you posted/);
+  r = t10.post({ action: 'call-status', key: kk, id: net, status: 'closed' }); assert.equal(r.call.status, 'closed'); assert.equal(r.call.open, false);
+  assert.equal(t10.get({ action: 'casting', key: lk }).calls.some(c => c.id === net), false); // closed: gone for others
+  assert.equal(t10.get({ action: 'casting', key: kk }).calls.some(c => c.id === net), true);  // still listed for its poster
+  assert.equal(t10.post({ action: 'cast-start', name: 'Lora', key: lk, ...vid }).ok, false);
+  assert.equal(t10.post({ action: 'call-status', key: kk, id: net, status: 'open' }).call.open, true);
+  // A public call waits: live for the Club, not on the public page, until a coordinator approves it.
+  r = t10.post({ action: 'call-save', key: lk, call: { title: 'Car Seat Myths', description: 'One myth, busted.', instructions: 'Say the myth, then the truth.', audience: 'public' } });
+  const pub = r.call.id; assert.equal(r.call.review, 'waiting');
+  assert.deepEqual(t10.get({ action: 'casting' }).calls, []);
+  assert.equal(t10.post({ action: 'cast-start', name: 'Pat Lee', ...vid, project: 'Car Seat Myths' }).ok, false);
+  assert.ok(t10.get({ action: 'casting', key: kk }).calls.some(c => c.id === pub));
+  assert.equal(t10.post({ action: 'admin-call', key: lk, coordKey: 'nope', id: pub, decision: 'approve' }).coordLocked, true);
+  r = t10.post({ action: 'admin-data', ...ck }); assert.equal(r.calls.find(c => c.id === pub).review, 'waiting');
+  r = t10.post({ action: 'admin-call', ...ck, id: pub, decision: 'approve' }); assert.equal(r.calls.find(c => c.id === pub).review, 'approved');
+  let open = t10.get({ action: 'casting' }).calls; assert.equal(open.length, 1); assert.equal(open[0].title, 'Car Seat Myths');
+  assert.equal(open[0].lead, 'Lora'); assert.equal(open[0].responses, undefined); assert.equal(open[0].reviewNote, undefined); assert.ok(!JSON.stringify(open).includes('Lora Bell')); // no account names in public
+  assert.equal(t10.post({ action: 'cast-start', name: 'Pat Lee', ...vid, project: 'Car Seat Myths' }).ok, true); // anyone, no sign-in
+  // Changing only the due date keeps the approval; changing the wording sends it back.
+  r = t10.post({ action: 'call-save', key: lk, call: { id: pub, title: 'Car Seat Myths', description: 'One myth, busted.', instructions: 'Say the myth, then the truth.', audience: 'public', deadline: day(5) } });
+  assert.equal(r.call.review, 'approved');
+  r = t10.post({ action: 'call-save', key: lk, call: { id: pub, title: 'Car Seat Myths', description: 'Two myths, busted.', instructions: 'Say the myth, then the truth.', audience: 'public' } });
+  assert.equal(r.call.review, 'waiting'); assert.deepEqual(t10.get({ action: 'casting' }).calls, []); // public cache cleared
+  // Keep it in the Club: it stays live for creators, with a note for the poster.
+  r = t10.post({ action: 'admin-call', ...ck, id: pub, decision: 'club', note: 'Great for us first' });
+  const kept = t10.get({ action: 'casting', key: lk }).calls.find(c => c.id === pub); assert.equal(kept.audience, 'network'); assert.match(kept.reviewNote, /Kept in the Creators Club: Great for us first/);
+  // Posting from your own idea moves it from Idea to Casting; someone else's idea stays where it is.
+  const myIdea = t10.post({ action: 'idea-save', key: kk, idea: { title: 'Diaper Bag Dump', summary: 'What’s inside' } }).idea;
+  const lorasIdea = t10.post({ action: 'idea-save', key: lk, idea: { title: 'Swaddle Speed Run', summary: 'Go' } }).idea;
+  t10.post({ action: 'call-save', key: kk, call: { title: 'Diaper Bag Dump', description: 'x', instructions: 'y', ideaId: myIdea.id } });
+  t10.post({ action: 'call-save', key: kk, call: { title: 'Swaddle Speed Run', description: 'x', instructions: 'y', ideaId: lorasIdea.id } });
+  const stages = Object.fromEntries(t10.get({ action: 'ideas', key: kk }).ideas.map(i => [i.id, i.stage]));
+  assert.equal(stages[myIdea.id], 'casting'); assert.equal(stages[lorasIdea.id], 'idea');
+  // A coordinator's own public call is approved as posted; formulas never reach the sheet.
+  r = t10.post({ action: 'call-save', ...ck, call: { title: 'Bath Time Tips', description: '=IMPORTXML("x")', instructions: 'Film one tip.', audience: 'public' } });
+  assert.equal(r.call.review, 'approved'); assert.equal(r.call.description[0], "'");
+}
 console.log('PASS: Creators Club 2.0 backend workflows');

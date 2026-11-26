@@ -151,20 +151,48 @@ function squadPerson(name) {
 const messageLead = (name, cls = 'button secondary') => { const url = discoProfile(squadPerson(name)); return url ? externalLink(url, `Message ${String(name).trim().split(/\s+/)[0]}`, cls) : ''; };
 const chatLink = (url, cls = 'text-button') => externalLink(publicUrl(url) || content.discoUrl, 'Tell the Squad in chat', cls);
 
+/* ---------- Casting calls posted by creators (apps-script/upload.gs: ?action=casting, call-save, call-status) ----------
+   Creators Club calls show only to signed-in creators. Public calls show to everyone once a coordinator approves them. */
+let liveCalls = [];
+const callProject = c => ({ id: c.id, title: c.title, lead: c.lead, description: c.description, instructions: c.instructions, status: 'casting', submissionDeadline: c.deadline, posted: true, call: c,
+  openCall: { filmTitle: 'Film your part', steps: (c.steps || []).length ? c.steps : [c.instructions].filter(Boolean), questions: c.questions || [] } });
+const callProjects = () => liveCalls.filter(c => c.open !== false).map(callProject);
+const castingProjects = () => [...openProjects(), ...callProjects()];
+const projectById = id => allProjects.find(p => p.id === id) || liveCalls.map(callProject).find(p => p.id === id);
+const myCalls = () => liveCalls.filter(c => c.mine);
+async function loadCalls() {
+  if (!UPLOAD_ON() || typeof fetch !== 'function') return;
+  const key = mentorKey(), coord = isCoord() ? storageGet(COORD_CODE_KEY) : '';
+  try {
+    const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=casting${key ? '&key=' + encodeURIComponent(key) : ''}${coord ? '&coord=' + encodeURIComponent(coord) : ''}`); const data = await res.json();
+    if (data.ok && Array.isArray(data.calls)) { liveCalls = data.calls; rerenderCalls(); }
+  } catch {}
+}
+function rerenderCalls() {
+  if (has('#casting-projects')) renderCasting();
+  if (typeof renderDashboard === 'function' && has('#club-dash')) renderDashboard(); // club.js
+  if (modal.open && title.textContent === 'My ideas') openMyIdeas();
+}
+function upsertCall(c) { const at = liveCalls.findIndex(x => x.id === c.id); if (at >= 0) liveCalls[at] = c; else liveCalls.unshift(c); rerenderCalls(); }
+// Who each call is for, in the words a specialist would use.
+function whoLabel(p) {
+  if (!p.posted) return p.openCall ? '<span class="who who-open">Open to every specialist, no sign-in</span>' : '<span class="who who-member">Creators Club members</span>';
+  if (p.call.audience !== 'public') return '<span class="who who-member">Creators Club only</span>';
+  return p.call.review === 'waiting' ? '<span class="who who-member">Creators Club for now · public once approved</span>' : '<span class="who who-open">Open to every specialist, no sign-in</span>';
+}
 function renderCasting() {
-  const casting = openProjects();
+  const casting = castingProjects();
   $('#casting-projects').innerHTML = casting.length ? casting.map(p => `<article class="casting">
     ${publicUrl(p.exampleReelUrl) && imageUrl(p.thumbnail) ? `<a class="casting-art" href="${escapeHTML(publicUrl(p.exampleReelUrl))}" target="_blank" rel="noopener noreferrer" aria-label="Watch the example Reel on Instagram"><img src="${escapeHTML(imageUrl(p.thumbnail))}" alt=""><span class="play">${ICON.play}</span></a>` : `<div class="casting-art">${imageUrl(p.thumbnail) ? `<img src="${escapeHTML(imageUrl(p.thumbnail))}" alt="">` : ICON.people}</div>`}
-    <div class="casting-copy"><span class="chip casting-chip">Casting now</span>${p.openCall ? '<span class="who who-open">Open to every specialist, no sign-in</span>' : '<span class="who who-member">Creators Club members</span>'}<h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">Led by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
+    <div class="casting-copy"><span class="chip casting-chip">Casting now</span>${whoLabel(p)}<h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">${p.posted ? 'Posted' : 'Led'} by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
     ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
     <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
-    <div class="button-row">${p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'}</button>${messageLead(p.lead)}` : `${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}`}${externalLink(p.exampleReelUrl,p.exampleLabel || 'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
+    <div class="button-row">${p.posted && p.call.mine ? `<button class="button secondary" type="button" data-action="call-edit" data-call="${escapeHTML(p.id)}">Edit</button>` : ''}${p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'}</button>${messageLead(p.lead)}` : `${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}`}${externalLink(p.exampleReelUrl,p.exampleLabel || 'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
     : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}" data-tool-page="ideas.html" data-label="Idea Bank">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
 }
 
-/* Idea Bank art: one original illustration per series. An idea's own `image` (images/ file) replaces it. */
+/* Illustrations (B-roll clip cards). */
 const SVG = (inner) => `<svg viewBox="0 0 240 120" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
-const SPARKS = '<g stroke-width="2.5"><path d="M30 28v10M25 33h10"/><path d="M208 84v8M204 88h8"/><circle cx="206" cy="30" r="2.5" fill="currentColor"/><circle cx="40" cy="92" r="2" fill="currentColor"/></g>';
 const ART = {
   carseat: '<path d="M88 30c18-4 34 6 38 24l8 34H92c-8 0-14-6-14-14V44c0-7 4-12 10-14z"/><path d="M78 92h84M92 92l-8 14M148 92l8 14M126 54h20c8 0 14 6 14 14v6"/>',
   bottle: '<path d="M108 20h24v10h-24zM104 30h32l4 12H100z"/><rect x="98" y="42" width="44" height="62" rx="10"/><path d="M110 60h10M110 74h10M110 88h10"/>',
@@ -189,33 +217,48 @@ const ART = {
   pin: '<path d="M120 102s-32-30-32-54a32 32 0 0 1 64 0c0 24-32 54-32 54z"/><circle cx="120" cy="48" r="11"/>',
   bell: '<path d="M90 82V58a30 30 0 0 1 60 0v24l8 10H82z"/><path d="M110 96a10 10 0 0 0 20 0M120 22v6"/><path d="M164 40c4 6 4 14 0 20M76 40c-4 6-4 14 0 20"/>'
 };
-/* Matched by keywords in the title/summary first, then rotated within the series so neighbours differ. */
-const ART_RULES = [[/game show/i,'buzzer'],[/love is blind|dating/i,'heart'],[/night before|holiday|trick or treat|halloween/i,'moon'],[/stroller/i,'stroller'],[/fund|bank|deal/i,'coin'],[/buzzer/i,'buzzer'],[/question|q&a|explains/i,'question'],[/court|poll|controversial/i,'poll'],[/hour by hour|day in the life|on-duty/i,'clock'],[/gotta have|tier/i,'tiers'],[/tipping|survey/i,'coin'],[/two-specialist|event-style/i,'people'],[/in-store|store/i,'store'],[/roast|registry/i,'checklist'],[/finder|city/i,'pin'],[/notif/i,'bell'],[/channel|social/i,'chat']];
-const SERIES_ART = {'game-shows':['buzzer','trophy','mic'],'reels':['phone','clapper','mic'],'registry':['gift','checklist','store'],'hub':['chat','bell','pin']};
-const artKey = i => { const hit = ART_RULES.find(([re]) => re.test(i.title||'')) || ART_RULES.find(([re]) => re.test(i.summary||'')); if (hit) return hit[1]; const pool = SERIES_ART[i.series] || SERIES_ART.hub; const n = [...String(i.id)].reduce((a,c) => a + c.charCodeAt(0), 0); return pool[n % pool.length]; };
-const ideaArt = i => { const img = imageUrl(i.image); return `<div class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(SPARKS+ART[artKey(i)])}</div>`; };
-function ideaCard(i) {
-  const img = imageUrl(i.image);
-  const art = `<span class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(ART[artKey(i)])}</span>`;
-  return `<button type="button" class="idea-tile tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}">${art}
-    <span class="idea-body"><strong>${escapeHTML(i.title)}</strong><span class="idea-sum">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</span>
-    <span class="reel-card-meta">${[i.status === 'Pitched' ? '<span class="new">Just pitched</span>' : isNew(i.date) ? '<span class="new">New</span>' : '', i.lead ? `Led by ${escapeHTML(i.lead)}` : '', (i.buildOns || []).length ? `💬 ${(i.buildOns || []).length} ${(i.buildOns || []).length === 1 ? 'build-on' : 'build-ons'}` : '', byline(i) ? escapeHTML(byline(i)) : ''].filter(Boolean).join(' · ')}</span></span>
+/* Idea Bank: one column per stage, Idea → Casting → Filming → Editing → Published.
+   Filters: Everyone, Mine (credited to you or led by you), or one creator; plus a series. */
+const STAGE_ORDER = ['idea','casting','filming','editing','published'];
+const STAGE_HINT = { idea:'Ready for someone to lead', casting:'Looking for creators', filming:'Being filmed', editing:'In the edit', published:'Live on Instagram' };
+let ideaWho = 'all'; // 'all' | 'mine' | a creator's name
+const myNames = () => [myName(), myClaim(), isCoord() ? storageGet(UPLOAD_NAME_KEY) : ''].filter(Boolean);
+const isMe = n => myNames().some(x => sameName(n, x)); // full name, or the Squad name you claimed ("Kristin")
+const isMine = i => credits(i.credit).some(isMe) || leadsOf(i).some(isMe);
+const ideaPeople = all => [...new Set(all.flatMap(i => [...credits(i.credit), ...leadsOf(i)]))].sort((a,b) => a.localeCompare(b));
+function stageCard(i) {
+  const s = seriesById(i.series), builds = (i.buildOns || []).length;
+  const fresh = i.status === 'Pitched' ? '<span class="new">Just pitched</span>' : isNew(i.date) ? '<span class="new">New</span>' : '';
+  return `<button type="button" class="stage-card tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}">
+    <span class="stage-card-series"><span class="dot" aria-hidden="true"></span>${escapeHTML(s ? s.label : 'More ideas')}${fresh ? ' ' + fresh : ''}</span>
+    <strong>${escapeHTML(i.title)}</strong>
+    ${i.summary ? `<span class="idea-sum">${escapeHTML(i.summary)}</span>` : ''}
+    <span class="stage-card-people">${[credits(i.credit).length ? 'Idea: ' + escapeHTML(credits(i.credit).join(' & ')) : '', i.lead ? 'Lead: ' + escapeHTML(i.lead) : 'Needs a lead', builds ? `💬 ${builds} ${builds === 1 ? 'build-on' : 'build-ons'}` : ''].filter(Boolean).join(' · ')}</span>
   </button>`;
 }
 function renderIdeas() {
   const all = ideas();
-  const count = id => id === 'all' ? all.length : all.filter(i => i.series === id).length;
-  const people = new Set(all.flatMap(i => credits(i.credit)));
-  $('#idea-summary').textContent = all.length ? `${all.length} ideas from ${people.size} specialists.` : '';
-  if (ideaFilter !== 'all' && !count(ideaFilter)) ideaFilter = 'all';
-  const filters = [{id:'all',label:'All'}, ...SERIES.filter(s => count(s.id))];
-  $('#idea-filters').innerHTML = all.length ? filters.map(f => `<button type="button" data-filter="${escapeHTML(f.id)}" aria-pressed="${ideaFilter === f.id}">${escapeHTML(f.label)} <span class="count">${count(f.id)}</span></button>`).join('') : '';
-  const groups = (ideaFilter === 'all' ? SERIES : SERIES.filter(s => s.id === ideaFilter)).map(s => ({ s, list: all.filter(i => i.series === s.id) })).filter(g => g.list.length);
-  const other = ideaFilter === 'all' ? all.filter(i => !seriesById(i.series)) : [];
-  if (other.length) groups.push({ s: { id: 'other', label: 'More ideas' }, list: other });
-  $('#idea-grid').innerHTML = groups.length
-    ? groups.map(({s, list}) => `<section class="idea-group tint-${tintFor(list[0])}" aria-label="${escapeHTML(s.label)}"><h2><span class="dot" aria-hidden="true"></span>${escapeHTML(s.label)}<span class="count">${list.length}</span></h2>${s.description ? `<p class="quiet">${escapeHTML(s.description)}</p>` : ''}<div class="idea-list">${list.map(ideaCard).join('')}</div></section>`).join('')
-    : emptyState('The Idea Bank is open.','Pitch an idea and it can appear here once the team has reviewed it.','<button class="button" data-action="pitch">Pitch an idea</button>', ICON.bulb);
+  const people = ideaPeople(all), signedIn = myNames().length > 0;
+  if (ideaWho === 'mine' && !signedIn) ideaWho = 'all';
+  if (!['all','mine'].includes(ideaWho) && !people.includes(ideaWho)) ideaWho = 'all';
+  if (ideaFilter !== 'all' && !all.some(i => i.series === ideaFilter)) ideaFilter = 'all';
+  const shown = all.filter(i => (ideaFilter === 'all' || i.series === ideaFilter) && (ideaWho === 'all' || (ideaWho === 'mine' ? isMine(i) : credits(i.credit).concat(leadsOf(i)).some(n => sameName(n, ideaWho)))));
+  const credited = new Set(all.flatMap(i => credits(i.credit)));
+  $('#idea-summary').textContent = !all.length ? '' : shown.length === all.length ? `${all.length} ideas from ${credited.size} specialists.` : `Showing ${shown.length} of ${all.length} ideas.`;
+  const seriesOpts = SERIES.filter(x => all.some(i => i.series === x.id));
+  $('#idea-filters').innerHTML = all.length ? `<div class="view-switch who-switch" role="group" aria-label="Whose ideas">${[['all','Everyone'], ...(signedIn ? [['mine','Mine']] : [])].map(([id,l]) => `<button type="button" data-idea-who="${id}" aria-pressed="${ideaWho === id}">${l}${id === 'mine' ? ` <span class="count">${all.filter(isMine).length}</span>` : ''}</button>`).join('')}</div>
+    <label class="idea-select">By creator <select data-idea-person><option value="">Anyone</option>${people.map(n => `<option${n === ideaWho ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select></label>
+    ${seriesOpts.length > 1 ? `<label class="idea-select">Series <select data-idea-series><option value="all">All series</option>${seriesOpts.map(x => `<option value="${escapeHTML(x.id)}"${x.id === ideaFilter ? ' selected' : ''}>${escapeHTML(x.label)}</option>`).join('')}</select></label>` : ''}` : '';
+  if (!all.length) { $('#idea-grid').innerHTML = emptyState('The Idea Bank is open.','Pitch an idea and it can appear here once the team has reviewed it.','<button class="button" data-action="pitch">Pitch an idea</button>', ICON.bulb); return; }
+  const byDate = (a,b) => String(b.date || '').localeCompare(String(a.date || ''));
+  $('#idea-grid').innerHTML = STAGE_ORDER.map(st => {
+    const list = shown.filter(i => stageKey(i.stage) === st).sort(byDate);
+    return `<section class="stage-col stage-col-${st}${list.length ? '' : ' is-empty'}" aria-label="${STAGES[st]}, ${list.length} ${list.length === 1 ? 'idea' : 'ideas'}">
+      <h2><span class="stage stage-${st}">${STAGES[st]}</span><span class="count">${list.length}</span></h2>
+      <p class="stage-hint">${STAGE_HINT[st]}</p>
+      <div class="stage-list">${list.length ? list.map(stageCard).join('') : `<p class="stage-empty">${ideaWho === 'mine' ? 'None of yours here yet.' : 'Nothing here right now.'}</p>`}</div>
+    </section>`;
+  }).join('');
 }
 
 function productionItems() {
@@ -386,7 +429,7 @@ function toolkitItems() {
     { label:'B-roll library', page:'b-roll.html', desc:'Add clips anytime; members open them in Drive', icon:'film' },
     ...(UPLOAD_ON() && isCoord() ? [{ label:'New applications', action:'applications', desc:'Meet the creators who want to join', icon:'wave' }] : []), // applicants' details: coordinators only
     ...(content.resources || []).filter(r => r && r.label && (r.page || r.action)),
-    { label:'My drafts', action:'drafts', desc:'Pitches saved on this device', icon:'draft' }
+    { label:'My ideas', action:'my-ideas', desc:'Your ideas by stage, casting calls and drafts', icon:'draft' }
   ];
 }
 function toolTile(r) {
@@ -605,6 +648,107 @@ function openDrafts() {
   showModal();
 }
 
+/* ---------- My ideas: ideas credited to you or led by you (by stage), your casting calls, and unsent drafts ---------- */
+let myIdeasAsked = false;
+function draftCards() {
+  return Object.entries(flows).map(([k,v]) => {
+    const d = loadDraft(k); if (!hasDraft(k,d)) return '';
+    const saved = d._savedAt ? new Date(d._savedAt) : null;
+    const note = saved && Number.isFinite(saved.getTime()) ? 'Saved '+new Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(saved) : 'Draft in progress';
+    return `<button class="draft-card" data-action="${k}"><strong>${escapeHTML(v.title)}</strong><span class="draft-name">${escapeHTML(String(d.title || '').trim() || 'Untitled draft')}</span><span>${escapeHTML(note)}</span></button>`;
+  }).filter(Boolean);
+}
+function callState(c) {
+  if (c.status === 'closed' || c.open === false) return ['closed', c.status === 'closed' ? 'Closed' : 'Past due'];
+  if (c.audience === 'public') return c.review === 'approved' ? ['public', 'Public'] : ['waiting', 'Waiting for approval'];
+  return ['club', 'Creators Club'];
+}
+function callRow(c) {
+  const [cls, label] = callState(c);
+  return `<li class="my-call"><div><strong>${escapeHTML(c.title)}</strong><span class="quiet">${[c.deadline ? 'Due ' + shortDate(c.deadline) : 'No due date', `${c.responses || 0} ${c.responses === 1 ? 'response' : 'responses'}`].join(' · ')}</span>${c.reviewNote ? `<span class="quiet">${escapeHTML(c.reviewNote)}</span>` : ''}</div>
+    <span class="call-state call-${cls}">${label}</span><button type="button" class="text-button" data-action="call-edit" data-call="${escapeHTML(c.id)}">Edit</button></li>`;
+}
+function openMyIdeas() {
+  title.textContent = 'My ideas';
+  const signedIn = myNames().length > 0;
+  if (signedIn && !liveIdeas && !myIdeasAsked && UPLOAD_ON()) { myIdeasAsked = true; loadIdeas(); }
+  const mine = ideas().filter(isMine), calls = myCalls(), drafts = draftCards();
+  const role = i => [credits(i.credit).some(isMe) ? 'Your idea' : '', leadsOf(i).some(isMe) ? 'You lead' : ''].filter(Boolean).join(' · ');
+  const stages = STAGE_ORDER.map(st => [st, mine.filter(i => stageKey(i.stage) === st)]);
+  body.innerHTML = `<div class="my-ideas">
+    <p>${signedIn ? 'Every Idea Bank idea credited to you or led by you, by stage.' : 'Sign in with your own name and password to see the ideas credited to you.'}</p>
+    ${signedIn ? `<ol class="stage-track" aria-label="Your ideas by stage">${stages.map(([st, list]) => `<li class="stage-step stage-step-${st}"><b>${list.length}</b><span>${STAGES[st]}</span></li>`).join('')}</ol>
+    ${mine.length ? stages.filter(([, list]) => list.length).map(([st, list]) => `<h3 class="cal-head"><span class="stage stage-${st}">${STAGES[st]}</span></h3>
+      <ul class="my-list">${list.map(i => `<li><button type="button" class="my-idea tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}"><strong>${escapeHTML(i.title)}</strong><span>${escapeHTML([role(i), (seriesById(i.series) || {}).label, (i.buildOns || []).length ? `${(i.buildOns || []).length} build-on${(i.buildOns || []).length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · '))}</span></button></li>`).join('')}</ul>`).join('')
+      : `<p class="quiet">${liveIdeas ? 'No ideas credited to you yet. Pitch one, or take the lead on an idea in the Idea Bank, and it shows up here.' : 'Loading your ideas…'}</p>`}` : ''}
+    ${signedIn || isCoord() ? `<h3>My casting calls</h3>
+    ${calls.length ? `<ul class="my-calls">${calls.map(callRow).join('')}</ul>` : '<p class="quiet">You haven’t posted a casting call yet. Post one to find creators for your idea.</p>'}` : ''}
+    <h3>Drafts on this device</h3>
+    ${drafts.length ? `<p class="quiet">Saved in this browser until you send them.</p><div class="draft-grid">${drafts.join('')}</div>` : '<p class="quiet">No unsent drafts on this device.</p>'}
+    <div class="button-row">${signedIn || isCoord() ? '<button class="button" type="button" data-action="call-new">Post a casting call</button>' : ''}<button class="button secondary" type="button" data-action="pitch">Pitch an idea</button><a class="button secondary" href="${escapeHTML(pageUrl('ideas.html'))}">Open the Idea Bank</a></div>
+  </div>`;
+  showModal();
+}
+
+/* ---------- Post or edit a casting call ---------- */
+function openCallForm(id = '', ideaId = '') {
+  const c = id ? liveCalls.find(x => x.id === id) : null;
+  if (id && !c) return;
+  if (!myNames().length && !isCoord()) { title.textContent = 'Post a casting call'; body.innerHTML = '<p>Sign in with your own name and password to post a casting call.</p>'; return showModal(); }
+  const idea = !c && ideaId ? ideas().find(i => i.id === ideaId) : null;
+  const v = c || { title: idea ? idea.title : '', description: idea ? idea.summary || '' : '', instructions: '', steps: [], questions: [], deadline: '', audience: 'network' };
+  const approved = c && c.audience === 'public' && c.review === 'approved';
+  title.textContent = c ? 'Edit casting call' : 'Post a casting call';
+  body.innerHTML = `<form id="call-form" novalidate>
+    ${idea ? `<p class="quiet">For your idea “${escapeHTML(idea.title)}”. Posting it moves the idea to Casting.</p>` : '<p class="quiet">Find creators for a Reel. They film their part and send it right here.</p>'}
+    <label for="cf-title">Title</label>
+    <input id="cf-title" type="text" maxlength="80" value="${escapeHTML(v.title)}" required aria-describedby="cf-title-h"${c && c.responses ? ' readonly' : ''}>
+    <p class="hint" id="cf-title-h">${c && c.responses ? 'Videos are filed under this title, so it stays as it is.' : 'Videos are filed under this title in the Squad’s Drive.'}</p>
+    <label for="cf-desc">What’s the Reel about?</label>
+    <textarea id="cf-desc" maxlength="600" required>${escapeHTML(v.description)}</textarea>
+    <label for="cf-what">What should people film?</label>
+    <input id="cf-what" type="text" maxlength="300" value="${escapeHTML(v.instructions)}" placeholder="For example: one 10-second clip folding your favorite stroller" required>
+    <label for="cf-steps">How to film it <span class="quiet">(optional, one step per line)</span></label>
+    <textarea id="cf-steps" maxlength="1600" placeholder="Hold the phone upright&#10;Film in good light">${escapeHTML((v.steps || []).join('\n'))}</textarea>
+    <label for="cf-qs">Questions to answer <span class="quiet">(optional, one per line)</span></label>
+    <textarea id="cf-qs" maxlength="2000">${escapeHTML((v.questions || []).join('\n'))}</textarea>
+    <label for="cf-due">Due <span class="quiet">(optional)</span></label>
+    <input id="cf-due" type="date" value="${escapeHTML(v.deadline || '')}" min="${today()}">
+    <fieldset class="call-audience"><legend>Who can answer?</legend>
+      <label class="check"><input type="radio" name="cf-aud" value="network"${v.audience !== 'public' ? ' checked' : ''}><span><strong>Creators Club only</strong>Live right away for signed-in creators.</span></label>
+      <label class="check"><input type="radio" name="cf-aud" value="public"${v.audience === 'public' ? ' checked' : ''}><span><strong>Public: every Tot Squad specialist</strong>${isCoord() ? 'Goes on the public page right away, since you’re a coordinator.' : 'Live for the Creators Club right away. It shows on the public page once Taylor, Sarah or Linden approves it.'}</span></label>
+    </fieldset>
+    ${approved && !isCoord() ? '<p class="flow-note">This call is public. Changing its wording sends it back for approval; changing only the due date doesn’t.</p>' : ''}
+    <div class="form-actions"><button class="button" type="submit" id="cf-go">${c ? 'Save changes' : 'Post casting call'}</button>${c ? `<button class="button secondary" type="button" id="cf-status">${c.status === 'closed' ? 'Reopen call' : 'Close call'}</button>` : ''}</div>
+  </form>`;
+  const val = x => document.getElementById(x).value.trim();
+  $('#call-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const call = { id: c ? c.id : '', ideaId: idea ? idea.id : '', title: val('cf-title'), description: val('cf-desc'), instructions: val('cf-what'), steps: val('cf-steps'), questions: val('cf-qs'), deadline: val('cf-due'),
+      audience: (document.querySelector('input[name="cf-aud"]:checked') || {}).value || 'network' };
+    const miss = [['cf-title', call.title, 'Give your casting call a title.'], ['cf-desc', call.description, 'Say what the Reel is about.'], ['cf-what', call.instructions, 'Say what people should film.']].find(x => !x[1]);
+    if (miss) { status.textContent = miss[2]; return document.getElementById(miss[0]).focus(); }
+    const go = $('#cf-go'), label = go.textContent; go.disabled = true; go.textContent = 'Saving…'; status.textContent = '';
+    try {
+      const res = await ideaRequest({ action:'call-save', call });
+      if (!res.ok) throw new Error(res.error || '');
+      upsertCall(res.call);
+      if (idea) { const at = ideas().find(i => i.id === idea.id); if (at && stageKey(at.stage) === 'idea' && (isMine(at) || isCoord())) upsertIdea({ ...at, stage: 'casting' }); }
+      const pub = res.call.audience === 'public', waiting = pub && res.call.review === 'waiting';
+      title.textContent = c ? 'Casting call saved' : 'Your casting call is up';
+      body.innerHTML = `<div class="cast-done"><h3>${escapeHTML(res.call.title)}</h3><p>${waiting ? 'It’s live for the Creators Club now. Taylor, Sarah or Linden will look it over before it goes on the public page.' : pub ? 'It’s live for every Tot Squad specialist, signed in or not.' : 'It’s live for signed-in Creators Club members.'} Videos people send land in the Squad’s Drive under its title.</p>
+        <div class="button-row"><a class="button" href="${escapeHTML(pageUrl('index.html'))}#casting">See it in Casting now</a><button class="button secondary" type="button" data-action="my-ideas">My ideas</button></div></div>`;
+      loadActivity();
+    } catch (err) { status.textContent = err.message || 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = label; }
+  };
+  if (c) $('#cf-status').onclick = async () => {
+    const b = $('#cf-status'); b.disabled = true; status.textContent = 'Saving…';
+    try { const res = await ideaRequest({ action:'call-status', id: c.id, status: c.status === 'closed' ? 'open' : 'closed' }); if (!res.ok) throw new Error(res.error || ''); upsertCall(res.call); status.textContent = res.call.status === 'closed' ? 'Closed. It no longer takes videos.' : 'Reopened.'; openCallForm(c.id); }
+    catch (err) { status.textContent = err.message || 'That didn’t save. Try again in a minute.'; b.disabled = false; }
+  };
+  showModal();
+}
+
 const CAL_STATUS = {posted:['published','Posted'],editing:['editing','In edit'],filming:['filming','Filming'],casting:['casting','Casting'],scheduled:['idea','Scheduled'],idea:['idea','Idea']};
 function calendarRow(x) {
   const [cls,label] = CAL_STATUS[x.status] || CAL_STATUS.idea;
@@ -696,7 +840,7 @@ function openIdea(id) {
       <label class="check" id="bo-lead-row"><input type="checkbox" id="bo-lead"${leads.length ? '' : ' checked'}><span>${leads.length ? `Co-lead this idea with ${escapeHTML(leads.join(' & '))}` : 'Make me the lead on this idea'}</span></label>
       <div class="form-actions"><button class="button" type="submit" id="bo-go">Add my notes</button></div>
     </form>` : '<p class="quiet">Building on ideas works when the Idea Bank is connected. Try again in a moment.</p>'}
-    <div class="button-row">${canEditIdea(i) ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button><button class="text-button danger" type="button" data-action="idea-delete" data-id="${escapeHTML(i.id)}">Delete idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
+    <div class="button-row">${liveIdeas && !LOCKED() && ['idea','casting'].includes(stage) && (isMine(i) || isCoord()) ? `<button class="button" type="button" data-action="call-new" data-idea="${escapeHTML(i.id)}">Post a casting call</button>` : ''}${canEditIdea(i) ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button><button class="text-button danger" type="button" data-action="idea-delete" data-id="${escapeHTML(i.id)}">Delete idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
   </div>`;
   const form = body.querySelector ? body.querySelector('#build-form') : null; // (has() is shadowed in this function)
   if (form) {
@@ -1267,7 +1411,9 @@ function openReelShare(id) {
 }
 function openPanel(action,data={}) {
   stash(); activeFlow = null; status.textContent = ''; body.replaceChildren(); castProject = ''; closeTool();
-  if (action === 'drafts') return openDrafts();
+  if (action === 'drafts' || action === 'my-ideas') return openMyIdeas();
+  if (action === 'call-new') return openCallForm('', data.idea || '');
+  if (action === 'call-edit') return openCallForm(data.call);
   if (action === 'calendar') return openCalendar();
   if (action === 'tracker') return openTracker();
   if (action === 'reel') return openReel(data.reel);
@@ -1402,7 +1548,11 @@ function openApply() {
 }
 
 /* ---------- Live ideas + editing (apps-script/upload.gs: ?action=ideas, idea-save) ---------- */
-function rerenderIdeas() { if (has('#idea-grid')) renderIdeas(); if (has('#production-board')) renderProduction(); }
+function rerenderIdeas() {
+  if (has('#idea-grid')) renderIdeas(); if (has('#production-board')) renderProduction();
+  if (typeof renderDashboard === 'function' && has('#club-dash')) renderDashboard(); // club.js: My ideas card
+  if (modal.open && title.textContent === 'My ideas') openMyIdeas();
+}
 async function loadIdeas() {
   if (!UPLOAD_ON() || !mentorKey() || typeof fetch !== 'function') return;
   try {
@@ -1530,7 +1680,7 @@ function keepCastAnswers(id) {
 }
 function savedCastAnswers(id) { if (!castAnswers[id]) { try { castAnswers[id] = JSON.parse(storageGet('totsquad-cast-answers-' + id) || '[]'); } catch { castAnswers[id] = []; } } return castAnswers[id]; }
 function openCast(id, step = 1) {
-  const p = allProjects.find(x => x.id === id); const call = p && p.openCall; if (!call) return;
+  const p = projectById(id); const call = p && p.openCall; if (!call) return;
   if (castProject === id) keepCastAnswers(id);
   const flow = castFlow(call); step = Math.min(Math.max(step, 1), flow.length); castStep = step;
   const key = flow[step - 1], next = step + 1, back = step - 1;
@@ -1622,7 +1772,7 @@ function markActivitySeen() {
   const nb = document.getElementById ? document.getElementById('nav-new') : null; if (nb) nb.hidden = true;
   if (activityItems[0]) storageSet(SEEN_KEY, activityItems[0].when);
 }
-const ACTIVITY_ICON = { build:'🧱', pitch:'💡', edit:'✏️', video:'🎬', broll:'🎞️', review:'📬', apply:'👋', post:'📲', join:'🎉', brief:'🗒️' };
+const ACTIVITY_ICON = { cast:'📣', build:'🧱', pitch:'💡', edit:'✏️', video:'🎬', broll:'🎞️', review:'📬', apply:'👋', post:'📲', join:'🎉', brief:'🗒️' };
 function uploadDone(fileId) { if (fileId && UPLOAD_ON()) uploadRequest({ action:'upload-done', fileId }).catch(() => {}); }
 function timeAgo(iso) {
   const t = Date.parse(iso); if (!t) return '';
@@ -1639,9 +1789,9 @@ function renderActivity() {
   const bell = document.getElementById ? document.getElementById('bell-btn') : null; if (bell) bell.setAttribute('aria-label', fresh && !bellSeen ? `What’s new, ${fresh} new` : 'What’s new');
   const shown = activityAll ? activityItems : activityItems.slice(0, 6);
   box.innerHTML = activityItems.length ? `<ul class="activity">${shown.map(a => {
-    const idea = /^idea:/.test(a.link) ? a.link.slice(5) : '';
+    const idea = /^idea:/.test(a.link) ? a.link.slice(5) : '', call = /^call:/.test(a.link) && projectById(a.link.slice(5)) ? a.link.slice(5) : '';
     const what = `${a.who ? `<strong>${escapeHTML(a.who)}</strong> ` : ''}${escapeHTML(a.what)}`;
-    const open = idea ? `<button type="button" class="text-button" data-action="idea" data-id="${escapeHTML(idea)}">Open</button>` : a.type === 'apply' ? `<button type="button" class="text-button" data-action="applications">See it</button>` : publicUrl(a.link) ? externalLink(a.link,a.type === 'post' ? 'View' : 'Watch','text-button') : '';
+    const open = idea ? `<button type="button" class="text-button" data-action="idea" data-id="${escapeHTML(idea)}">Open</button>` : call ? `<button type="button" class="text-button" data-action="cast" data-project="${escapeHTML(call)}">Open</button>` : a.type === 'apply' ? `<button type="button" class="text-button" data-action="applications">See it</button>` : publicUrl(a.link) ? externalLink(a.link,a.type === 'post' ? 'View' : 'Watch','text-button') : '';
     return `<li class="${Date.parse(a.when) > seen ? 'fresh' : ''}"><span class="activity-icon" aria-hidden="true">${ACTIVITY_ICON[a.type] || '•'}</span><span class="activity-text">${what}<time datetime="${escapeHTML(a.when)}">${timeAgo(a.when)}</time></span>${open}</li>`;
   }).join('')}</ul>${activityItems.length > 6 ? `<button type="button" class="text-button" data-activity-more>${activityAll ? 'Show less' : `Show all ${activityItems.length}`}</button>` : ''}`
     : '<p class="quiet">Nothing yet. New pitches, videos and idea updates will show up here.</p>';
@@ -1667,8 +1817,8 @@ document.addEventListener('click', e => {
   if (cs && castProject) { status.textContent = ''; openCast(castProject, +cs.dataset.castStep); return; }
   const more = t.closest('[data-bio]');
   if (more) { const open = more.getAttribute('aria-expanded') !== 'true'; more.setAttribute('aria-expanded', String(open)); more.textContent = open ? 'Show less' : 'Read more'; more.closest('.person')?.classList.toggle('open', open); return; }
-  const filter = t.closest('[data-filter]');
-  if (filter) { ideaFilter = filter.dataset.filter; renderIdeas(); document.querySelector(`[data-filter="${CSS.escape(ideaFilter)}"]`)?.focus(); return; }
+  const who = t.closest('[data-idea-who]');
+  if (who) { ideaWho = who.dataset.ideaWho; renderIdeas(); document.querySelector(`[data-idea-who="${CSS.escape(ideaWho)}"]`)?.focus(); return; }
   const dismiss = t.closest('[data-dismiss]');
   if (dismiss) { const el = document.getElementById(dismiss.dataset.dismiss); if (el) el.hidden = true; storageSet('totsquad-welcome-dismissed','1'); return; }
   const copy = t.closest('[data-copy]');
@@ -1686,6 +1836,11 @@ document.addEventListener('click', e => {
   const action = t.closest('[data-action]');
   if (action) { if (!modal.open) opener = action; openPanel(action.dataset.action, {...action.dataset}); return; }
   if (modal.open && t.closest('a[href^="#"]')) modal.close();
+});
+document.addEventListener('change', e => {
+  const t = e.target; if (!t || !t.closest) return;
+  if (t.closest('[data-idea-person]')) { ideaWho = t.value || 'all'; renderIdeas(); document.querySelector('[data-idea-person]')?.focus(); }
+  if (t.closest('[data-idea-series]')) { ideaFilter = t.value || 'all'; renderIdeas(); document.querySelector('[data-idea-series]')?.focus(); }
 });
 $('#modal .close').onclick = () => modal.close();
 modal.addEventListener('cancel', stash);
@@ -1748,7 +1903,7 @@ function passwordForm(form, input, note$, go, label, nameEl) {
       if (setup.shared) { ready(); input.value = ''; return openAccountSetup(key, name); }
       if (setup.error) { note$.textContent = setup.error; return ready(); }
       if (await coordinatorLogin(key)) { // not yours: maybe the coordinator password
-        ready(); input.value = ''; mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(key); unlock(); renderContent(); loadIdeas(); loadActivity(); goToDashboard(); toast('You’re signed in as a coordinator.'); return;
+        ready(); input.value = ''; mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(key); unlock(); renderContent(); loadIdeas(); loadCalls(); loadActivity(); goToDashboard(); toast('You’re signed in as a coordinator.'); return;
       }
       note$.textContent = !name ? 'Enter your full name and your password.' : !isFullName(name) ? 'Use your full name, first and last.' : 'That name and password don’t match. First time here? Use the creator password from Sarah or Taylor to set up your own.';
       (isFullName(name) ? input : nameEl || input).focus(); if (isFullName(name)) input.select();
@@ -1779,7 +1934,7 @@ function goToDashboard() {
 function finishSignin(res) {
   mentorMemory = res.key; storageSet(MENTOR_KEY, res.key); storageSet(ACCOUNT_NAME_KEY, res.name); storageSet(ACCOUNT_CLAIM_KEY, res.claimed || ''); storageSet(UPLOAD_NAME_KEY, res.name); setCoordinator('');
   if (typeof club !== 'undefined') club = null; // club.js: reload the dashboard for this person
-  unlock(); renderContent(); loadIdeas(); loadActivity(); goToDashboard();
+  unlock(); renderContent(); loadIdeas(); loadCalls(); loadActivity(); goToDashboard();
   toast(`You’re signed in. Hi, ${String(res.name).split(/\s+/)[0]}!`);
 }
 function openAccountSetup(sharedKey, name = '', moving = false) {
@@ -1996,5 +2151,5 @@ if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadAct
 else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in', f.querySelector('#signin-name')); }
 else if (OPEN_PAGE()) renderContent();
 else showGate();
-loadBios(); loadClaims();
+loadBios(); loadClaims(); loadCalls();
 if (movingKey) isSharedPassword(movingKey).then(r => { if (r.shared) openAccountSetup(movingKey, storageGet(UPLOAD_NAME_KEY) || '', true); }).catch(() => {});

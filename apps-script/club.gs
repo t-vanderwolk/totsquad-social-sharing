@@ -14,7 +14,9 @@ const CLUB_TABS = {
   'Members': [['name','Name'],['status','Status'],['roles','Roles'],['market','Home market'],['instagram','Instagram'],['interests','Content interests'],['joined','Joined'],['request','Request'],['requestUntil','Request until'],['requestNote','Request note'],['notes','Coordinator notes'],['updated','Last updated'],['updatedBy','Updated by']],
   'Weekly briefs': [['id','ID'],['status','Status'],['weekStart','Week starts'],['weekEnd','Week ends'],['title','Campaign title'],['theme','Weekly theme'],['audios','Trending audios'],['launches','Upcoming launches'],['format','Format'],['length','Length'],['direction','Creative direction'],['hooks','Hooks & talking points'],['deliverables','Deliverables'],['window','Publishing window'],['cta','CTA'],['resources','Assets & resources'],['guidelines','Brand guidelines'],['updated','Last updated'],['updatedBy','Updated by']],
   'Submissions': [['id','ID'],['submitted','Submitted'],['date','Posted on'],['name','Creator'],['briefId','Brief ID'],['briefTitle','Brief'],['kind','Kind'],['url','Link'],['note','Note'],['status','Status'],['reviewedBy','Reviewed by'],['reviewed','Reviewed']],
-  'Settings': [['key','Setting'],['value','Value'],['about','What it does']]
+  'Settings': [['key','Setting'],['value','Value'],['about','What it does']],
+  // Casting calls any creator can post (upload.gs: saveCall). Coordinators can edit this tab directly too.
+  'Casting calls': [['id','ID'],['status','Status'],['audience','Who can answer'],['review','Public review'],['title','Title'],['description','What it’s for'],['instructions','What to film'],['steps','How to film'],['questions','Questions'],['deadline','Due'],['lead','Posted by'],['owner','Account'],['ideaId','Idea ID'],['responses','Responses'],['posted','Posted'],['updated','Last edited'],['updatedBy','Edited by'],['reviewedBy','Reviewed by'],['reviewNote','Review note']]
 };
 const CLUB_DEFAULTS = [
   ['requiredPosts', '1', 'Feed posts each month: a reel, carousel or collab post (Creators Club guidelines)'],
@@ -34,6 +36,7 @@ const MEMBER_STATUSES = ['Active', 'Paused', 'Needs Check-In', 'Inactive', 'Alum
 const APP_STATUSES = ['Submitted', 'Under Review', 'Approved', 'Waitlisted', 'Declined'];
 const BRIEF_STATUSES = ['Draft', 'Published', 'Archived'];
 const SUB_STATUSES = ['Submitted', 'Counted', 'Needs changes'];
+const CALL_STATUSES = ['Open', 'Closed'];
 
 /* ---------- Sheet helpers ---------- */
 function clubBook() {
@@ -55,7 +58,7 @@ function clubSheet(tab) {
   ensureHeaders(sheet, CLUB_TABS[tab]);
   if (fresh) {
     sheet.setFrozenRows(1);
-    const list = { 'Members': MEMBER_STATUSES, 'Weekly briefs': BRIEF_STATUSES, 'Submissions': SUB_STATUSES }[tab];
+    const list = { 'Members': MEMBER_STATUSES, 'Weekly briefs': BRIEF_STATUSES, 'Submissions': SUB_STATUSES, 'Casting calls': CALL_STATUSES }[tab];
     if (list) statusList(sheet, CLUB_TABS[tab], 'status', list);
     if (tab === 'Settings') CLUB_DEFAULTS.forEach(r => sheet.appendRow(r));
   }
@@ -287,6 +290,7 @@ function adminReply(req) {
     else if (req.action === 'admin-sub') adminSubmission(req, who);
     else if (req.action === 'admin-settings') adminSettings(req);
     else if (req.action === 'admin-account') adminAccount(req, who); // reset a password or take a bio down
+    else if (req.action === 'admin-call') adminCall(req, who); // approve a public casting call, keep it in the Club, close or reopen (upload.gs)
     else if (req.action !== 'admin-data') return reply({ ok: false, error: 'Unknown request.' });
     return reply(Object.assign(adminData(), { savedId: savedId }));
   } catch (err) { console.error(err); return reply({ ok: false, error: String(err && err.message || err) }); }
@@ -296,7 +300,7 @@ function adminData() {
   const settings = clubSettings(), briefs = allBriefs(), subs = allSubmissions(), members = allMembers(true);
   const part = participation(members, briefs, subs, settings);
   return { ok: true, accounts: allAccounts(), settings: settings, applications: allApplications(), members: members, briefs: briefs.slice().sort(byWeek).reverse(), current: (currentBrief(briefs) || {}).id || '',
-    submissions: subs.slice(-300).reverse(), participation: part, analytics: clubAnalytics(members, briefs, subs, part) };
+    submissions: subs.slice(-300).reverse(), participation: part, analytics: clubAnalytics(members, briefs, subs, part), calls: allCalls() };
 }
 function allApplications() {
   const sheet = applySheet(), rows = readTable(sheet, APPLY_COLUMNS), idx = headerIndex(sheet, APPLY_COLUMNS);

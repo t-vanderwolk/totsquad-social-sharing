@@ -34,11 +34,12 @@ assert.match(t.html('#project-gallery'), /src="images\/meet-the-squad\.jpg"/); /
 assert.equal(t.run("imageUrl('images/../x.jpg')"), ''); // but only plain files in images/
 assert.equal(t.run("imageUrl('javascript:alert(1)')"), '');
 assert.doesNotMatch(t.html('#idea-grid'), /Pass-the-item intro|>Tot Squad Round Up<|Day in the life/); // published ideas leave the Idea Bank
-assert.match(t.html('#idea-grid'), /class="idea-art"><svg/); // series illustration
+assert.match(t.html('#idea-grid'), /class="stage-col stage-col-idea"/); // one column per stage
+for (const st of ['Idea','Casting','Filming','Editing','Published']) assert.match(t.html('#idea-grid'), new RegExp(`<span class="stage stage-${st.toLowerCase()}">${st}</span>`));
 assert.equal(t.el('#production').hidden, true); // empty production board stays hidden
 assert.doesNotMatch(t.html('#resource-links'), /aria-disabled="true"/); // no unconfigured placeholder links
 assert.match(t.html('#idea-grid'), /Fixture Registry Idea/);
-assert.match(t.html('#idea-filters'), /aria-pressed="true"/);
+assert.match(t.html('#idea-filters'), /data-idea-who="all" aria-pressed="true"/); assert.match(t.html('#idea-filters'), /data-idea-who="mine"/); assert.match(t.html('#idea-filters'), /<option>Kristin<\/option>/);
 assert.match(t.html('#squad-grid'), /Kristin/);
 assert.match(t.html('#squad-grid'), /class="bio"[^>]*>Mom of three in Holly Springs/);
 assert.doesNotMatch(t.html('#squad-grid'), /class="tags"/); // no idea tags on squad cards
@@ -55,6 +56,21 @@ assert.match(t.html('#idea-grid'), /Fixture Registry Idea/);
 assert.doesNotMatch(t.html('#idea-grid'), /Fixture Game Show/);
 t.run("ideaFilter='missing';renderIdeas()");
 assert.match(t.html('#idea-grid'), /Fixture Game Show/); // unknown filter falls back to all
+// Whose ideas: Mine (credited to Taylor, who is signed in), one creator, or everyone.
+t.run("ideaWho='mine';renderIdeas()");
+assert.match(t.html('#idea-grid'), /Fixture Registry Idea/); assert.doesNotMatch(t.html('#idea-grid'), /Fixture Reel Idea/); assert.match(t.el('#idea-summary').textContent, /Showing 2 of 4/);
+t.run("ideaWho='Kristin';renderIdeas()");
+assert.match(t.html('#idea-grid'), /Fixture Reel Idea/); assert.doesNotMatch(t.html('#idea-grid'), /Fixture Game Show/);
+t.run("ideaWho='Nobody';renderIdeas()"); assert.match(t.html('#idea-grid'), /Fixture Hub Idea/); // unknown creator falls back to everyone
+// Stages: an idea in Casting sits in the Casting column.
+t.run("content.ideas[1].stage='casting';renderIdeas()");
+{ const g = t.html('#idea-grid'), col = g.slice(g.indexOf('stage-col-casting'), g.indexOf('stage-col-filming')); assert.match(col, /Fixture Game Show/); assert.match(col, /class="count">1</); }
+// My ideas: your ideas by stage, your casting calls, drafts on this device.
+t.run("openPanel('my-ideas')"); { const m = t.html('#modal-body');
+  assert.match(m, /Every Idea Bank idea credited to you/); assert.match(m, /Fixture Registry Idea/); assert.doesNotMatch(m, /Fixture Hub Idea/);
+  assert.match(m, /<span class="stage stage-casting">Casting<\/span>/); assert.match(m, /You haven’t posted a casting call yet/); assert.match(m, /No unsent drafts/); }
+t.run("persistDraft('pitch',{title:'Half-baked idea'});openPanel('my-ideas')"); assert.match(t.html('#modal-body'), /Half-baked idea/);
+assert.match(t.html('#resource-links'), /My ideas/); assert.doesNotMatch(t.html('#resource-links'), /My drafts/);
 
 // Recurring events land on the right weekday, today or later.
 const next = t.run('nextOccurrence(4)');
@@ -527,3 +543,33 @@ console.log('PASS: claimed names replace placeholders');
   assert.match(html, /Dana Park/); assert.doesNotMatch(html, /Old Timer/); assert.equal((html.match(/Kristin Jenkins/g) || []).length, 1);
 }
 console.log('PASS: claimed cards and applicants');
+
+// Casting calls creators post: who each is for, the poster can edit, the cast steps work, and the post form.
+{
+  const c = boot(), calls = `[{ id:'call-a', title:'Stroller Fold Race', audience:'network', description:'Fastest fold wins.', instructions:'Film one fold.', steps:['Hold the phone upright'], questions:['Which stroller?'], deadline:'', lead:'Kristin Jenkins', open:true, status:'open', review:'', mine:false, responses:2 },
+    { id:'call-b', title:'Car Seat Myths', audience:'public', description:'One myth, busted.', instructions:'Say the myth, then the truth.', steps:[], questions:[], deadline:'', lead:'Taylor Vanderwolk', open:true, status:'open', review:'waiting', mine:true, responses:0 },
+    { id:'call-c', title:'Closed One', audience:'network', description:'x', instructions:'y', steps:[], questions:[], deadline:'', lead:'Taylor Vanderwolk', open:false, status:'closed', review:'', mine:true, responses:1 }]`;
+  c.run(`liveCalls = ${calls}; renderCasting();`);
+  const h = c.html('#casting-projects');
+  assert.match(h, /Stroller Fold Race/); assert.match(h, /Posted by Kristin Jenkins/); assert.match(h, /Creators Club only/);
+  assert.match(h, /Creators Club for now · public once approved/); assert.doesNotMatch(h, /Closed One/);
+  assert.match(h, /data-action="call-edit" data-call="call-b"/); assert.doesNotMatch(h, /data-call="call-a"/); // only your own calls
+  assert.match(h, /data-action="cast" data-project="call-a">Film &amp; answer/);
+  c.run("openPanel('cast',{project:'call-a'})"); assert.match(c.html('#modal-body'), /Hold the phone upright/);
+  c.run("openCast('call-a', 2)"); assert.match(c.html('#modal-body'), /Which stroller\?/);
+  c.run("openPanel('call-edit',{call:'call-b'})"); { const f = c.html('#modal-body');
+    assert.match(f, /id="call-form"/); assert.match(f, /value="Car Seat Myths"/); assert.match(f, /value="public" checked/); assert.match(f, /Close call/); }
+  c.run("openPanel('call-new',{idea:'fx-registry'})"); { const f = c.html('#modal-body');
+    assert.match(f, /For your idea “Fixture Registry Idea”/); assert.match(f, /value="network" checked/); assert.match(f, /once Taylor, Sarah or Linden approves it/); }
+  c.run("openPanel('my-ideas')"); { const m = c.html('#modal-body');
+    assert.match(m, /Car Seat Myths/); assert.match(m, /Waiting for approval/); assert.match(m, /Closed One/); assert.doesNotMatch(m, /Stroller Fold Race/); }
+  // Signed out: approved public calls carry the open label (the script sends no others).
+  const o = boot(undefined, false, new Map());
+  o.run(`liveCalls = [{ id:'call-p', title:'Bath Time Tips', audience:'public', description:'One tip.', instructions:'Film it.', steps:[], questions:[], deadline:'', lead:'Lora' }]; renderCasting();`);
+  assert.match(o.html('#casting-projects'), /Bath Time Tips/); assert.match(o.html('#casting-projects'), /Open to every specialist, no sign-in/); assert.doesNotMatch(o.html('#casting-projects'), /call-edit/);
+  // Dashboard card and coordinator review (club.js).
+  c.run(require('node:fs').readFileSync(root + '/club.js', 'utf8'));
+  { const card = c.run('myIdeasCard()'); assert.match(card, /2 ideas/); assert.match(card, /1 casting call open, 1 waiting for public approval/); assert.match(card, /data-action="call-new"/); }
+  { const tab = c.run(`coordCalls({ calls: ${calls} })`); assert.match(tab, /Approve for the public page/); assert.match(tab, /data-coord-call="call-b" data-decision="club"/); assert.match(tab, /data-coord-call="call-c" data-decision="open">Reopen/); }
+}
+console.log('PASS: creator casting calls, My ideas');
