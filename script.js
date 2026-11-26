@@ -179,19 +179,27 @@ function rerenderCalls() {
 function upsertCall(c) { const at = liveCalls.findIndex(x => x.id === c.id); if (at >= 0) liveCalls[at] = c; else liveCalls.unshift(c); rerenderCalls(); }
 // Who each call is for, in the words a specialist would use.
 function whoLabel(p) {
-  if (!p.posted) return p.openCall ? '<span class="who who-open">Open to every specialist, no sign-in</span>' : '<span class="who who-member">Creators Club members</span>';
-  if (p.call.audience !== 'public') return '<span class="who who-member">Creators Club only</span>';
-  return p.call.review === 'waiting' ? '<span class="who who-member">Creators Club for now · public once approved</span>' : '<span class="who who-open">Open to every specialist, no sign-in</span>';
+  const open = '<span class="who who-open">Open to Tot Squad specialists · no sign-in</span>', member = t => `<span class="who who-member">${t}</span>`;
+  if (!p.posted) return p.openCall ? open : member('Creators Club members');
+  if (p.call.audience !== 'public') return member('Creators Club only');
+  return p.call.review === 'waiting' ? member('Creators Club for now · public once approved') : open;
 }
+// The first sentence of a longer note: casting cards show one line of what to film; the call itself has the rest.
+const firstSentence = t => { const m = String(t || '').trim().match(/^.+?[.!?](?=\s|$)/); return m ? m[0] : String(t || '').trim(); };
 function renderCasting() {
   const casting = castingProjects();
-  $('#casting-projects').innerHTML = casting.length ? casting.map(p => `<article class="casting">
-    ${publicUrl(p.exampleReelUrl) && imageUrl(p.thumbnail) ? `<a class="casting-art" href="${escapeHTML(publicUrl(p.exampleReelUrl))}" target="_blank" rel="noopener noreferrer" aria-label="Watch the example Reel on Instagram"><img src="${escapeHTML(imageUrl(p.thumbnail))}" alt=""><span class="play">${ICON.play}</span></a>` : `<div class="casting-art">${imageUrl(p.thumbnail) ? `<img src="${escapeHTML(imageUrl(p.thumbnail))}" alt="">` : ICON.people}</div>`}
-    <div class="casting-copy"><span class="chip casting-chip">Casting now</span>${whoLabel(p)}<h3>${escapeHTML(p.title)}</h3>${p.lead ? `<p class="quiet">${p.posted ? 'Posted' : 'Led'} by ${escapeHTML(p.lead)}</p>` : ''}<p>${escapeHTML(p.description || 'Project details to come.')}</p>
-    ${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">Due ${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : '<p class="quiet">Deadline not announced</p>'}
-    <p><strong>What to film</strong><br>${escapeHTML(p.instructions || 'Filming instructions have not been configured.')}</p>
-    <div class="button-row">${p.posted && p.call.mine ? `<button class="button secondary" type="button" data-action="call-edit" data-call="${escapeHTML(p.id)}">Edit</button>` : ''}${p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'}</button>${messageLead(p.lead)}` : `${messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`}${UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'button secondary') : ''}`}${externalLink(p.exampleReelUrl,p.exampleLabel || 'Watch Part 1','button secondary')}${externalLink(p.discussionUrl,'Project discussion','button secondary')}</div></div></article>`).join('')
-    : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}" data-tool-page="ideas.html" data-label="Idea Bank">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
+  $('#casting-projects').innerHTML = casting.length ? `<div class="call-grid">${casting.map(p => {
+    const primary = p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'}</button>`
+      : messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`;
+    const more = [p.posted && p.call.mine ? `<button class="text-button" type="button" data-action="call-edit" data-call="${escapeHTML(p.id)}">Edit</button>` : '',
+      p.openCall && UPLOAD_ON() ? messageLead(p.lead, 'text-button') : UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'text-button') : '',
+      externalLink(p.exampleReelUrl, 'Watch an example', 'text-button'), externalLink(p.discussionUrl, 'Project discussion', 'text-button')].filter(Boolean).join('');
+    const what = firstSentence(p.instructions) || firstSentence(p.description);
+    return `<article class="call-card">${whoLabel(p).replace('class="who', 'class="badge who')}<h3>${escapeHTML(p.title)}</h3>
+    <dl class="call-meta">${p.lead ? `<div><dt>${p.posted ? 'Posted by' : 'Led by'}</dt><dd>${escapeHTML(p.lead)}</dd></div>` : ''}<div><dt>Due</dt><dd>${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : 'Not announced'}</dd></div></dl>
+    ${what ? `<p class="call-what"><span>Film:</span> ${escapeHTML(what)}</p>` : ''}
+    <div class="call-actions">${primary}${more ? `<div class="call-links">${more}</div>` : ''}</div></article>`; }).join('')}</div>`
+    : emptyState('No calls are open right now.', '', uploadButton('Submit B-roll','broll'), ICON.people);
 }
 
 /* Idea Bank art: one original illustration per series. An idea's own `image` (images/ file) replaces it. */
@@ -304,38 +312,33 @@ function renderGallery() {
 
 const REGIONS = ['East','Central','West'];
 const regionBadge = r => REGIONS.includes(r) ? `<span class="region region-${r.toLowerCase()}">${r}</span>` : '';
-/* The leader card sits first in the squad grid and spans two columns, so 1 leader + 10 specialists fill even rows. */
-function leaderCard() {
-  const p = content.leader;
-  if (!p || !p.name) return '';
-  const photo = imageUrl(p.photo);
-  return `<article class="leader">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
-    <div class="leader-copy"><span class="chip">Leader spotlight</span><h3>${escapeHTML(shownName(p))}</h3>${p.title ? `<p class="role">${escapeHTML(p.title)}</p>` : ''}${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}${p.bio ? `<p>${escapeHTML(p.bio)}</p>` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-    <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}</div></div></article>`;
-}
-// Show "Read more" only on bios that are actually cut off (phones clamp bios to three lines).
-function fitBios() {
-  if (!document.querySelectorAll) return;
-  document.querySelectorAll('.bio-more').forEach(btn => {
-    const bio = document.getElementById(btn.dataset.bio); if (!bio || btn.getAttribute('aria-expanded') === 'true') return;
-    btn.hidden = !(bio.scrollHeight > bio.clientHeight + 2);
-  });
-}
-if (typeof window !== 'undefined' && window.addEventListener) { let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitBios, 150); }); }
 function renderSquad() {
-  const leader = leaderCard();
   const featured = (content.featuredSpecialists || []).map(p => typeof p === 'string' ? {name:p} : p).filter(p => p && p.name);
-  const people = [...featured.map(p => ({ ...p, bio: bioFor(p) })), // bios creators wrote themselves win over content.js
-    ...(liveBios || []).filter(b => b.bio && !featured.some(p => ownsCard(p, b.name, b.claimed)) && !(content.leader && ownsCard(content.leader, b.name, b.claimed))).map(b => ({ name: b.name, bio: b.bio }))];
+  const leader = content.leader && content.leader.name ? [{ ...content.leader, leader:true }] : [];
+  const people = [...leader, ...featured.map(p => ({ ...p, bio: bioFor(p) })), // bios creators wrote themselves win over content.js
+    ...(liveBios || []).filter(b => b.bio && !featured.some(p => ownsCard(p, b.name, b.claimed)) && !(content.leader && ownsCard(content.leader, b.name, b.claimed))).map(b => ({ name: b.name, bio: b.bio }))]
+    .sort((x, y) => shownName(x).localeCompare(shownName(y), 'en', { sensitivity:'base' })); // alphabetical by first name
   const me = myName();
-  $('#squad-grid').innerHTML = people.length || leader ? leader + people.map((p,i) => {
-    const photo = imageUrl(p.photo); const role = [p.expertise, p.location].filter(Boolean).join(' · ');
-    return `<article class="person tint-${TINTS[i % TINTS.length]}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
-      <div class="person-head"><h3>${escapeHTML(shownName(p))}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}${p.bio ? `<p class="bio" id="bio-${i}">${escapeHTML(p.bio)}</p>${p.bio.length > 110 ? `<button type="button" class="text-button bio-more" data-bio="bio-${i}" aria-expanded="false" aria-controls="bio-${i}">Read more</button>` : ''}` : ''}${p.spotlight ? `<p>${escapeHTML(p.spotlight)}</p>` : ''}
-      <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}${ownsCard(p, me, myClaim()) ? `<button type="button" class="text-button" data-action="profile">${p.bio ? 'Edit my bio' : 'Add my bio'}</button>` : ''}</div></article>`;
+  $('#squad-grid').innerHTML = people.length ? people.map((p,i) => {
+    const photo = imageUrl(p.photo); const role = p.leader ? p.title : [p.expertise, p.location].filter(Boolean).join(' · ');
+    return `<article class="person tint-${TINTS[i % TINTS.length]}${p.leader ? ' person-lead' : ''}">${photo ? `<img class="avatar" src="${escapeHTML(photo)}" alt="" loading="lazy">` : `<span class="avatar" aria-hidden="true">${escapeHTML(initials(p.name))}</span>`}
+      <div class="person-head"><h3>${escapeHTML(shownName(p))}</h3>${regionBadge(p.region)}</div>${role ? `<p class="role">${escapeHTML(role)}</p>` : ''}
+      <div class="person-more">${p.leader ? `<span class="chip">Leader spotlight</span>${p.aka ? `<p class="aka">${escapeHTML(p.aka)}</p>` : ''}` : ''}${p.bio ? `<p class="bio" id="bio-${i}">${escapeHTML(p.bio)}</p>` : ''}${p.leader && p.spotlight ? `<p class="bio">${escapeHTML(p.spotlight)}</p>` : ''}
+      <div class="person-links">${externalLink(discoProfile(p),'Message on Disco','text-button')}${instagramLink(p.instagram)}${externalLink(p.link,'Profile','text-button')}${!p.leader && ownsCard(p, me, myClaim()) ? `<button type="button" class="text-button" data-action="profile">${p.bio ? 'Edit my bio' : 'Add my bio'}</button>` : ''}</div></div></article>`;
   }).join('') : emptyState('Specialist spotlights are coming soon.','');
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(fitBios);
+  const more = document.getElementById?.('squad-toggle'); if (more) more.closest('.squad-more').hidden = people.length <= 6;
 }
+// "Meet the whole Squad": the six previews open in place to everyone, with full bios, in the same order.
+function setupSquadToggle() {
+  const btn = document.getElementById?.('squad-toggle'), grid = document.getElementById?.('squad-grid'); if (!btn || !grid) return;
+  btn.onclick = () => {
+    const open = btn.getAttribute('aria-expanded') !== 'true';
+    btn.setAttribute('aria-expanded', String(open)); btn.textContent = open ? 'Show fewer' : 'Meet the whole Squad';
+    grid.classList.toggle('is-preview', !open);
+    if (!open) document.getElementById('squad')?.scrollIntoView?.({ block:'start', behavior: reduceMotion() ? 'auto' : 'smooth' });
+  };
+}
+const reduceMotion = () => !!(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 function nextOccurrence(weekday) {
   const d = new Date(today()+'T12:00:00Z');
@@ -394,10 +397,20 @@ function renderBroll() {
 }
 function toast(msg) { const t = document.getElementById ? document.getElementById('toast') : null; if (!t || !msg) return; t.textContent = msg; t.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 2600); }
 
+/* Landing page: Wanted B-roll. Three shots from the B-roll page's list, plus "something else useful".
+   The cards are examples only: Submit B-roll opens the usual form, and nothing records which shot a clip is for. */
+const WANTED_OTHER = { title:'Something else useful', tip:'Gear, aisles or a quick demo.', art:'phone' };
+function renderWanted() {
+  const shots = (content.brollWanted || []).filter(w => w && w.tip).slice(0,3).concat(WANTED_OTHER);
+  $('#wanted-shots').innerHTML = shots.map(w => `<li class="shot tint-${w.category ? brollTint(w.category) : 'linen'}"><span class="shot-art">${SVG(ART[w.art || BROLL_ART[w.category]] || ART.phone)}</span><h3>${escapeHTML(w.title)}</h3><p>${escapeHTML(w.tip)}</p></li>`).join('');
+  if (has('#wanted-actions')) $('#wanted-actions').innerHTML = `${uploadButton('Submit B-roll','broll')}<a class="text-button" href="b-roll.html#broll-wanted" data-tool-page="b-roll.html" data-label="B-roll library">See wanted shots</a>`;
+}
+
 /* Hero: the three newest published Reel covers, fanned like phones. */
 function renderHero() {
   const covers = publishedProjects().filter(p => imageUrl(p.thumbnail)).slice(0,3);
   $('#hero-reels').innerHTML = covers.map((p,i) => `<a class="hero-reel r${i}" href="${escapeHTML(publicUrl(p.publishedReelUrl))}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHTML('Watch '+p.title+' on Instagram')}"><img src="${escapeHTML(imageUrl(p.thumbnail))}" alt=""></a>`).join('');
+  document.querySelectorAll?.('[data-broll-submit]').forEach(b => { if (!UPLOAD_ON()) b.outerHTML = uploadButton('Submit B-roll','broll'); });
   const second = $('#hero-secondary');
   if (second && openProjects().length) { second.textContent = 'See what’s casting'; second.href = '#casting'; second.removeAttribute?.('data-tool-page'); }
 }
@@ -422,6 +435,22 @@ function renderDeadlines() {
 }
 
 const TOOL_ICON = { frame:'🖼️', heart:'💜', palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝', bulb:'💡', wave:'👋' };
+// One line-icon style for toolkit and resource tiles (24px, 1.8 stroke, like ICON). Emoji stay only as a fallback for custom resources.
+const LINE = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+const TOOL_LINE = {
+  frame: LINE('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 16l4.5-4.5 3.5 3.5 2.5-2.5L20 18"/><circle cx="15.5" cy="8.5" r="1.5"/>'),
+  heart: LINE('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>'),
+  palette: LINE('<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.8 1.6-1.6 0-1.2-1-1.5-1-2.6 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7" r="1"/><circle cx="15" cy="7.5" r="1"/>'),
+  spark: LINE('<path d="M12 3c.7 5 2.3 7.3 7 9-4.7 1.7-6.3 4-7 9-.7-5-2.3-7.3-7-9 4.7-1.7 6.3-4 7-9z"/>'),
+  check: LINE('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>'),
+  upload: LINE('<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>'),
+  film: LINE('<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9.5v5l4.5-2.5z"/>'),
+  board: LINE('<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>'),
+  calendar: LINE('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>'),
+  draft: LINE('<path d="M14 4H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M14 4v5h5M9 13h6M9 17h4"/>'),
+  bulb: LINE('<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>'),
+  wave: LINE('<path d="M8 13V6.5a1.5 1.5 0 0 1 3 0V12M11 11V5a1.5 1.5 0 0 1 3 0v6M14 11V6.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-.5A5.5 5.5 0 0 1 6 17.5L4.3 14a1.5 1.5 0 0 1 2.6-1.5L8 14"/>')
+};
 // Toolkit: everything opens inside the Creators Club (panels or pages in this site), never an outside link.
 function toolkitItems() {
   return [
@@ -439,7 +468,7 @@ function toolkitItems() {
   ];
 }
 function toolTile(r) {
-  const inner = `<span class="tool-icon" aria-hidden="true">${TOOL_ICON[r.icon] || '📌'}</span><span class="tool-text"><strong>${escapeHTML(r.label)}</strong>${r.desc ? `<span>${escapeHTML(r.desc)}</span>` : ''}</span>`;
+  const inner = `<span class="tool-icon" aria-hidden="true">${TOOL_LINE[r.icon] || TOOL_ICON[r.icon] || '📌'}</span><span class="tool-text"><strong>${escapeHTML(r.label)}</strong>${r.desc ? `<span>${escapeHTML(r.desc)}</span>` : ''}</span>`;
   return r.page ? `<a class="tool" href="${escapeHTML(pageUrl(r.page))}" data-tool-page="${escapeHTML(r.page)}" data-label="${escapeHTML(r.label)}">${inner}</a>`
     : `<button type="button" class="tool" data-action="${escapeHTML(r.action)}"${r.dest ? ` data-dest="${escapeHTML(r.dest)}"` : ''}>${inner}</button>`;
 }
@@ -490,7 +519,7 @@ function renderContent() {
   (document.querySelectorAll ? [...document.querySelectorAll('[data-squad-chat]')] : []).forEach(a => { const u = publicUrl(content.squadChatUrl); if (u) a.href = u; else a.hidden = true; }); // Instagram group chat invite
   if (EMBED) document.querySelectorAll('a[href="ideas.html"], a[href="index.html"], a[href="b-roll.html"], a[href="reels.html"]').forEach(a => a.setAttribute('href', pageUrl(a.getAttribute('href'))));
   if (has('#welcome')) $('#welcome').hidden = storageGet('totsquad-welcome-dismissed') === '1';
-  const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources],['#public-guides',renderGuides],['#nav-menu',renderMenu]];
+  const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#wanted-shots',renderWanted],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources],['#public-guides',renderGuides],['#nav-menu',renderMenu]];
   for (const [sel,render] of sections) if (has(sel)) render();
   storageSet('totsquad-last-visit', today());
   if (typeof loadClub === 'function' && typeof club !== 'undefined' && !club && !clubBusy) loadClub(); // club.js, after signing in
@@ -564,7 +593,7 @@ function watchScreen() {
     let top = Infinity, bottom = -Infinity;
     seen.forEach(r => { if (r && r.height > 0) { top = Math.min(top, r.top); bottom = Math.max(bottom, r.bottom); } });
     onScreen = bottom > top && bottom - top < innerHeight - 40 ? { top, bottom } : null;
-    if (modal.open) placeModal();
+    if (modal.open) placeModal(); const sd = signinDialog(); if (sd && sd.open) placeModal(sd);
     placeToast();
   };
   const build = () => {
@@ -582,14 +611,14 @@ function watchScreen() {
   let last = innerHeight, timer;
   window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => { if (Math.abs(innerHeight - last) > STRIP / 2) { last = innerHeight; build(); } }, 200); });
 }
-function placeModal() {
-  const st = modal.style; if (!st) return;
+function placeModal(d = modal) {
+  const st = d.style; if (!st) return; const tool = d === modal && toolOpen;
   if (!onScreen) { ['margin-top','margin-bottom','max-height','height'].forEach(k => st.removeProperty(k)); return; }
   const h = Math.max(240, onScreen.bottom - onScreen.top - 24);
   st.maxHeight = Math.round(h) + 'px'; st.marginBottom = 'auto';
-  if (toolOpen) st.height = Math.round(h) + 'px'; else st.removeProperty('height');
+  if (tool) st.height = Math.round(h) + 'px'; else st.removeProperty('height');
   // Centred in the part of the page on screen (short dialogs), or pinned to its top (tall ones and the toolkit panel).
-  const own = modal.open && !toolOpen && modal.offsetHeight ? Math.min(modal.offsetHeight, h) : h;
+  const own = d.open && !tool && d.offsetHeight ? Math.min(d.offsetHeight, h) : h;
   st.marginTop = Math.round(onScreen.top + 12 + (h - own) / 2) + 'px';
 }
 function placeToast() {
@@ -1922,7 +1951,7 @@ function passwordForm(form, input, note$, go, label, nameEl) {
         if (res && !res.wrong) { note$.textContent = res.error || 'That didn’t work. Try again in a minute.'; return ready(); }
       }
       const setup = await isSharedPassword(key); // first time here: the creator password opens "Set up your password"
-      if (setup.shared) { ready(); input.value = ''; return openAccountSetup(key, name); }
+      if (setup.shared) { ready(); input.value = ''; if (signinDialog()?.open) { const back = signinOpener; closeSignin(false); back?.focus?.({ preventScroll: true }); } return openAccountSetup(key, name); } // setup takes over from the sign-in dialog
       if (setup.error) { note$.textContent = setup.error; return ready(); }
       if (await coordinatorLogin(key)) { // not yours: maybe the coordinator password
         ready(); input.value = ''; mentorMemory = key; storageSet(MENTOR_KEY, key); setCoordinator(key); unlock(); renderContent(); loadIdeas(); loadCalls(); loadActivity(); goToDashboard(); toast('You’re signed in as a coordinator.'); return;
@@ -1949,9 +1978,18 @@ async function accountRequest(payload) {
 }
 // Signed in: the landing page (hero, levels, sign-in) is hidden and the page starts at the dashboard.
 function goToDashboard() {
+  closeSignin(false); // signed in: the sign-in dialog closes first, then the page opens at the dashboard
   const d = document.getElementById ? document.getElementById('dashboard') : null; if (!d || !d.scrollIntoView) return;
   if (history.replaceState && /^#(mentor-signin|squad-pitch|guides)?$/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
   d.scrollIntoView({ block: 'start' });
+  dashFocus = true; focusDashboard();
+}
+// After signing in, focus goes to the dashboard heading. club.js redraws the dashboard when its data arrives, so it asks again.
+let dashFocus = false;
+function focusDashboard() {
+  if (!dashFocus) return; const h = document.getElementById?.('dash-title') || document.getElementById?.('dashboard'); if (!h || !h.setAttribute) return;
+  h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
+  if (typeof club !== 'undefined' && club) dashFocus = false; // the full dashboard is in: done
 }
 function finishSignin(res) {
   mentorMemory = res.key; storageSet(MENTOR_KEY, res.key); storageSet(ACCOUNT_NAME_KEY, res.name); storageSet(ACCOUNT_CLAIM_KEY, res.claimed || ''); storageSet(UPLOAD_NAME_KEY, res.name); setCoordinator('');
@@ -2123,6 +2161,64 @@ async function coordinatorLogin(code) {
   try { const res = await fetch(content.uploadEndpoint, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'coord-login', code }) }); const data = await res.json(); return !!(data && data.ok); }
   catch { return false; }
 }
+/* Member sign in: the landing page's sign-in form lives in its own dialog. #mentor-signin links, askSignin and a
+   page opened at #mentor-signin all open it. Focus starts on Full name, Esc closes, focus returns to the opener. */
+let signinOpener = null;
+const signinDialog = () => document.getElementById ? document.getElementById('signin-dialog') : null;
+function openSignin(note = '', from) {
+  const d = signinDialog(); if (!d || !d.showModal) return;
+  const n = document.getElementById('signin-note'); if (n) n.textContent = note;
+  if (!d.open) { signinOpener = from || document.activeElement; d.showModal(); placeModal(d); }
+  setTimeout(() => document.getElementById('signin-name')?.focus(), 0);
+}
+function closeSignin(restore = true) {
+  const d = signinDialog(); if (!d || !d.open) return;
+  if (!restore) signinOpener = null;
+  d.close();
+}
+function setupSignin() {
+  const d = signinDialog(); if (!d) return;
+  d.querySelector('[data-signin-close]').onclick = () => d.close();
+  d.addEventListener('keydown', e => { // Tab stays inside the dialog
+    if (e.key !== 'Tab') return;
+    const f = [...d.querySelectorAll('button,input,a[href],select,textarea')].filter(x => !x.disabled && x.offsetParent !== null && x.tabIndex >= 0);
+    if (!f.length) return; const first = f[0], last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+  d.addEventListener('close', () => { const back = signinOpener; signinOpener = null; if (back && back.isConnected && back.offsetParent !== null) back.focus({ preventScroll: true }); });
+  d.addEventListener('click', e => { if (e.target === d) { const r = d.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close(); } });
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('a[href="#mentor-signin"]');
+    if (!a || !LOCKED() || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
+    e.preventDefault(); document.getElementById('nav-menu')?.hidden === false && document.getElementById('menu-btn')?.click();
+    openSignin('', a.closest('#nav-menu') ? document.getElementById('menu-btn') : a);
+  });
+  if (LOCKED() && location.hash === '#mentor-signin') openSignin();
+}
+/* Landing page odds and ends: the sticky header's height (it grows with larger text), a brief heading tint where
+   the hero and route links land, and the collapsed pitch form opening when a link points at it. */
+function setupLanding() {
+  const head = document.querySelector?.('.site-header'), root = document.documentElement;
+  const fit = () => { // a header taller than a fifth of the screen (very large text) scrolls away instead of sticking
+    if (!head) return; head.classList.remove('is-tall'); const tall = head.offsetHeight > innerHeight * 0.2; head.classList.toggle('is-tall', tall);
+    root.style.setProperty('--header-h', (tall || document.body.classList.contains('embed') ? 0 : head.offsetHeight) + 'px');
+  };
+  fit(); if (typeof ResizeObserver !== 'undefined' && head) new ResizeObserver(fit).observe(head); addEventListener('resize', fit);
+  const pitch = document.getElementById('pitch-details');
+  const openPitch = () => { if (pitch && !pitch.open) pitch.open = true; };
+  if (location.hash === '#squad-pitch') openPitch();
+  pitch?.addEventListener('toggle', () => { const b = pitch.querySelector('.pitch-open'); if (b) b.textContent = pitch.open ? 'Hide the form' : 'Pitch an idea'; if (pitch.open) setTimeout(() => document.getElementById('sp-name')?.focus({ preventScroll: true }), 0); });
+  addEventListener('hashchange', () => { if (location.hash === '#squad-pitch') openPitch(); });
+  document.addEventListener('click', e => {
+    const a = e.target.closest && e.target.closest('a[href^="#"]'); if (!a) return;
+    const id = a.getAttribute('href').slice(1); if (id === 'squad-pitch') openPitch();
+    if (!a.closest('.hero') || reduceMotion()) return;
+    const h = document.getElementById(id)?.querySelector('h2'); if (!h) return;
+    clearTimeout(h.arriveTimer); h.classList.remove('arrive');
+    setTimeout(() => { h.classList.add('arrive'); h.arriveTimer = setTimeout(() => h.classList.remove('arrive'), 450); }, 350);
+  });
+}
 function askSignin(note = 'Sign in as a creator to do that.') {
   const box = document.getElementById('mentor-signin');
   if (!box) { // Idea Bank or B-roll page: point to the landing page, where anyone can pitch or sign in
@@ -2130,10 +2226,7 @@ function askSignin(note = 'Sign in as a creator to do that.') {
     body.innerHTML = `<p>${escapeHTML(note)} Anyone can still pitch an idea, no password needed.</p><div class="button-row"><a class="button" href="${escapeHTML(pageUrl('index.html'))}#squad-pitch">Pitch an idea</a><a class="button secondary" href="${escapeHTML(pageUrl('index.html'))}#mentor-signin">Sign in</a><button class="button secondary" type="button" data-action="apply">Apply to join</button></div>`;
     return showModal();
   }
-  document.getElementById('signin-note').textContent = note;
-  box.scrollIntoView?.({ block: 'center', behavior: matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
-  box.classList.remove('nudge'); void box.offsetWidth; box.classList.add('nudge');
-  document.getElementById('signin-key')?.focus({ preventScroll: true });
+  openSignin(note);
 }
 function showGate(note = '') {
   if (!document.body || !document.body.append || document.getElementById('gate')) return;
@@ -2170,8 +2263,9 @@ watchScreen();
 let movingKey = '';
 { const k = storageGet(MENTOR_KEY); if (GATE_ON() && k && !/^acct\./.test(k) && !storageGet(COORD_CODE_KEY)) { movingKey = k; mentorMemory = ''; try { localStorage.removeItem(MENTOR_KEY); } catch (e) {} document.documentElement?.classList?.remove('unlocked'); } }
 if (!GATE_ON() || mentorKey()) { unlock(); renderContent(); loadIdeas(); loadActivity(); if (LANDING() && /^#(mentor-signin|squad-pitch|guides)$/.test(location.hash)) goToDashboard(); }
-else if (LANDING()) { renderContent(); setupSquadPitch(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in', f.querySelector('#signin-name')); }
+else if (LANDING()) { renderContent(); setupSquadPitch(); setupSquadToggle(); setupSignin(); const f = document.getElementById('signin-form'); passwordForm(f, f.querySelector('#signin-key'), f.querySelector('#signin-note'), f.querySelector('#signin-go'), 'Sign in', f.querySelector('#signin-name')); }
 else if (OPEN_PAGE()) renderContent();
 else showGate();
+if (LANDING()) setupLanding();
 loadBios(); loadClaims(); loadCalls();
 if (movingKey) isSharedPassword(movingKey).then(r => { if (r.shared) openAccountSetup(movingKey, storageGet(UPLOAD_NAME_KEY) || '', true); }).catch(() => {});

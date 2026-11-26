@@ -29,6 +29,7 @@ async function loadClub() {
     club = await res.json();
   } catch { club = { ok: false }; }
   clubBusy = false; renderDashboard();
+  if (typeof focusDashboard === 'function') focusDashboard(); // just signed in: focus moves to the dashboard heading
 }
 // Roster names win: a placeholder first name ("Taylor") drops out once the roster has someone's full name ("Taylor Vanderwolk").
 function clubNames() {
@@ -41,7 +42,13 @@ function namePickerHTML(id, label) {
   const saved = clubName();
   return `<label class="club-who" for="${id}"><span>${escapeHTML(label)}</span><select id="${id}" data-club-name><option value="">Choose your name</option>${clubNames().map(n => `<option${n === saved ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select></label>`;
 }
+// Redraws keep keyboard focus on the dashboard heading when it was there (after signing in, data arrives in parts).
 function renderDashboard() {
+  const keep = typeof document !== 'undefined' && document.activeElement && document.activeElement.id === 'dash-title';
+  drawDashboard();
+  const h = keep && document.getElementById('dash-title'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+}
+function drawDashboard() {
   if (!has('#club-dash')) return; const box = $('#club-dash');
   if (!club) { box.innerHTML = `<p class="quiet">${clubBusy ? 'Loading your Creators Club…' : ''}</p>`; return; }
   if (!club.ok) { box.innerHTML = '<p class="quiet">Your Creators Club dashboard couldn’t load right now. Try again in a minute.</p>'; return; }

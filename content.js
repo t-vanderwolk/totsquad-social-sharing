@@ -269,7 +269,7 @@ window.HUB_CONTENT = {
 
   /* B-roll library (b-roll.html). brollFolderUrl: the shared Drive folder for clips (blank = the submission folder).
      brollClips: { id, title, category, url (Drive file link), thumbnail ('images/…' or https), length ('0:08'), credit (first name) }.
-     brollWanted is a starter shot list; edit it freely. */
+     brollWanted is a starter shot list; edit it freely. Shots with a tip also appear on the landing page (the first three). */
   brollFolderUrl: 'https://drive.google.com/drive/folders/1Q6fuKOaiTbkB2vTT7koOgHbDQcNTSx5c',
   // One Drive folder per specialist who has sent clips. Clips show in a folder when their credit matches its name.
   brollFolders: [
@@ -290,9 +290,9 @@ window.HUB_CONTENT = {
     { id: 'live-demo', title: 'Live demo', category: 'squad', url: 'https://drive.google.com/file/d/1cGZpmq45VzpuwDM5RDcdK-LbnWxIGVaW/view', thumbnail: 'images/broll-live-demo.jpg', length: '1:06', credit: 'Taylor' }
   ],
   brollWanted: [
-    { title: 'Slow walk down the baby aisle, wide', category: 'aisles' },
-    { title: 'One-hand stroller fold, close-up', category: 'strollers' },
-    { title: 'Car seat clicking into its base', category: 'car-seats' },
+    { title: 'Slow walk down the baby aisle, wide', category: 'aisles', tip: 'Walk slowly; keep the phone steady.' },
+    { title: 'One-hand stroller fold, close-up', category: 'strollers', tip: 'Frame the hands and the fold.' },
+    { title: 'Car seat clicking into its base', category: 'car-seats', tip: 'Hold still; catch the click.' },
     { title: 'Scanning an item with the Target app', category: 'registry' },
     { title: 'Bassinet or crib, wide and still', category: 'nursery' },
     { title: 'Bottles and pumps on the shelf', category: 'feeding' },

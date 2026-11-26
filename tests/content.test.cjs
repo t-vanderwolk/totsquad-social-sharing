@@ -25,8 +25,9 @@ function boot(config, storageFailure = false, stored = new Map([['totsquad-mento
 // Real content renders its empty and placeholder states honestly.
 let t = boot();
 assert.match(t.html('#casting-projects'), /Meet the Squad, Part 2: Pass the Toy/); // currently casting
-assert.match(t.html('#casting-projects'), /Led by Kristin/);
-assert.match(t.html('#casting-projects'), /Watch Part 1/);
+assert.match(t.html('#casting-projects'), /Led by<\/dt><dd>Kristin/);
+assert.match(t.html('#casting-projects'), /Watch an example ↗/); // the card's example link
+assert.match(t.html('#casting-projects'), /class="badge who who-(open|member)"/); // who can join, in words
 assert.match(t.html('#project-gallery'), /Meet the Squad/);
 assert.doesNotMatch(t.html('#project-gallery'), /Pass the Toy|Details coming/);
 assert.equal((t.html('#project-gallery').match(/>Watch ↗</g) || []).length, 4); // four verified Reels
@@ -551,7 +552,7 @@ console.log('PASS: claimed cards and applicants');
     { id:'call-c', title:'Closed One', audience:'network', description:'x', instructions:'y', steps:[], questions:[], deadline:'', lead:'Taylor Vanderwolk', open:false, status:'closed', review:'', mine:true, responses:1 }]`;
   c.run(`liveCalls = ${calls}; renderCasting();`);
   const h = c.html('#casting-projects');
-  assert.match(h, /Stroller Fold Race/); assert.match(h, /Posted by Kristin Jenkins/); assert.match(h, /Creators Club only/);
+  assert.match(h, /Stroller Fold Race/); assert.match(h, /Posted by<\/dt><dd>Kristin Jenkins/); assert.match(h, /<span>Film:<\/span> Film one fold\./); assert.match(h, /Creators Club only/);
   assert.match(h, /Creators Club for now · public once approved/); assert.doesNotMatch(h, /Closed One/);
   assert.match(h, /data-action="call-edit" data-call="call-b"/); assert.doesNotMatch(h, /data-call="call-a"/); // only your own calls
   assert.match(h, /data-action="cast" data-project="call-a">Film &amp; answer/);
@@ -566,7 +567,7 @@ console.log('PASS: claimed cards and applicants');
   // Signed out: approved public calls carry the open label (the script sends no others).
   const o = boot(undefined, false, new Map());
   o.run(`liveCalls = [{ id:'call-p', title:'Bath Time Tips', audience:'public', description:'One tip.', instructions:'Film it.', steps:[], questions:[], deadline:'', lead:'Lora' }]; renderCasting();`);
-  assert.match(o.html('#casting-projects'), /Bath Time Tips/); assert.match(o.html('#casting-projects'), /Open to every specialist, no sign-in/); assert.doesNotMatch(o.html('#casting-projects'), /call-edit/);
+  assert.match(o.html('#casting-projects'), /Bath Time Tips/); assert.match(o.html('#casting-projects'), /Open to Tot Squad specialists · no sign-in/); assert.doesNotMatch(o.html('#casting-projects'), /call-edit/);
   // Dashboard card and coordinator review (club.js).
   c.run(require('node:fs').readFileSync(root + '/club.js', 'utf8'));
   { const card = c.run('myIdeasCard()'); assert.match(card, /2 ideas/); assert.match(card, /1 casting call open, 1 waiting for public approval/); assert.match(card, /data-action="my-ideas"/); }
@@ -576,7 +577,7 @@ console.log('PASS: claimed cards and applicants');
   // Signed in, the public sections (casting, published Reels, Meet the Squad, the path) are hidden.
   { const html = require('node:fs').readFileSync(root + '/index.html', 'utf8');
     for (const id of ['casting', 'made', 'squad']) assert.match(html, new RegExp(`<section class="section" id="${id}"[^>]*data-public>`), id);
-    assert.match(html, /<section class="path[^"]*"[^>]*data-public>/); assert.match(html, /Submit B-roll anytime/); assert.doesNotMatch(html, /permission to use the footage/); assert.match(html, /<li data-mentor><a href="#dash-casting">Casting calls<\/a><\/li>/); }
+    assert.match(html, /<section class="hero"[^>]*data-public>/); assert.match(html, /<ol class="routes"/); assert.doesNotMatch(html, /permission to use the footage/); assert.match(html, /<li data-mentor><a href="#dash-casting">Casting calls<\/a><\/li>/); }
   { const tab = c.run(`coordCalls({ calls: ${calls} })`); assert.match(tab, /Approve for the public page/); assert.match(tab, /data-coord-call="call-b" data-decision="club"/); assert.match(tab, /data-coord-call="call-c" data-decision="open">Reopen/); }
 }
 console.log('PASS: creator casting calls, My ideas');
@@ -599,3 +600,52 @@ console.log('PASS: Idea Bank loading state');
   assert.match(m, /href="https:\/\/canva\.link\/ifqvvtay28yrfmk"/); assert.match(m, /This or That/); assert.doesNotMatch(m, /<img/);
 }
 console.log('PASS: social templates');
+
+// Landing page redesign: one public page, both routes equally findable, membership boundaries in words.
+{
+  const html = require('node:fs').readFileSync(root + '/index.html', 'utf8');
+  // Hero: two primary actions in the same style; Submit B-roll always opens the existing B-roll form.
+  assert.match(html, /<h1 id="title">Make Reels with the Squad<\/h1>/);
+  assert.match(html, /<a class="button" href="#casting">Explore casting calls<\/a><button class="button" type="button" data-action="upload" data-dest="broll"[^>]*>Submit B-roll<\/button>/);
+  for (const m of (html.match(/<(button|a)\b[^>]*>Submit B-roll</g) || [])) assert.match(m, /data-action="upload" data-dest="broll"/, m);
+  // Diagram: both routes, "or", review before the member library, and no promise of a Reel.
+  assert.match(html, /Pick a call<\/li><li>Film your part<\/li><li>Send it on the call/);
+  assert.match(html, /Film a clip<\/li><li>Submit B-roll<\/li><li>Review<\/li><li>If approved: member library/);
+  assert.match(html, /class="route-or"/); assert.match(html, /Not a promise of a Reel\./);
+  // Community comparison and the one enrollment statement.
+  assert.match(html, /Open to Tot Squad specialists<\/span>/); assert.match(html, /By application<\/span>/);
+  assert.match(html, /1 feed post a month and 1 Instagram story a week/); assert.doesNotMatch(html, /weekly feed post/i);
+  assert.equal((html.match(/Membership is by application only\./g) || []).length, 1);
+  // Order: community, casting, wanted, made, resources, squad, pitch, questions.
+  const order = ['id="community"','id="casting"','id="wanted"','id="made"','id="guides"','id="squad"','id="squad-pitch"','id="questions"'].map(x => html.indexOf(x));
+  assert.deepEqual([...order].sort((a,b) => a-b), order); assert.ok(order.every(i => i > 0));
+  // Sign in lives in a dialog; the form, its alert line, autocomplete and the apply link are kept.
+  assert.match(html, /<dialog id="signin-dialog"[^>]*>[\s\S]*id="mentor-signin"[\s\S]*id="signin-form"[\s\S]*<\/dialog>/);
+  assert.match(html, /id="signin-name"[^>]*autocomplete="username"/); assert.match(html, /id="signin-key"[^>]*autocomplete="current-password"/);
+  assert.match(html, /id="signin-note" role="alert"/); assert.match(html, /Forgot your password\? Contact Sarah or Taylor\./); assert.match(html, /data-action="apply">Apply to join/);
+  // Pitch stays collapsed until opened; the existing form is inside.
+  assert.match(html, /<details class="pitch-details" id="pitch-details">[\s\S]*<form id="sp-form"/);
+  assert.match(html, /Any Tot Squad Baby Specialist can pitch one; Sarah and Taylor read every idea\./);
+  // No color carries eligibility: the access badges share one style.
+  const css = require('node:fs').readFileSync(root + '/styles.css', 'utf8');
+  assert.match(css, /\.landing \[data-public\] \.badge\.who\{[^}]*background:var\(--linen\)/);
+  assert.match(css, /prefers-reduced-motion:no-preference/);
+}
+{
+  const L = boot(undefined, false, new Map());
+  // Wanted B-roll: illustrated examples only. No per-card action, no shot recorded; one Submit B-roll for the form.
+  L.run('renderWanted()'); const w = L.html('#wanted-shots');
+  assert.equal((w.match(/<li class="shot/g) || []).length, 4);
+  assert.match(w, /Slow walk down the baby aisle, wide<\/h3><p>Walk slowly; keep the phone steady\./); assert.match(w, /Something else useful/);
+  assert.match(w, /<svg/); assert.doesNotMatch(w, /data-action|<button|<a /);
+  const acts = L.html('#wanted-actions');
+  assert.match(acts, /data-action="upload" data-dest="broll"[^>]*>Submit B-roll</); assert.match(acts, /See wanted shots/); assert.doesNotMatch(acts, /data-shot|data-wanted/);
+  // Meet the Squad: everyone in one alphabetical list, the leader included; six show until it opens.
+  L.run('renderSquad()'); const names = [...L.html('#squad-grid').matchAll(/<h3>([^<]+)<\/h3>/g)].map(m => m[1]);
+  assert.deepEqual(names, [...names].sort((a,b) => a.localeCompare(b, 'en', { sensitivity:'base' }))); assert.ok(names.includes('Jen'));
+  assert.match(L.html('#squad-grid'), /Leader spotlight/);
+  // Casting: an empty list offers B-roll instead.
+  L.run('liveCalls = []; content.activeCollaborations = []; renderCasting()');
+  assert.match(L.html('#casting-projects'), /No calls are open right now\./); assert.match(L.html('#casting-projects'), /data-dest="broll"[^>]*>Submit B-roll/);
+}
+console.log('PASS: landing page structure');
