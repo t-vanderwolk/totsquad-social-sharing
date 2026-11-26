@@ -577,7 +577,7 @@ console.log('PASS: claimed cards and applicants');
   // Signed in, the public sections (casting, published Reels, Meet the Squad, the path) are hidden.
   { const html = require('node:fs').readFileSync(root + '/index.html', 'utf8');
     for (const id of ['casting', 'made', 'squad']) assert.match(html, new RegExp(`<section class="section" id="${id}"[^>]*data-public>`), id);
-    assert.match(html, /<section class="hero"[^>]*data-public>/); assert.match(html, /<ol class="routes"/); assert.doesNotMatch(html, /permission to use the footage/); assert.match(html, /<li data-mentor><a href="#dash-casting">Casting calls<\/a><\/li>/); }
+    assert.match(html, /<section class="hero"[^>]*data-public>/); assert.match(html, /<ol class="contribution-steps"/); assert.doesNotMatch(html, /permission to use the footage/); assert.match(html, /<li data-mentor><a href="#dash-casting">Casting calls<\/a><\/li>/); }
   { const tab = c.run(`coordCalls({ calls: ${calls} })`); assert.match(tab, /Approve for the public page/); assert.match(tab, /data-coord-call="call-b" data-decision="club"/); assert.match(tab, /data-coord-call="call-c" data-decision="open">Reopen/); }
 }
 console.log('PASS: creator casting calls, My ideas');
@@ -608,12 +608,15 @@ console.log('PASS: social templates');
   assert.match(html, /<h1 id="title">Make Reels with the Squad<\/h1>/);
   assert.match(html, /<a class="button" href="#casting">Explore casting calls<\/a><button class="button" type="button" data-action="upload" data-dest="broll"[^>]*>Submit B-roll<\/button>/);
   for (const m of (html.match(/<(button|a)\b[^>]*>Submit B-roll</g) || [])) assert.match(m, /data-action="upload" data-dest="broll"/, m);
-  // Diagram: both routes, "or", review before the member library, and no promise of a Reel.
-  const steps = route => [...html.split('class="route-name"')[route].split('</ol>')[0].matchAll(/class="step-label">([^<]+)</g)].map(m => m[1]);
-  assert.deepEqual(steps(1), ['Choose a call', 'Film your part', 'Send your clip']);
-  assert.deepEqual(steps(2), ['Film a clip', 'Upload your clip', 'Review', 'If approved: member library']); // review, then the library only if approved
-  assert.match(html, /<span class="step-icon"><svg class="i"[^>]*aria-hidden="true"/); // icons are decorative; the labels are text
-  assert.match(html, /class="route-or"/); assert.match(html, /Not a promise of a Reel\./);
+  // Directions are beside each task, not inside the hero; each has three steps.
+  const hero = html.split('<section class="hero"')[1].split('</section>')[0];
+  assert.doesNotMatch(hero, /contribution-steps|class="routes"/);
+  for (const id of ['casting', 'wanted']) {
+    const section = html.split('id="' + id + '"')[1].split('</section>')[0];
+    assert.equal((section.match(/class="contribution-number"/g) || []).length, 3);
+  }
+  assert.match(html, /If approved, your clip joins the member library/);
+  assert.match(html, /Approval doesn’t guarantee a Reel/);
   // Community comparison and the one enrollment statement.
   assert.match(html, /Open to Tot Squad specialists<\/span>/); assert.match(html, /By application<\/span>/);
   assert.match(html, /<strong>1 feed post<\/strong> a month/); assert.match(html, /<strong>1 Instagram story<\/strong> a week/); assert.doesNotMatch(html, /weekly feed post/i);
@@ -682,7 +685,7 @@ console.log('PASS: release checks');
   for (const m of html.match(/<svg class="art[^>]*>/g) || []) assert.match(m, /aria-hidden="true"/, m);
   const G = boot(undefined, false, new Map()); G.run('renderCasting(); renderWanted(); renderGuides()');
   const cards = G.html('#casting-projects');
-  assert.match(cards, /<img class="call-art-photo" src="images\/meet-the-squad\.jpg" alt="The sunshine toy, from the first Meet the Squad Reel"/);
+  assert.match(cards, /<img class="call-art-photo" src="images\/meet-the-squad\.jpg" alt="Meet the Squad Reel preview featuring the sunshine toy"/);
   assert.match(cards, /<ol class="call-art-steps"><li>Catch<\/li><li>Smile<\/li><li>Pass<\/li><\/ol>/); assert.match(cards, /<li>Double point<\/li>/);
   assert.match(cards, /What to film:<\/strong> A short clip: catch the sunshine toy/); // directions still in text
   for (const m of cards.match(/<svg class="art[^>]*>/g) || []) assert.match(m, /aria-hidden="true"/);

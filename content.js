@@ -130,7 +130,7 @@ window.HUB_CONTENT = {
       instructions: 'A short clip: catch the sunshine toy, smile for a second, and pass it the other way. No talking needed.',
       thumbnail: 'images/meet-the-squad.jpg', exampleReelUrl: 'https://www.instagram.com/reel/DdxH92sTWXo/',
       // Casting card header: the sunshine toy (still from the first Meet the Squad Reel) and the catch, smile, pass sequence.
-      cardArt: { art: 'passToy', tint: 'plum', steps: ['Catch', 'Smile', 'Pass'], photo: 'images/meet-the-squad.jpg', photoAlt: 'The sunshine toy, from the first Meet the Squad Reel' },
+      cardArt: { art: 'passToy', tint: 'plum', steps: ['Catch', 'Smile', 'Pass'], photo: 'images/meet-the-squad.jpg', photoAlt: 'Meet the Squad Reel preview featuring the sunshine toy' },
       submissionDeadline: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=44d569be-13ea-47f5-b927-749d09323ad0-HDjH-thn3qn3ddof_GUCA',
       publishedReelUrl: '', participatingSpecialists: [],
       // Open call: anyone can send a video from the casting card, no password (also listed in OPEN_CASTING in the script).
@@ -151,7 +151,7 @@ window.HUB_CONTENT = {
       instructions: 'Short clips of you pointing up 3–5 different ways with different expressions. Your Tot Squad shirt is best, and it doesn’t have to be filmed at Target.',
       thumbnail: 'images/round-up-strollers.jpg', exampleReelUrl: 'https://www.instagram.com/reel/DeIYf50zTwr/', exampleLabel: 'See a Round Up',
       // Casting card header: space above your head for the answer, pointing up a few different ways.
-      cardArt: { art: 'pointUp', tint: 'teal', steps: ['One hand', 'Both hands', 'Double point'] },
+      cardArt: { art: 'pointUp', tint: 'teal', steps: ['One hand', 'Both hands', 'Double point'], photo: 'images/round-up-strollers.jpg', photoAlt: 'Tot Squad Round Up: Strollers Reel preview' },
       submissionDeadline: '', discussionUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?streamMsgId=a92626f1-e32b-4c90-8cb2-d1fb97be5d93-L1Q8bG670t7qveiyVI5RD',
       publishedReelUrl: '', participatingSpecialists: [],
       // Open call: footage + answers to the Round Up questions (saved to the "Tot Squad Round Up answers" sheet), no password.

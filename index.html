@@ -82,18 +82,7 @@
       <div class="button-row hero-actions"><a class="button" href="#casting">Explore casting calls</a><button class="button" type="button" data-action="upload" data-dest="broll" data-broll-submit>Submit B-roll</button></div>
     </div>
     <div class="hero-reels" id="hero-reels"></div>
-    <ol class="routes" aria-label="Two ways to contribute">
-      <li class="route">
-        <a class="route-name" href="#casting">Casting call</a>
-        <ol class="route-steps"><li><span class="step-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8.5l1.6 1.6L12.5 7M14.5 9H16M8 14h8M8 17.5h5"/></svg></span><span class="step-label">Choose a call</span></li><li><span class="step-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><circle cx="12" cy="11" r="2.6"/><path d="M10.5 18.5h3"/></svg></span><span class="step-label">Film your part</span></li><li><span class="step-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z"/></svg></span><span class="step-label">Send your clip</span></li></ol>
-      </li>
-      <li class="route-or" aria-hidden="true"><span>or</span></li>
-      <li class="route">
-        <a class="route-name" href="#wanted">B-roll, anytime</a>
-        <ol class="route-steps"><li><span class="step-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><circle cx="12" cy="11" r="2.6"/><path d="M10.5 18.5h3"/></svg></span><span class="step-label">Film a clip</span></li><li><span class="step-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg></span><span class="step-label">Upload your clip</span></li><li><span class="step-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20 20M8 10.5l1.8 1.8 3.2-3.3"/></svg></span><span class="step-label">Review</span></li><li class="step-maybe"><span class="step-icon"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="7.5" height="7" rx="1.5"/><rect x="13.5" y="4" width="7.5" height="7" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7" rx="1.5"/></svg></span><span class="step-label">If approved: member library</span></li></ol>
-        <p class="route-note">Not a promise of a Reel.</p>
-      </li>
-    </ol>
+
   </section>
 
   <section class="section club-dash" id="dashboard" aria-labelledby="dash-title" data-mentor>
@@ -140,11 +129,13 @@
 
   <section class="section" id="casting" aria-labelledby="casting-title" data-public>
     <div class="section-head"><div><h2 id="casting-title">Casting now</h2><p>Each call shows who can join.</p></div></div>
+    <ol class="contribution-steps" aria-label="How to join a casting call"><li><span class="contribution-number" aria-hidden="true">1</span><div><strong>Choose a call</strong><p>Check who can join and read the filming directions.</p></div></li><li><span class="contribution-number" aria-hidden="true">2</span><div><strong>Film your part</strong><p>Follow the call’s brief and keep your clip ready.</p></div></li><li><span class="contribution-number" aria-hidden="true">3</span><div><strong>Send your clip</strong><p>Use the submission button on your chosen call.</p></div></li></ol>
     <div id="casting-projects"></div>
   </section>
 
   <section class="section wanted-band" id="wanted" aria-labelledby="wanted-title" data-public>
     <div class="section-head"><div><h2 id="wanted-title">Wanted B-roll</h2><p class="head-badge"><span class="badge">Open to Tot Squad specialists · anytime</span></p><p>Steady, vertical clips. Suggested: about 3–15 seconds, no talking or music.</p></div></div>
+    <ol class="contribution-steps" aria-label="How to contribute B-roll"><li><span class="contribution-number" aria-hidden="true">1</span><div><strong>Film a clip</strong><p>Choose a wanted shot or capture something useful.</p></div></li><li><span class="contribution-number" aria-hidden="true">2</span><div><strong>Upload your clip</strong><p>Add your name and complete the on-camera consent check.</p></div></li><li><span class="contribution-number" aria-hidden="true">3</span><div><strong>Coordinator review</strong><p>If approved, your clip joins the member library.</p></div></li></ol>
     <ul class="shot-grid" id="wanted-shots"></ul>
     <p class="wanted-note">A coordinator reviews B-roll submissions before approved clips join the library. Approval doesn’t guarantee a Reel.</p>
     <div class="button-row" id="wanted-actions"></div>

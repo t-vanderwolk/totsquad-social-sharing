@@ -1386,3 +1386,24 @@ svg.art .art-guide{stroke-opacity:.75}
 .compare-art svg.art,.shot-art svg.art,.pv svg.art,.call-art-seq svg.art{max-width:100%}
 .compare-art,.call-art{max-width:100%;overflow:hidden}
 .route-steps,.call-art-steps,.commits{overflow-wrap:break-word}
+
+/* Final public-page polish: contextual numbered directions and readable Reel previews. */
+.contribution-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.25rem;list-style:none;margin:0 0 1.75rem;padding:1.25rem;border:1px solid var(--line-soft);border-radius:1rem;background:var(--white)}
+.contribution-steps li{display:flex;align-items:flex-start;gap:.75rem;min-width:0}
+.contribution-number{display:grid;place-items:center;flex:0 0 2.25rem;height:2.25rem;border-radius:50%;background:var(--lavender);color:var(--plum-ink);font-weight:800}
+.contribution-steps strong{display:block;color:var(--plum-ink);font-size:1rem;line-height:1.35;margin:.25rem 0 .375rem}
+.contribution-steps p{margin:0;font-size:.9375rem;line-height:1.5;color:var(--body)}
+.call-art:has(.call-art-photo){height:15rem}
+.call-art-photo{flex:0 0 42%;width:42%;height:100%;min-height:0;object-fit:contain;object-position:center;background:var(--tint)}
+.call-art-seq{padding:1rem .75rem}
+@media(max-width:40em){
+ .contribution-steps{grid-template-columns:1fr;gap:1rem;padding:1rem}
+ .call-art:has(.call-art-photo){height:13rem}
+ .call-art-steps{font-size:.8125rem;gap:.25rem;flex-wrap:wrap}
+}
+
+/* Keep preview art legible even when additional casting calls are available. */
+.call-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.call-art{height:15rem}
+@media(max-width:48em){.call-grid{grid-template-columns:1fr}}
+@media(max-width:40em){.call-art{height:13rem}}
