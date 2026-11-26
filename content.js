@@ -276,9 +276,18 @@ window.HUB_CONTENT = {
      brollWanted is a starter shot list; edit it freely. Shots with a tip also appear on the landing page (the first three). */
   brollFolderUrl: 'https://drive.google.com/drive/folders/1Q6fuKOaiTbkB2vTT7koOgHbDQcNTSx5c',
   // One Drive folder per specialist who has sent clips. Clips show in a folder when their credit matches its name.
-  brollFolders: [
-    { name: 'Taylor', url: 'https://drive.google.com/drive/folders/1SCiEs_VRfE0UbxVWFoMmftbynu2iUo0O' }
-  ],
+
+brollFolders: [
+  {
+    name: 'Taylor',
+    url: 'https://drive.google.com/drive/folders/1SCiEs_VRfE0UbxVWFoMmftbynu2iUo0O'
+  },
+  {
+    name: 'Sarah',
+    url: 'https://drive.google.com/drive/folders/1GN0ZXqA2881MHN5dcLrNMI8c4AZ-YXls'
+  }
+],
+
   brollCategories: [
     { id: 'aisles', label: 'In-store & aisles' }, { id: 'strollers', label: 'Strollers' }, { id: 'car-seats', label: 'Car seats' },
     { id: 'nursery', label: 'Nursery & sleep' }, { id: 'feeding', label: 'Feeding' }, { id: 'babywearing', label: 'Babywearing' },
