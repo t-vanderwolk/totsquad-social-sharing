@@ -1486,7 +1486,7 @@ function guidelinesHTML() {
 }
 /* Tot Squad's social templates in Canva (content.socialTemplatesUrl). Described in words: the templates' sample photos stay in Canva. */
 const SOCIAL_TEMPLATES = [
-  ['Baby Specialist intro, four styles', 'Your photo, name and store, with “Book a FREE baby registry consultation” and totsquad.com/baby-concierge. Pick the photo banner, teal frame, lavender snapshot or round-photo look.'],
+  ['Baby Specialist intro, four styles', 'Your photo, name, store and booking link, with “Book a FREE baby registry consultation.” Pick the photo banner, teal frame, lavender snapshot or round-photo look.'],
   ['Quote card', 'A short, funny line about life with a baby, in a big quote frame. Swap in your own.'],
   ['This or That', 'Two products side by side with a “real mom review” tag. Great for strollers, car seats or carriers.']
 ];
@@ -1495,7 +1495,7 @@ function openTemplates() {
   body.innerHTML = `<p>Tot Squad’s ready-made Instagram posts (4:5), made in Canva. Make them yours in a few minutes.</p>
     <ul class="template-list">${SOCIAL_TEMPLATES.map(([t, d]) => `<li><strong>${escapeHTML(t)}</strong><span>${escapeHTML(d)}</span></li>`).join('')}</ul>
     <h3>How to use them</h3>
-    <ol class="cast-howto"><li>Open the templates. Canva adds your own copy to your account.</li><li>Swap in your headshot, your name and your store location.</li><li>Keep the Baby Concierge powered by Tot Squad logo and the totsquad.com/baby-concierge link.</li><li>Download it and post it as a feed post or a story.</li></ol>
+    <ol class="cast-howto"><li>Open the templates. Canva adds your own copy to your account.</li><li>Swap in your headshot, your name and your store location.</li><li>Replace totsquad.com/baby-concierge with your own booking link, so families book with you. Keep the Baby Concierge powered by Tot Squad logo.</li><li>Download it and post it as a feed post or a story.</li></ol>
     <p class="flow-note">Use your own photos: no babies’ faces, clients or other shoppers.</p>
     <div class="button-row">${externalLink(content.socialTemplatesUrl, 'Open the templates in Canva')}<button class="button secondary" type="button" data-action="brand">Brand &amp; voice</button></div>`;
   showModal();
