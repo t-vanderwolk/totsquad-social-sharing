@@ -709,3 +709,20 @@ console.log('PASS: release checks');
   assert.doesNotMatch(html + cards + guides, /squad-cup|Squad Cup/i); // the Squad Cup recap is an idea, not published content
 }
 console.log('PASS: graphics');
+
+// Creators add ideas straight to the Idea Bank; B-roll Drive links come only from the signed-in endpoint.
+{
+  const fs = require('node:fs');
+  assert.match(fs.readFileSync(root + '/ideas.html', 'utf8'), /<button class="button secondary" type="button" data-action="idea-new">Add an idea<\/button>/); // not coordinator-only any more
+  const me = boot(); me.run("openPanel('idea-new')"); const f = me.html('#modal-body');
+  assert.match(f, /id="idea-edit-form"/); assert.match(f, />Add idea</); assert.doesNotMatch(f, /id="ie-stage"/); assert.doesNotMatch(f, /id="ie-credit"/); assert.doesNotMatch(f, /id="ie-name"/); // you, as yourself; it starts as an idea
+  assert.match(fs.readFileSync(root + '/club.js', 'utf8'), /const quick = [^\n]*data-action="idea-new">Add an idea<\/button>/); // dashboard quick action
+  me.run("openMyIdeas()"); assert.match(me.html('#modal-body'), /data-action="idea-new">Add an idea/);
+  const out = boot(undefined, false, new Map()); out.run("openIdeaEdit('')"); assert.doesNotMatch(out.html('#modal-body'), /idea-edit-form/); // signed out: no form
+  // A preview still that somehow carried a Drive link never shows it; only clips from the signed-in endpoint do.
+  const b = boot({ brollClips: [{ id: 'x', title: 'Preview', category: 'aisles', url: 'https://drive.google.com/file/d/leak/view', credit: 'Taylor' }] });
+  b.run("brollState='failed'; brollPerson='Taylor'; renderBroll(); brollState='notmember'; renderBroll()"); assert.doesNotMatch(b.html('#broll-grid'), /leak|Open in Drive|data-copy/);
+  b.run(`brollLive = { ok: true, total: 1, folders: [{ name: 'Taylor', url: 'https://drive.google.com/drive/folders/t', count: 1, clips: [{ id: 'l', title: 'Live', category: 'aisles', url: 'https://drive.google.com/file/d/live/view' }] }] }; brollState='done'; brollPerson='Taylor'; renderBroll()`);
+  assert.match(b.html('#broll-grid'), /Open in Drive/); assert.match(b.html('#broll-grid'), /data-copy="https:\/\/drive\.google\.com\/file\/d\/live\/view"/);
+}
+console.log('PASS: creators add ideas; B-roll links only for signed-in creators');

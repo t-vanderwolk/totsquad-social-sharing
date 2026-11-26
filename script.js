@@ -474,10 +474,10 @@ async function loadBroll(force) {
 }
 const brollLiveFolders = () => ((brollLive && brollLive.folders) || []).filter(f => f && f.name).map(f => ({ name: f.name, url: f.url, count: f.count, clips: (f.clips || []).map(c => ({ ...c, credit: f.name, live: true })) }));
 function clipCard(x, inFolder) {
-  const thumb = imageUrl(x.thumbnail); const url = LOCKED() ? '' : publicUrl(x.url); // Drive links: signed-in creators only
+  const thumb = imageUrl(x.thumbnail); const url = x.live && !LOCKED() ? publicUrl(x.url) : ''; // Drive links: only clips the signed-in creators' endpoint sent
   return `<article class="clip-card tint-${brollTint(x.category)}"><div class="clip-thumb" data-art="${escapeHTML(BROLL_ART[x.category] || 'phone')}">${thumb ? `<img src="${escapeHTML(thumb)}" alt="" loading="lazy"${x.live ? ' referrerpolicy="no-referrer"' : ''}>` : SVG(ART[BROLL_ART[x.category]] || ART.phone)}${x.length ? `<span class="clip-length">${escapeHTML(x.length)}</span>` : ''}</div>
     <h3>${escapeHTML(x.title)}</h3><p>${escapeHTML(brollLabel(x.category))}${x.credit && !inFolder ? ' · shot by '+escapeHTML(x.credit) : ''}</p>
-    ${LOCKED() ? '' : `<div class="button-row">${externalLink(url,'Open in Drive','button secondary')}${url ? `<button class="text-button" type="button" data-copy="${escapeHTML(url)}" data-done="Clip link copied.">Copy link</button>` : ''}</div>`}</article>`; // Drive links: Creators Club members only
+    ${url ? `<div class="button-row">${externalLink(url,'Open in Drive','button secondary')}<button class="text-button" type="button" data-copy="${escapeHTML(url)}" data-done="Clip link copied.">Copy link</button></div>` : ''}</article>`; // Open in Drive and Copy link: signed-in creators only
 }
 const brollFolders = () => (content.brollFolders || []).filter(f => f && f.name);
 function personPhoto(name) { const p = [content.leader, ...(content.featuredSpecialists || [])].find(x => x && x.name === name); return p ? imageUrl(p.photo) : ''; }
@@ -877,7 +877,7 @@ function openMyIdeas() {
     ${calls.length ? `<ul class="my-calls">${calls.map(callRow).join('')}</ul>` : '<p class="quiet">You haven’t posted a casting call yet. Post one to find creators for your idea.</p>'}` : ''}
     <h3>Drafts on this device</h3>
     ${drafts.length ? `<p class="quiet">Saved in this browser until you send them.</p><div class="draft-grid">${drafts.join('')}</div>` : '<p class="quiet">No unsent drafts on this device.</p>'}
-    <div class="button-row">${signedIn || isCoord() ? '<button class="button" type="button" data-action="call-new">Post a casting call</button>' : ''}<button class="button secondary" type="button" data-action="pitch">Pitch an idea</button><a class="button secondary" href="${escapeHTML(pageUrl('ideas.html'))}">Open the Idea Bank</a></div>
+    <div class="button-row">${signedIn || isCoord() ? '<button class="button" type="button" data-action="idea-new">Add an idea</button><button class="button secondary" type="button" data-action="call-new">Post a casting call</button>' : ''}<button class="button secondary" type="button" data-action="pitch">Pitch an idea</button><a class="button secondary" href="${escapeHTML(pageUrl('ideas.html'))}">Open the Idea Bank</a></div>
   </div>`;
   showModal();
 }
@@ -1795,7 +1795,7 @@ function canEditIdea(i) {
 const ideaRequest = payload => uploadRequest({ ...payload, coordKey: storageGet(COORD_CODE_KEY) || '', coordName: storageGet(UPLOAD_NAME_KEY) || '' });
 function openIdeaEdit(id) {
   const fresh = !id, i = fresh ? { credit: [], stage: 'idea' } : ideas().find(x => x.id === id);
-  if (!i || (fresh ? !isCoord() : !canEditIdea(i))) return;
+  if (!i || (fresh ? !(isCoord() || isAccount()) : !canEditIdea(i))) return; // any signed-in creator can add an idea; editing stays with its credits and coordinators
   const lines = arr => escapeHTML((Array.isArray(arr) ? arr : []).join('\n'));
   const savedName = storageGet(UPLOAD_NAME_KEY) || '', names = squadNames(), coordHere = isCoord(), askName = !isAccount();
   title.textContent = fresh ? 'Add an idea' : 'Edit idea';
@@ -1809,7 +1809,7 @@ function openIdeaEdit(id) {
       <input id="ie-credit" type="text" maxlength="300" value="${escapeHTML((i.credit || []).join(', '))}" placeholder="Kristin, Lora">` : ''}
       <div class="field-pair">
         <div><label for="ie-series">Series</label><select id="ie-series">${SERIES.map(s => `<option value="${escapeHTML(s.id)}"${s.id === i.series ? ' selected' : ''}>${escapeHTML(s.label)}</option>`).join('')}</select></div>
-        <div><label for="ie-stage">Stage</label><select id="ie-stage">${Object.entries(STAGES).map(([k,v]) => `<option value="${k}"${k === stageKey(i.stage) ? ' selected' : ''}>${v}</option>`).join('')}</select></div>
+        ${coordHere || !fresh ? `<div><label for="ie-stage">Stage</label><select id="ie-stage">${Object.entries(STAGES).map(([k,v]) => `<option value="${k}"${k === stageKey(i.stage) ? ' selected' : ''}>${v}</option>`).join('')}</select></div>` : ''}
       </div>
       <label for="ie-lead">Lead</label>
       <select id="ie-lead"><option value="">No lead yet</option>${[...new Set([...names, i.lead].filter(Boolean))].map(n => `<option${n === i.lead ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
@@ -1831,7 +1831,7 @@ function openIdeaEdit(id) {
     ev.preventDefault();
     const val = id => document.getElementById(id).value;
     const name = askName ? val('ie-name') : myName(); if (!name) { status.textContent = 'Choose your name first.'; return document.getElementById('ie-name').focus(); }
-    const idea = { id: i.id || '', title: val('ie-title').trim(), series: val('ie-series'), stage: val('ie-stage'), lead: val('ie-lead'), summary: val('ie-summary').trim(), concept: val('ie-concept').trim(),
+    const idea = { id: i.id || '', title: val('ie-title').trim(), series: val('ie-series'), stage: document.getElementById('ie-stage') ? val('ie-stage') : 'idea', lead: val('ie-lead'), summary: val('ie-summary').trim(), concept: val('ie-concept').trim(),
       howItWorks: val('ie-how'), guidance: val('ie-guidance'), notes: val('ie-notes'), questions: val('ie-questions') };
     if (coordHere) idea.credit = val('ie-credit').split(',').map(x => x.trim()).filter(Boolean);
     if (!idea.title) { status.textContent = 'Give the idea a title.'; return document.getElementById('ie-title').focus(); }
