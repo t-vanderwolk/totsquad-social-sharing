@@ -191,8 +191,9 @@ function renderCasting() {
     : emptyState('Something fun is in the works!','No collaborations are casting right now. Find an idea to lead, or pitch the next one.',`<a class="button secondary" href="${IDEAS_URL}" data-tool-page="ideas.html" data-label="Idea Bank">Browse the Idea Bank</a><button class="button" data-action="pitch">Pitch an idea</button>`, ICON.people);
 }
 
-/* Illustrations (B-roll clip cards). */
+/* Idea Bank art: one original illustration per series. An idea's own `image` (images/ file) replaces it. */
 const SVG = (inner) => `<svg viewBox="0 0 240 120" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const SPARKS = '<g stroke-width="2.5"><path d="M30 28v10M25 33h10"/><path d="M208 84v8M204 88h8"/><circle cx="206" cy="30" r="2.5" fill="currentColor"/><circle cx="40" cy="92" r="2" fill="currentColor"/></g>';
 const ART = {
   carseat: '<path d="M88 30c18-4 34 6 38 24l8 34H92c-8 0-14-6-14-14V44c0-7 4-12 10-14z"/><path d="M78 92h84M92 92l-8 14M148 92l8 14M126 54h20c8 0 14 6 14 14v6"/>',
   bottle: '<path d="M108 20h24v10h-24zM104 30h32l4 12H100z"/><rect x="98" y="42" width="44" height="62" rx="10"/><path d="M110 60h10M110 74h10M110 88h10"/>',
@@ -217,49 +218,40 @@ const ART = {
   pin: '<path d="M120 102s-32-30-32-54a32 32 0 0 1 64 0c0 24-32 54-32 54z"/><circle cx="120" cy="48" r="11"/>',
   bell: '<path d="M90 82V58a30 30 0 0 1 60 0v24l8 10H82z"/><path d="M110 96a10 10 0 0 0 20 0M120 22v6"/><path d="M164 40c4 6 4 14 0 20M76 40c-4 6-4 14 0 20"/>'
 };
-/* Idea Bank: one column per stage, Idea → Casting → Filming → Editing → Published.
-   Filters: Everyone, Mine (credited to you or led by you), or one creator; plus a series. */
-const STAGE_ORDER = ['idea','casting','filming','editing','published'];
-const STAGE_HINT = { idea:'Ready for someone to lead', casting:'Looking for creators', filming:'Being filmed', editing:'In the edit', published:'Live on Instagram' };
-let ideaWho = 'all'; // 'all' | 'mine' | a creator's name
-const myNames = () => [myName(), myClaim(), isCoord() ? storageGet(UPLOAD_NAME_KEY) : ''].filter(Boolean);
-const isMe = n => myNames().some(x => sameName(n, x)); // full name, or the Squad name you claimed ("Kristin")
-const isMine = i => credits(i.credit).some(isMe) || leadsOf(i).some(isMe);
-const ideaPeople = all => [...new Set(all.flatMap(i => [...credits(i.credit), ...leadsOf(i)]))].sort((a,b) => a.localeCompare(b));
-function stageCard(i) {
-  const s = seriesById(i.series), builds = (i.buildOns || []).length;
-  const fresh = i.status === 'Pitched' ? '<span class="new">Just pitched</span>' : isNew(i.date) ? '<span class="new">New</span>' : '';
-  return `<button type="button" class="stage-card tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}">
-    <span class="stage-card-series"><span class="dot" aria-hidden="true"></span>${escapeHTML(s ? s.label : 'More ideas')}${fresh ? ' ' + fresh : ''}</span>
-    <strong>${escapeHTML(i.title)}</strong>
-    ${i.summary ? `<span class="idea-sum">${escapeHTML(i.summary)}</span>` : ''}
-    <span class="stage-card-people">${[credits(i.credit).length ? 'Idea: ' + escapeHTML(credits(i.credit).join(' & ')) : '', i.lead ? 'Lead: ' + escapeHTML(i.lead) : 'Needs a lead', builds ? `💬 ${builds} ${builds === 1 ? 'build-on' : 'build-ons'}` : ''].filter(Boolean).join(' · ')}</span>
+/* Matched by keywords in the title/summary first, then rotated within the series so neighbours differ. */
+const ART_RULES = [[/game show/i,'buzzer'],[/love is blind|dating/i,'heart'],[/night before|holiday|trick or treat|halloween/i,'moon'],[/stroller/i,'stroller'],[/fund|bank|deal/i,'coin'],[/buzzer/i,'buzzer'],[/question|q&a|explains/i,'question'],[/court|poll|controversial/i,'poll'],[/hour by hour|day in the life|on-duty/i,'clock'],[/gotta have|tier/i,'tiers'],[/tipping|survey/i,'coin'],[/two-specialist|event-style/i,'people'],[/in-store|store/i,'store'],[/roast|registry/i,'checklist'],[/finder|city/i,'pin'],[/notif/i,'bell'],[/channel|social/i,'chat']];
+const SERIES_ART = {'game-shows':['buzzer','trophy','mic'],'reels':['phone','clapper','mic'],'registry':['gift','checklist','store'],'hub':['chat','bell','pin']};
+const artKey = i => { const hit = ART_RULES.find(([re]) => re.test(i.title||'')) || ART_RULES.find(([re]) => re.test(i.summary||'')); if (hit) return hit[1]; const pool = SERIES_ART[i.series] || SERIES_ART.hub; const n = [...String(i.id)].reduce((a,c) => a + c.charCodeAt(0), 0); return pool[n % pool.length]; };
+const ideaArt = i => { const img = imageUrl(i.image); return `<div class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(SPARKS+ART[artKey(i)])}</div>`; };
+function ideaCard(i) {
+  const img = imageUrl(i.image);
+  const art = `<span class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(ART[artKey(i)])}</span>`;
+  return `<button type="button" class="idea-tile tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}">${art}
+    <span class="idea-body"><strong>${escapeHTML(i.title)}</strong><span class="idea-sum">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</span>
+    <span class="reel-card-meta">${[i.status === 'Pitched' ? '<span class="new">Just pitched</span>' : isNew(i.date) ? '<span class="new">New</span>' : '', i.lead ? `Led by ${escapeHTML(i.lead)}` : '', (i.buildOns || []).length ? `💬 ${(i.buildOns || []).length} ${(i.buildOns || []).length === 1 ? 'build-on' : 'build-ons'}` : '', byline(i) ? escapeHTML(byline(i)) : ''].filter(Boolean).join(' · ')}</span></span>
   </button>`;
 }
 function renderIdeas() {
   const all = ideas();
-  const people = ideaPeople(all), signedIn = myNames().length > 0;
-  if (ideaWho === 'mine' && !signedIn) ideaWho = 'all';
-  if (!['all','mine'].includes(ideaWho) && !people.includes(ideaWho)) ideaWho = 'all';
-  if (ideaFilter !== 'all' && !all.some(i => i.series === ideaFilter)) ideaFilter = 'all';
-  const shown = all.filter(i => (ideaFilter === 'all' || i.series === ideaFilter) && (ideaWho === 'all' || (ideaWho === 'mine' ? isMine(i) : credits(i.credit).concat(leadsOf(i)).some(n => sameName(n, ideaWho)))));
-  const credited = new Set(all.flatMap(i => credits(i.credit)));
-  $('#idea-summary').textContent = !all.length ? '' : shown.length === all.length ? `${all.length} ideas from ${credited.size} specialists.` : `Showing ${shown.length} of ${all.length} ideas.`;
-  const seriesOpts = SERIES.filter(x => all.some(i => i.series === x.id));
-  $('#idea-filters').innerHTML = all.length ? `<div class="view-switch who-switch" role="group" aria-label="Whose ideas">${[['all','Everyone'], ...(signedIn ? [['mine','Mine']] : [])].map(([id,l]) => `<button type="button" data-idea-who="${id}" aria-pressed="${ideaWho === id}">${l}${id === 'mine' ? ` <span class="count">${all.filter(isMine).length}</span>` : ''}</button>`).join('')}</div>
-    <label class="idea-select">By creator <select data-idea-person><option value="">Anyone</option>${people.map(n => `<option${n === ideaWho ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select></label>
-    ${seriesOpts.length > 1 ? `<label class="idea-select">Series <select data-idea-series><option value="all">All series</option>${seriesOpts.map(x => `<option value="${escapeHTML(x.id)}"${x.id === ideaFilter ? ' selected' : ''}>${escapeHTML(x.label)}</option>`).join('')}</select></label>` : ''}` : '';
-  if (!all.length) { $('#idea-grid').innerHTML = emptyState('The Idea Bank is open.','Pitch an idea and it can appear here once the team has reviewed it.','<button class="button" data-action="pitch">Pitch an idea</button>', ICON.bulb); return; }
-  const byDate = (a,b) => String(b.date || '').localeCompare(String(a.date || ''));
-  $('#idea-grid').innerHTML = STAGE_ORDER.map(st => {
-    const list = shown.filter(i => stageKey(i.stage) === st).sort(byDate);
-    return `<section class="stage-col stage-col-${st}${list.length ? '' : ' is-empty'}" aria-label="${STAGES[st]}, ${list.length} ${list.length === 1 ? 'idea' : 'ideas'}">
-      <h2><span class="stage stage-${st}">${STAGES[st]}</span><span class="count">${list.length}</span></h2>
-      <p class="stage-hint">${STAGE_HINT[st]}</p>
-      <div class="stage-list">${list.length ? list.map(stageCard).join('') : `<p class="stage-empty">${ideaWho === 'mine' ? 'None of yours here yet.' : 'Nothing here right now.'}</p>`}</div>
-    </section>`;
-  }).join('');
+  const count = id => id === 'all' ? all.length : all.filter(i => i.series === id).length;
+  const people = new Set(all.flatMap(i => credits(i.credit)));
+  $('#idea-summary').textContent = all.length ? `${all.length} ideas from ${people.size} specialists.` : '';
+  if (ideaFilter !== 'all' && !count(ideaFilter)) ideaFilter = 'all';
+  const filters = [{id:'all',label:'All'}, ...SERIES.filter(s => count(s.id))];
+  $('#idea-filters').innerHTML = all.length ? filters.map(f => `<button type="button" data-filter="${escapeHTML(f.id)}" aria-pressed="${ideaFilter === f.id}">${escapeHTML(f.label)} <span class="count">${count(f.id)}</span></button>`).join('') : '';
+  const groups = (ideaFilter === 'all' ? SERIES : SERIES.filter(s => s.id === ideaFilter)).map(s => ({ s, list: all.filter(i => i.series === s.id) })).filter(g => g.list.length);
+  const other = ideaFilter === 'all' ? all.filter(i => !seriesById(i.series)) : [];
+  if (other.length) groups.push({ s: { id: 'other', label: 'More ideas' }, list: other });
+  $('#idea-grid').innerHTML = groups.length
+    ? groups.map(({s, list}) => `<section class="idea-group tint-${tintFor(list[0])}" aria-label="${escapeHTML(s.label)}"><h2><span class="dot" aria-hidden="true"></span>${escapeHTML(s.label)}<span class="count">${list.length}</span></h2>${s.description ? `<p class="quiet">${escapeHTML(s.description)}</p>` : ''}<div class="idea-list">${list.map(ideaCard).join('')}</div></section>`).join('')
+    : emptyState('The Idea Bank is open.','Pitch an idea and it can appear here once the team has reviewed it.','<button class="button" data-action="pitch">Pitch an idea</button>', ICON.bulb);
 }
+
+// My ideas (and the dashboard card): ideas credited to you or led by you, by stage.
+const STAGE_ORDER = ['idea','casting','filming','editing','published'];
+const myNames = () => [myName(), myClaim(), isCoord() ? storageGet(UPLOAD_NAME_KEY) : ''].filter(Boolean);
+const isMe = n => myNames().some(x => sameName(n, x)); // full name, or the Squad name you claimed ("Kristin")
+const isMine = i => credits(i.credit).some(isMe) || leadsOf(i).some(isMe);
 
 function productionItems() {
   const fromProjects = content.activeCollaborations.filter(p => ['idea','filming','editing'].includes(p.status))
@@ -1817,8 +1809,8 @@ document.addEventListener('click', e => {
   if (cs && castProject) { status.textContent = ''; openCast(castProject, +cs.dataset.castStep); return; }
   const more = t.closest('[data-bio]');
   if (more) { const open = more.getAttribute('aria-expanded') !== 'true'; more.setAttribute('aria-expanded', String(open)); more.textContent = open ? 'Show less' : 'Read more'; more.closest('.person')?.classList.toggle('open', open); return; }
-  const who = t.closest('[data-idea-who]');
-  if (who) { ideaWho = who.dataset.ideaWho; renderIdeas(); document.querySelector(`[data-idea-who="${CSS.escape(ideaWho)}"]`)?.focus(); return; }
+  const filter = t.closest('[data-filter]');
+  if (filter) { ideaFilter = filter.dataset.filter; renderIdeas(); document.querySelector(`[data-filter="${CSS.escape(ideaFilter)}"]`)?.focus(); return; }
   const dismiss = t.closest('[data-dismiss]');
   if (dismiss) { const el = document.getElementById(dismiss.dataset.dismiss); if (el) el.hidden = true; storageSet('totsquad-welcome-dismissed','1'); return; }
   const copy = t.closest('[data-copy]');
@@ -1836,11 +1828,6 @@ document.addEventListener('click', e => {
   const action = t.closest('[data-action]');
   if (action) { if (!modal.open) opener = action; openPanel(action.dataset.action, {...action.dataset}); return; }
   if (modal.open && t.closest('a[href^="#"]')) modal.close();
-});
-document.addEventListener('change', e => {
-  const t = e.target; if (!t || !t.closest) return;
-  if (t.closest('[data-idea-person]')) { ideaWho = t.value || 'all'; renderIdeas(); document.querySelector('[data-idea-person]')?.focus(); }
-  if (t.closest('[data-idea-series]')) { ideaFilter = t.value || 'all'; renderIdeas(); document.querySelector('[data-idea-series]')?.focus(); }
 });
 $('#modal .close').onclick = () => modal.close();
 modal.addEventListener('cancel', stash);

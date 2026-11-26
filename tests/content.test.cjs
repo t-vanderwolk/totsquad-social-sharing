@@ -34,12 +34,11 @@ assert.match(t.html('#project-gallery'), /src="images\/meet-the-squad\.jpg"/); /
 assert.equal(t.run("imageUrl('images/../x.jpg')"), ''); // but only plain files in images/
 assert.equal(t.run("imageUrl('javascript:alert(1)')"), '');
 assert.doesNotMatch(t.html('#idea-grid'), /Pass-the-item intro|>Tot Squad Round Up<|Day in the life/); // published ideas leave the Idea Bank
-assert.match(t.html('#idea-grid'), /class="stage-col stage-col-idea"/); // one column per stage
-for (const st of ['Idea','Casting','Filming','Editing','Published']) assert.match(t.html('#idea-grid'), new RegExp(`<span class="stage stage-${st.toLowerCase()}">${st}</span>`));
+assert.match(t.html('#idea-grid'), /class="idea-art"><svg/); // series illustration
 assert.equal(t.el('#production').hidden, true); // empty production board stays hidden
 assert.doesNotMatch(t.html('#resource-links'), /aria-disabled="true"/); // no unconfigured placeholder links
 assert.match(t.html('#idea-grid'), /Fixture Registry Idea/);
-assert.match(t.html('#idea-filters'), /data-idea-who="all" aria-pressed="true"/); assert.match(t.html('#idea-filters'), /data-idea-who="mine"/); assert.match(t.html('#idea-filters'), /<option>Kristin<\/option>/);
+assert.match(t.html('#idea-filters'), /aria-pressed="true"/);
 assert.match(t.html('#squad-grid'), /Kristin/);
 assert.match(t.html('#squad-grid'), /class="bio"[^>]*>Mom of three in Holly Springs/);
 assert.doesNotMatch(t.html('#squad-grid'), /class="tags"/); // no idea tags on squad cards
@@ -56,15 +55,7 @@ assert.match(t.html('#idea-grid'), /Fixture Registry Idea/);
 assert.doesNotMatch(t.html('#idea-grid'), /Fixture Game Show/);
 t.run("ideaFilter='missing';renderIdeas()");
 assert.match(t.html('#idea-grid'), /Fixture Game Show/); // unknown filter falls back to all
-// Whose ideas: Mine (credited to Taylor, who is signed in), one creator, or everyone.
-t.run("ideaWho='mine';renderIdeas()");
-assert.match(t.html('#idea-grid'), /Fixture Registry Idea/); assert.doesNotMatch(t.html('#idea-grid'), /Fixture Reel Idea/); assert.match(t.el('#idea-summary').textContent, /Showing 2 of 4/);
-t.run("ideaWho='Kristin';renderIdeas()");
-assert.match(t.html('#idea-grid'), /Fixture Reel Idea/); assert.doesNotMatch(t.html('#idea-grid'), /Fixture Game Show/);
-t.run("ideaWho='Nobody';renderIdeas()"); assert.match(t.html('#idea-grid'), /Fixture Hub Idea/); // unknown creator falls back to everyone
-// Stages: an idea in Casting sits in the Casting column.
-t.run("content.ideas[1].stage='casting';renderIdeas()");
-{ const g = t.html('#idea-grid'), col = g.slice(g.indexOf('stage-col-casting'), g.indexOf('stage-col-filming')); assert.match(col, /Fixture Game Show/); assert.match(col, /class="count">1</); }
+t.run("content.ideas[1].stage='casting'");
 // My ideas: your ideas by stage, your casting calls, drafts on this device.
 t.run("openPanel('my-ideas')"); { const m = t.html('#modal-body');
   assert.match(m, /Every Idea Bank idea credited to you/); assert.match(m, /Fixture Registry Idea/); assert.doesNotMatch(m, /Fixture Hub Idea/);
