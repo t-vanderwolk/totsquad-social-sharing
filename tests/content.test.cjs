@@ -649,3 +649,27 @@ console.log('PASS: social templates');
   assert.match(L.html('#casting-projects'), /No calls are open right now\./); assert.match(L.html('#casting-projects'), /data-dest="broll"[^>]*>Submit B-roll/);
 }
 console.log('PASS: landing page structure');
+
+// Release checks: full casting details before sending, wanted-shots link, sign-in feedback, and no preview code in production.
+{
+  const fs = require('node:fs');
+  const C = boot(undefined, false, new Map()); C.run('renderCasting()'); const cards = C.html('#casting-projects');
+  assert.match(cards, /<details class="call-more"><summary>Full details<\/summary>/);
+  assert.match(cards, /Who can join<\/dt><dd>Open to Tot Squad specialists · no sign-in/); assert.match(cards, /<dt>Due<\/dt>/);
+  assert.match(cards, /What to film:<\/strong> A short clip: catch the sunshine toy, smile for a second, and pass it the other way\. No talking needed\./); // the whole instruction, not the summary
+  assert.match(cards, /How to send:<\/strong> Use Send your video on this call/);
+  C.run("openCast(castingProjects().find(p => p.openCall && !p.openCall.toy).id, 1)"); assert.match(C.html('#modal-body'), /class="cast-facts"/);
+  C.run('renderWanted()'); assert.match(C.html('#wanted-actions'), /href="b-roll\.html(\?embed=1)?#most-wanted" data-tool-page="b-roll\.html#most-wanted"[^>]*>See wanted shots/);
+  assert.match(fs.readFileSync(root + '/b-roll.html', 'utf8'), /<section class="sidebox" id="most-wanted"/);
+  const html = fs.readFileSync(root + '/index.html', 'utf8');
+  assert.match(html, /<p class="toast" id="toast" role="status" aria-live="polite" hidden><\/p>/); // "You’re signed in" is announced
+  // Production never runs the preview: no test backend flag, no localhost endpoint, preview kit is git-ignored.
+  const content = fs.readFileSync(root + '/content.js', 'utf8');
+  assert.doesNotMatch(content, /testBackend|localhost|__test-backend|preview-creator-pass|Preview-Coord/);
+  for (const f of ['script.js', 'club.js', 'index.html', 'b-roll.html', 'ideas.html', 'reels.html']) assert.doesNotMatch(fs.readFileSync(root + '/' + f, 'utf8'), /localhost|__test-backend|preview-creator-pass|Preview-Coord|squad-pass-1/, f);
+  assert.match(fs.readFileSync(root + '/.gitignore', 'utf8'), /^\.qa\/$/m);
+  assert.match(content, /uploadEndpoint: 'https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec'/);
+  assert.equal(C.run('SIMULATED()'), false); assert.equal(C.run("simulatedNote()"), '');
+  const S = boot({ testBackend: true }, false, new Map()); assert.match(S.run('simulatedNote()'), /Preview only: This upload was simulated\. No file reached Drive\./);
+}
+console.log('PASS: release checks');

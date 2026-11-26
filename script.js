@@ -186,6 +186,25 @@ function whoLabel(p) {
 }
 // The first sentence of a longer note: casting cards show one line of what to film; the call itself has the rest.
 const firstSentence = t => { const m = String(t || '').trim().match(/^.+?[.!?](?=\s|$)/); return m ? m[0] : String(t || '').trim(); };
+// Everything a specialist needs before sending: who can join, the deadline, the full filming directions and how to send.
+// The card's one-line summary never replaces these; the same facts open the "Film it" step of the cast flow.
+function castFacts(p) {
+  const who = whoLabel(p).replace(/<[^>]+>/g, '');
+  return `<dl class="cast-facts"><div><dt>Who can join</dt><dd>${escapeHTML(who)}</dd></div><div><dt>Due</dt><dd>${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : 'Not announced'}</dd></div></dl>`;
+}
+function howToSend(p) {
+  if (p.openCall && UPLOAD_ON()) return `Use ${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'} on this call. It walks you through filming, then you upload your clip here.`;
+  return p.lead ? `Message ${escapeHTML(String(p.lead).trim().split(/\s+/)[0])} to take part.` : 'Use the button on this call to take part.';
+}
+function callDetails(p) {
+  const steps = (p.openCall && p.openCall.steps) || [];
+  return `<details class="call-more"><summary>Full details</summary><div class="call-more-body">${castFacts(p)}
+    ${p.description ? `<p>${escapeHTML(p.description)}</p>` : ''}
+    ${p.instructions ? `<p><strong>What to film:</strong> ${escapeHTML(p.instructions)}</p>` : ''}
+    ${steps.length && !(steps.length === 1 && steps[0] === p.instructions) ? `<ol class="cast-howto">${steps.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ol>` : ''}
+    ${p.openCall && p.openCall.dont ? `<p>${escapeHTML(p.openCall.dont)}</p>` : ''}
+    <p><strong>How to send:</strong> ${howToSend(p)}</p></div></details>`;
+}
 function renderCasting() {
   const casting = castingProjects();
   $('#casting-projects').innerHTML = casting.length ? `<div class="call-grid">${casting.map(p => {
@@ -198,6 +217,7 @@ function renderCasting() {
     return `<article class="call-card">${whoLabel(p).replace('class="who', 'class="badge who')}<h3>${escapeHTML(p.title)}</h3>
     <dl class="call-meta">${p.lead ? `<div><dt>${p.posted ? 'Posted by' : 'Led by'}</dt><dd>${escapeHTML(p.lead)}</dd></div>` : ''}<div><dt>Due</dt><dd>${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : 'Not announced'}</dd></div></dl>
     ${what ? `<p class="call-what"><span>Film:</span> ${escapeHTML(what)}</p>` : ''}
+    ${callDetails(p)}
     <div class="call-actions">${primary}${more ? `<div class="call-links">${more}</div>` : ''}</div></article>`; }).join('')}</div>`
     : emptyState('No calls are open right now.', '', uploadButton('Submit B-roll','broll'), ICON.people);
 }
@@ -394,6 +414,8 @@ function renderBroll() {
       : emptyState(clips.length ? 'No clips in this category yet.' : 'No clips here yet.', `Clips ${open.name} adds to the Drive folder show up here.`, LOCKED() ? uploadButton('Add your clips','broll') : externalLink(folder,'Open folder in Drive'), ICON.play);
   }
   if (has('#broll-wanted')) $('#broll-wanted').innerHTML = (content.brollWanted || []).map(w => `<li><span class="wanted-mark" aria-hidden="true"></span><div><strong>${escapeHTML(w.title)}</strong><span>${escapeHTML(brollLabel(w.category))}</span></div></li>`).join('');
+  // Opened from the landing page's "See wanted shots": go to the list once the clips above it have drawn.
+  if (!renderBroll.jumped && location.hash === '#most-wanted' && has('#most-wanted')) { renderBroll.jumped = true; setTimeout(() => document.getElementById('most-wanted').scrollIntoView({ block: 'start' }), 0); }
 }
 function toast(msg) { const t = document.getElementById ? document.getElementById('toast') : null; if (!t || !msg) return; t.textContent = msg; t.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 2600); }
 
@@ -403,7 +425,7 @@ const WANTED_OTHER = { title:'Something else useful', tip:'Gear, aisles or a qui
 function renderWanted() {
   const shots = (content.brollWanted || []).filter(w => w && w.tip).slice(0,3).concat(WANTED_OTHER);
   $('#wanted-shots').innerHTML = shots.map(w => `<li class="shot tint-${w.category ? brollTint(w.category) : 'linen'}"><span class="shot-art">${SVG(ART[w.art || BROLL_ART[w.category]] || ART.phone)}</span><h3>${escapeHTML(w.title)}</h3><p>${escapeHTML(w.tip)}</p></li>`).join('');
-  if (has('#wanted-actions')) $('#wanted-actions').innerHTML = `${uploadButton('Submit B-roll','broll')}<a class="text-button" href="b-roll.html#broll-wanted" data-tool-page="b-roll.html" data-label="B-roll library">See wanted shots</a>`;
+  if (has('#wanted-actions')) $('#wanted-actions').innerHTML = `${uploadButton('Submit B-roll','broll')}<a class="text-button" href="${escapeHTML(pageUrl('b-roll.html'))}#most-wanted" data-tool-page="b-roll.html#most-wanted" data-label="B-roll library">See wanted shots</a>`;
 }
 
 /* Hero: the three newest published Reel covers, fanned like phones. */
@@ -1303,6 +1325,10 @@ async function sendPitch(d, onSent) {
 
 /* ---------- Upload clips straight to Drive (apps-script/upload.gs) ---------- */
 const UPLOAD_ON = () => !!publicUrl(content.uploadEndpoint);
+// Local design preview only (.qa/preview sets testBackend in its copy of content.js; the published content.js never has it):
+// confirmations say plainly that nothing was sent.
+const SIMULATED = () => content.testBackend === true;
+const simulatedNote = (what = 'This upload was simulated. No file reached Drive.') => SIMULATED() ? `<strong class="simulated">Preview only: ${escapeHTML(what)}</strong> ` : '';
 try { localStorage.removeItem('totsquad-upload-passcode'); } catch {} // the old Squad passcode is no longer used
 const UPLOAD_NAME_KEY = 'totsquad-upload-name';
 function uploadTargets() {
@@ -1422,7 +1448,7 @@ async function runUpload() {
   go.disabled = false; go.textContent = 'Upload more';
   if (done) {
     $('#up-files').value = '';
-    status.innerHTML = `${done === files.length ? 'All set!' : `${done} of ${files.length} uploaded.`} ${done === 1 ? 'Your file is' : 'Your files are'} in the Squad’s Drive.${destVal === 'broll' ? ' A coordinator will check it, and it shows in the library once it’s added.' : ''} ${chatLink(chatFor)}`;
+    status.innerHTML = SIMULATED() ? `${simulatedNote()}${done} of ${files.length} test ${files.length === 1 ? 'file' : 'files'} accepted by the test backend.` : `${done === files.length ? 'All set!' : `${done} of ${files.length} uploaded.`} ${done === 1 ? 'Your file is' : 'Your files are'} in the Squad’s Drive.${destVal === 'broll' ? ' A coordinator will check it, and it shows in the library once it’s added.' : ''} ${chatLink(chatFor)}`;
   }
 }
 
@@ -1592,9 +1618,10 @@ function openApply() {
     try {
       const res = await uploadRequest({ action:'apply', application, website: val('ap-website') });
       if (!res.ok) throw new Error(res.error || '');
+      if (SIMULATED()) { body.innerHTML = `<p>${simulatedNote('This application went to the test backend. Nothing reached a coordinator.')}</p>`; status.textContent = ''; return; }
       body.innerHTML = `<p><strong>Application sent!</strong> Thanks, ${escapeHTML(application.name.split(/\s+/)[0])}. A coordinator will review it and reply ${application.email ? 'by email' : 'on Instagram'}. You’re not a member until you hear back. In the meantime, the Instagram community, open casting calls and creator resources are open to every specialist.</p>`;
       status.textContent = '';
-    } catch (err) { status.textContent = err.message || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send application'; }
+    } catch (err) { status.textContent = (err instanceof TypeError ? '' : err.message) || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send application'; }
   };
   showModal();
 }
@@ -1716,8 +1743,9 @@ function setupSquadPitch() {
     try {
       const res = await uploadRequest({ action:'squad-pitch', pitch, website: val('sp-website') });
       if (!res.ok) throw new Error(res.error || '');
+      if (SIMULATED()) { form.innerHTML = `<p class="sp-done">${simulatedNote('This pitch went to the test backend. Nothing reached Sarah or Taylor.')}</p>`; return; }
       form.innerHTML = `<p class="sp-done"><strong>Thanks, ${escapeHTML(pitch.name.split(/\s+/)[0])}!</strong> Your idea is with Sarah and Taylor. They’ll reach out if it’s a fit.</p>`;
-    } catch (err) { note.textContent = err.message || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send your idea'; }
+    } catch (err) { note.textContent = (err instanceof TypeError ? '' : err.message) || 'That didn’t send. Check your connection and try again.'; go.disabled = false; go.textContent = 'Send your idea'; } // a network failure says so plainly
   };
 }
 
@@ -1750,7 +1778,7 @@ function openCast(id, step = 1) {
       ${externalLink(toy.url, 'See it on Target.com', 'text-button')}</div></div>
     <div class="form-actions"><button class="button" type="button" data-cast-step="${next}">I have the toy</button>${p.exampleReelUrl ? externalLink(p.exampleReelUrl,p.exampleLabel || 'Watch Part 1','button secondary') : ''}</div>`;
   if (key === 'film') body.innerHTML = `${nav}
-    <h3>${escapeHTML(call.filmTitle || 'Film your part')}</h3>${p.description && !call.toy ? `<p>${escapeHTML(p.description)}</p>` : ''}<ol class="cast-howto">${steps.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ol>
+    ${castFacts(p)}<h3>${escapeHTML(call.filmTitle || 'Film your part')}</h3>${p.description && !call.toy ? `<p>${escapeHTML(p.description)}</p>` : ''}${p.instructions && !steps.includes(p.instructions) ? `<p><strong>What to film:</strong> ${escapeHTML(p.instructions)}</p>` : ''}<ol class="cast-howto">${steps.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ol>
     ${call.dont ? `<p class="flow-note">${escapeHTML(call.dont)}</p>` : ''}
     <div class="form-actions"><button class="button" type="button" data-cast-step="${next}">I’ve filmed it</button>${backBtn}${!call.toy && p.exampleReelUrl ? externalLink(p.exampleReelUrl,'See an example','button secondary') : ''}</div>`;
   if (key === 'questions') {
@@ -1815,6 +1843,7 @@ async function sendCast(p) {
   if (failed) { status.textContent = failed; go.disabled = false; go.textContent = 'Try again'; return; }
   storageSet(UPLOAD_NAME_KEY, name); delete castAnswers[p.id]; try { localStorage.removeItem('totsquad-cast-answers-' + p.id); } catch {}
   const what = [sent ? (asks ? plural2(sent, 'clip') : 'your video') : '', answersSent ? 'your answers' : ''].filter(Boolean).join(' and ');
+  if (SIMULATED()) { body.innerHTML = `<div class="cast-done"><h3>Simulated upload</h3><p>${simulatedNote('This casting upload was simulated. No video or answers reached Drive.')}</p></div>`; status.textContent = ''; return; }
   body.innerHTML = `<div class="cast-done"><h3>${asks ? 'Got it, thank you!' : 'Your video is in!'}</h3><p>Thanks, ${escapeHTML(name.split(/\s+/)[0])}. We have ${escapeHTML(what)} for ${escapeHTML(p.title)}, safe in the Squad’s private Drive. ${p.lead ? escapeHTML(p.lead)+' and the team will' : 'The team will'} reach out if they need anything.</p></div>`;
   status.textContent = '';
 }
@@ -1898,6 +1927,7 @@ modal.addEventListener('cancel', stash);
 modal.addEventListener('close', () => {
   stash(); closeTool();
   // Back to whatever opened the dialog, without scrolling. A tool picked from the closed menu returns to the menu button.
+  if (typeof dashFocus !== 'undefined' && dashFocus && !LOCKED()) return focusDashboard(); // just signed in: on to the dashboard heading
   const back = opener && opener.offsetParent !== null ? opener : document.getElementById && document.getElementById('menu-btn');
   back?.focus({ preventScroll: true });
 });
@@ -1987,7 +2017,8 @@ function goToDashboard() {
 // After signing in, focus goes to the dashboard heading. club.js redraws the dashboard when its data arrives, so it asks again.
 let dashFocus = false;
 function focusDashboard() {
-  if (!dashFocus) return; const h = document.getElementById?.('dash-title') || document.getElementById?.('dashboard'); if (!h || !h.setAttribute) return;
+  if (!dashFocus || (modal && modal.open)) return; // a dialog still open (password setup's last step) keeps focus; its close comes back here
+  const h = document.getElementById?.('dash-title') || document.getElementById?.('dashboard'); if (!h || !h.setAttribute) return;
   h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
   if (typeof club !== 'undefined' && club) dashFocus = false; // the full dashboard is in: done
 }
@@ -2040,7 +2071,7 @@ function openAccountSetup(sharedKey, name = '', moving = false) {
       body.innerHTML = `<p>${res.claimed ? (sameName(res.claimed, res.name) ? `You’re on the roster as <strong>${escapeHTML(res.name)}</strong>. ` : `You’ve claimed ${escapeHTML(res.claimed)} and you’re on the roster as <strong>${escapeHTML(res.name)}</strong>. `) : ''}Next time, sign in with <strong>${escapeHTML(res.name)}</strong> and your new password. Your browser can save it for you.</p>
         <p>Last step: add a sentence or two about yourself for Meet the Squad.</p>
         <div class="button-row"><button class="button" type="button" data-action="profile">${res.bio ? 'Edit my bio' : 'Write my bio'}</button><button class="button secondary" type="button" id="acct-done">Done</button></div>`;
-      status.textContent = ''; $('#acct-done').onclick = () => modal.close();
+      status.textContent = ''; $('#acct-done').onclick = () => modal.close(); body.querySelector('.button-row .button')?.focus();
     } catch { status.textContent = 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = 'Save my password'; }
   };
   // Who's who: names already claimed can't be picked again; "I'm new" asks for a first name too.
