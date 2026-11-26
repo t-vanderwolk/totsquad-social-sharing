@@ -686,7 +686,7 @@ console.log('PASS: release checks');
   const G = boot(undefined, false, new Map()); G.run('renderCasting(); renderWanted(); renderGuides()');
   const cards = G.html('#casting-projects');
   assert.match(cards, /<img class="call-art-photo" src="images\/meet-the-squad\.jpg" alt="Meet the Squad Reel preview featuring the sunshine toy"/);
-  assert.match(cards, /<ol class="call-art-steps"><li>Catch<\/li><li>Smile<\/li><li>Pass<\/li><\/ol>/); assert.match(cards, /<li>Double point<\/li>/);
+  assert.doesNotMatch(cards, /class="call-art-seq"|class="call-art-steps"/);
   assert.match(cards, /What to film:<\/strong> A short clip: catch the sunshine toy/); // directions still in text
   for (const m of cards.match(/<svg class="art[^>]*>/g) || []) assert.match(m, /aria-hidden="true"/);
   const shots = G.html('#wanted-shots'); assert.equal((shots.match(/class="art-guide"/g) || []).length, 3); // three shots show the 9:16 framing

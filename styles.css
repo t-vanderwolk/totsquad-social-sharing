@@ -1407,3 +1407,6 @@ svg.art .art-guide{stroke-opacity:.75}
 .call-art{height:15rem}
 @media(max-width:48em){.call-grid{grid-template-columns:1fr}}
 @media(max-width:40em){.call-art{height:13rem}}
+
+/* Casting headers contain the preview only, without filming illustrations. */
+.call-art-photo{flex:1 1 100%;width:100%;object-fit:contain}

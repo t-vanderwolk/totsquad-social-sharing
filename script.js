@@ -286,10 +286,11 @@ function callDetails(p) {
     ${p.openCall && p.openCall.dont ? `<p>${escapeHTML(p.openCall.dont)}</p>` : ''}
     <p><strong>How to send:</strong> ${howToSend(p)}</p></div></details>`;
 }
-// Casting card header: the call's own illustration (content.js cardArt) with its sequence in words, or a plain clapper.
+// Casting cards show Reel previews; filming instructions stay in Full details.
 function callArt(p, i = 0) {
-  const a = p.cardArt || {}; const svg = ART2[a.art] || ART2.callGeneric; const photo = imageUrl(a.photo);
-  return `<div class="call-art tint-${a.tint || TINTS[(i + 1) % TINTS.length]}">${photo ? `<img class="call-art-photo" src="${escapeHTML(photo)}" alt="${escapeHTML(a.photoAlt || '')}" loading="lazy">` : ''}<div class="call-art-seq">${svg}${(a.steps || []).length ? `<ol class="call-art-steps">${a.steps.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ol>` : ''}</div></div>`;
+  const a = p.cardArt || {}; const photo = imageUrl(a.photo || p.thumbnail);
+  if (!photo) return '';
+  return `<div class="call-art tint-${a.tint || TINTS[(i + 1) % TINTS.length]}"><img class="call-art-photo" src="${escapeHTML(photo)}" alt="${escapeHTML(a.photoAlt || p.title + ' preview')}" loading="lazy"></div>`;
 }
 function renderCasting() {
   const casting = castingProjects();
