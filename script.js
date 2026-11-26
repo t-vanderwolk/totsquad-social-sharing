@@ -509,10 +509,15 @@ function toast(msg) { const t = document.getElementById ? document.getElementByI
 /* Landing page: Wanted B-roll. Three shots from the B-roll page's list, plus "something else useful".
    The cards are examples only: Submit B-roll opens the usual form, and nothing records which shot a clip is for. */
 const WANTED_OTHER = { title:'Something else useful', tip:'Gear, aisles or a quick demo.', art:'gearDemo' };
-const WANTED_ART = { aisles:'aisle', strollers:'strollerFold', 'car-seats':'seatBase' }; // the shot, with its 9:16 framing guide
+const WANTED_STILLS = { aisles: 'inside-target', strollers: 'wagons', 'car-seats': 'lost' };
 function renderWanted() {
   const shots = (content.brollWanted || []).filter(w => w && w.tip).slice(0,3).concat(WANTED_OTHER);
-  $('#wanted-shots').innerHTML = shots.map(w => `<li class="shot tint-${w.category ? brollTint(w.category) : 'linen'}"><span class="shot-art">${ART2[w.art || WANTED_ART[w.category]] || ART2.gearDemo}</span><h3>${escapeHTML(w.title)}</h3><p>${escapeHTML(w.tip)}</p></li>`).join('');
+  $('#wanted-shots').innerHTML = shots.map(w => {
+    const clip = (content.brollClips || []).find(c => c.id === (WANTED_STILLS[w.category] || 'live-demo'));
+    const src = clip && imageUrl(clip.thumbnail);
+    const still = src ? `<figure class="shot-still"><img src="${escapeHTML(src)}" alt="${escapeHTML(clip.title + ' — library reference still')}" loading="lazy" width="320" height="480"><figcaption>Library still · ${escapeHTML(clip.title)}</figcaption></figure>` : '';
+    return `<li class="shot tint-${w.category ? brollTint(w.category) : 'linen'}">${still}<h3>${escapeHTML(w.title)}</h3><p>${escapeHTML(w.tip)}</p></li>`;
+  }).join('');
   if (has('#wanted-actions')) $('#wanted-actions').innerHTML = `${uploadButton('Submit B-roll','broll')}<a class="text-button" href="${escapeHTML(pageUrl('b-roll.html'))}#most-wanted" data-tool-page="b-roll.html#most-wanted" data-label="B-roll library">See wanted shots</a>`;
 }
 

@@ -642,7 +642,7 @@ console.log('PASS: social templates');
   L.run('renderWanted()'); const w = L.html('#wanted-shots');
   assert.equal((w.match(/<li class="shot/g) || []).length, 4);
   assert.match(w, /Slow walk down the baby aisle, wide<\/h3><p>Walk slowly; keep the phone steady\./); assert.match(w, /Something else useful/);
-  assert.match(w, /<svg/); assert.doesNotMatch(w, /data-action|<button|<a /);
+  assert.match(w, /<img/); assert.doesNotMatch(w, /data-action|<button|<a /);
   const acts = L.html('#wanted-actions');
   assert.match(acts, /data-action="upload" data-dest="broll"[^>]*>Submit B-roll</); assert.match(acts, /See wanted shots/); assert.doesNotMatch(acts, /data-shot|data-wanted/);
   // Meet the Squad: everyone in one alphabetical list, the leader included; six show until it opens.
@@ -689,7 +689,8 @@ console.log('PASS: release checks');
   assert.doesNotMatch(cards, /class="call-art-seq"|class="call-art-steps"/);
   assert.match(cards, /What to film:<\/strong> A short clip: catch the sunshine toy/); // directions still in text
   for (const m of cards.match(/<svg class="art[^>]*>/g) || []) assert.match(m, /aria-hidden="true"/);
-  const shots = G.html('#wanted-shots'); assert.equal((shots.match(/class="art-guide"/g) || []).length, 3); // three shots show the 9:16 framing
+  const shots = G.html('#wanted-shots'); assert.equal((shots.match(/class="shot-still"/g) || []).length, 4); // existing library stills replace instruction icons
+  assert.doesNotMatch(shots, /<svg/);
   assert.match(shots, /Walk slowly; keep the phone steady\./); assert.doesNotMatch(shots, /<button|<a |data-action/);
   const guides = G.html('#public-guides'); assert.match(guides, /pv-brand/); assert.match(guides, /pv-film/); assert.match(guides, /images\/broll-wagons\.jpg/);
   assert.equal((guides.match(/class="tool tool-preview"/g) || []).length, 6);

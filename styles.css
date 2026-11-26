@@ -1410,3 +1410,8 @@ svg.art .art-guide{stroke-opacity:.75}
 
 /* Casting headers contain the preview only, without filming illustrations. */
 .call-art-photo{flex:1 1 100%;width:100%;object-fit:contain}
+
+/* Wanted shots use existing library stills as references, with their original titles. */
+.shot-still{margin:0;position:relative;overflow:hidden;background:var(--tint)}
+.shot-still img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;object-position:center}
+.shot-still figcaption{padding:.5rem .75rem;font-size:.8125rem;line-height:1.4;color:var(--plum-ink);background:var(--tint)}
