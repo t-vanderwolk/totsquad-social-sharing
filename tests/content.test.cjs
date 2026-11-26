@@ -609,12 +609,14 @@ console.log('PASS: social templates');
   assert.match(html, /<a class="button" href="#casting">Explore casting calls<\/a><button class="button" type="button" data-action="upload" data-dest="broll"[^>]*>Submit B-roll<\/button>/);
   for (const m of (html.match(/<(button|a)\b[^>]*>Submit B-roll</g) || [])) assert.match(m, /data-action="upload" data-dest="broll"/, m);
   // Diagram: both routes, "or", review before the member library, and no promise of a Reel.
-  assert.match(html, /Pick a call<\/li><li>Film your part<\/li><li>Send it on the call/);
-  assert.match(html, /Film a clip<\/li><li>Submit B-roll<\/li><li>Review<\/li><li>If approved: member library/);
+  const steps = route => [...html.split('class="route-name"')[route].split('</ol>')[0].matchAll(/class="step-label">([^<]+)</g)].map(m => m[1]);
+  assert.deepEqual(steps(1), ['Choose a call', 'Film your part', 'Send your clip']);
+  assert.deepEqual(steps(2), ['Film a clip', 'Upload your clip', 'Review', 'If approved: member library']); // review, then the library only if approved
+  assert.match(html, /<span class="step-icon"><svg class="i"[^>]*aria-hidden="true"/); // icons are decorative; the labels are text
   assert.match(html, /class="route-or"/); assert.match(html, /Not a promise of a Reel\./);
   // Community comparison and the one enrollment statement.
   assert.match(html, /Open to Tot Squad specialists<\/span>/); assert.match(html, /By application<\/span>/);
-  assert.match(html, /1 feed post a month and 1 Instagram story a week/); assert.doesNotMatch(html, /weekly feed post/i);
+  assert.match(html, /<strong>1 feed post<\/strong> a month/); assert.match(html, /<strong>1 Instagram story<\/strong> a week/); assert.doesNotMatch(html, /weekly feed post/i);
   assert.equal((html.match(/Membership is by application only\./g) || []).length, 1);
   // Order: community, casting, wanted, made, resources, squad, pitch, questions.
   const order = ['id="community"','id="casting"','id="wanted"','id="made"','id="guides"','id="squad"','id="squad-pitch"','id="questions"'].map(x => html.indexOf(x));
@@ -673,3 +675,21 @@ console.log('PASS: landing page structure');
   const S = boot({ testBackend: true }, false, new Map()); assert.match(S.run('simulatedNote()'), /Preview only: This upload was simulated\. No file reached Drive\./);
 }
 console.log('PASS: release checks');
+
+// Graphics: decorative art is hidden from assistive technology; every direction stays in text.
+{
+  const fs = require('node:fs'); const html = fs.readFileSync(root + '/index.html', 'utf8');
+  for (const m of html.match(/<svg class="art[^>]*>/g) || []) assert.match(m, /aria-hidden="true"/, m);
+  const G = boot(undefined, false, new Map()); G.run('renderCasting(); renderWanted(); renderGuides()');
+  const cards = G.html('#casting-projects');
+  assert.match(cards, /<img class="call-art-photo" src="images\/meet-the-squad\.jpg" alt="The sunshine toy, from the first Meet the Squad Reel"/);
+  assert.match(cards, /<ol class="call-art-steps"><li>Catch<\/li><li>Smile<\/li><li>Pass<\/li><\/ol>/); assert.match(cards, /<li>Double point<\/li>/);
+  assert.match(cards, /What to film:<\/strong> A short clip: catch the sunshine toy/); // directions still in text
+  for (const m of cards.match(/<svg class="art[^>]*>/g) || []) assert.match(m, /aria-hidden="true"/);
+  const shots = G.html('#wanted-shots'); assert.equal((shots.match(/class="art-guide"/g) || []).length, 3); // three shots show the 9:16 framing
+  assert.match(shots, /Walk slowly; keep the phone steady\./); assert.doesNotMatch(shots, /<button|<a |data-action/);
+  const guides = G.html('#public-guides'); assert.match(guides, /pv-brand/); assert.match(guides, /pv-film/); assert.match(guides, /images\/broll-wagons\.jpg/);
+  assert.equal((guides.match(/class="tool tool-preview"/g) || []).length, 6);
+  assert.doesNotMatch(html + cards + guides, /squad-cup|Squad Cup/i); // the Squad Cup recap is an idea, not published content
+}
+console.log('PASS: graphics');

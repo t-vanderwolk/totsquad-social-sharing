@@ -186,6 +186,87 @@ function whoLabel(p) {
 }
 // The first sentence of a longer note: casting cards show one line of what to film; the call itself has the rest.
 const firstSentence = t => { const m = String(t || '').trim().match(/^.+?[.!?](?=\s|$)/); return m ? m[0] : String(t || '').trim(); };
+/* Illustrations for the public page (one style: 3px round strokes in the card's ink colour, white fills, a dashed
+   9:16 guide where framing matters). All decorative: every direction they show is also written out as text. */
+const svgArt = (vb, inner, cls = '') => `<svg class="art ${cls}" viewBox="${vb}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+const artGuide = (x, y, w = 72, h = 128) => `<rect class="art-guide" x="${x}" y="${y}" width="${w}" height="${h}" rx="9" stroke-width="2.5" stroke-dasharray="7 6"/>`;
+// A specialist from the chest up, inside a phone frame at (x, y), 72×128. pose: arms; face: mouth.
+function artFigure(x, y, { arms = '', face = 'smile', shirt = true } = {}) {
+  const cx = x + 36, hy = y + 70;
+  const mouth = { smile: `M${cx - 5} ${hy + 4}q5 5 10 0`, grin: `M${cx - 6} ${hy + 3}q6 8 12 0z`, oh: '' }[face] ?? '';
+  return `<g>
+    <path d="M${x + 12} ${y + 128}v-12q0-22 24-24q24 2 24 24v12" fill="#fff"/>
+    ${shirt ? `<path d="M${cx - 6} ${y + 93}l6 7 6-7" stroke-width="2.5"/>` : ''}
+    <circle cx="${cx}" cy="${hy}" r="13" fill="#fff"/>
+    <circle cx="${cx - 4.5}" cy="${hy - 2}" r="1.6" fill="currentColor" stroke="none"/><circle cx="${cx + 4.5}" cy="${hy - 2}" r="1.6" fill="currentColor" stroke="none"/>
+    ${face === 'oh' ? `<circle cx="${cx}" cy="${hy + 6}" r="2.6" stroke-width="2.5"/>` : `<path d="${mouth}" stroke-width="2.5"${face === 'grin' ? ' fill="currentColor"' : ''}/>`}
+    ${arms}</g>`;
+}
+const artSun = (x, y, r = 9) => `<g class="art-sun"><circle cx="${x}" cy="${y}" r="${r}" fill="#f7d36b" stroke="#a8781a" stroke-width="2.5"/><path d="M${x - 3} ${y - 1}h.01M${x + 3} ${y - 1}h.01M${x - 3} ${y + 3}q3 3 6 0" stroke="#a8781a" stroke-width="2"/>${[0,1,2,3,4,5,6,7].map(i => { const a = i * Math.PI / 4, c = Math.cos(a), s = Math.sin(a); return `<path d="M${(x + c * (r + 3)).toFixed(1)} ${(y + s * (r + 3)).toFixed(1)}L${(x + c * (r + 7)).toFixed(1)} ${(y + s * (r + 7)).toFixed(1)}" stroke="#a8781a" stroke-width="2"/>`; }).join('')}</g>`;
+const artPhone = (x, y) => `<rect x="${x}" y="${y}" width="72" height="128" rx="10" fill="#ffffff66" stroke-width="2.5"/>`;
+const artChevron = (x, y) => `<path d="M${x} ${y - 7}l7 7-7 7" stroke-width="3"/>`;
+const ART2 = {
+  // Pass the Toy: catch it from one side, smile, pass it out the other side.
+  passToy: svgArt('0 0 300 150', `
+    ${artPhone(12, 11)}${artFigure(12, 11, { arms: `<path d="M30 112 L24 82"/><circle cx="23" cy="78" r="3.5" fill="#fff" stroke-width="2.5"/>` })}${artSun(18, 66)}<path d="M2 58h-0M4 52h6M2 64h8M4 76h6" stroke-width="2.5"/>
+    ${artChevron(92, 75)}
+    ${artPhone(114, 11)}${artFigure(114, 11, { face: 'grin', arms: `<path d="M134 128 L138 116"/><path d="M166 128 L162 116"/>` })}${artSun(150, 110, 9)}<circle cx="139" cy="114" r="3.5" fill="#fff" stroke-width="2.5"/><circle cx="161" cy="114" r="3.5" fill="#fff" stroke-width="2.5"/>
+    ${artChevron(194, 75)}
+    ${artPhone(216, 11)}${artFigure(216, 11, { arms: `<path d="M268 112 L280 84"/><circle cx="281" cy="80" r="3.5" fill="#fff" stroke-width="2.5"/>` })}${artSun(292, 68)}<path d="M296 58h2M294 64h6M296 76h2" stroke-width="2.5"/>`),
+  // Point & Answer: leave space above your head; point up a few different ways.
+  pointUp: svgArt('0 0 300 150', [
+      [12, `<path d="M58 104 L62 52"/><path d="M62 52 l-1 -8" stroke-width="2.5"/>`, 'smile'],
+      [114, `<path d="M128 104 L122 54"/><path d="M122 54 l1 -8" stroke-width="2.5"/><path d="M172 104 L178 54"/><path d="M178 54 l-1 -8" stroke-width="2.5"/>`, 'oh'],
+      [216, `<path d="M232 104 L226 56"/><path d="M226 56 l2 -8" stroke-width="2.5"/><path d="M234 102 L244 60"/><path d="M244 60 l2 -7" stroke-width="2.5"/>`, 'grin']
+    ].map(([x, arms, face], i) => `${artPhone(x, 11)}<rect x="${x + 16}" y="19" width="40" height="22" rx="7" stroke-width="2.5" stroke-dasharray="5 5"/><path d="M${x + 30} 30h12" stroke-width="2.5"/>${artFigure(x, 11, { arms, face })}${i < 2 ? artChevron(x + 80, 75) : ''}`).join('')),
+  callGeneric: svgArt('0 0 300 150', `${artPhone(114, 11)}<rect x="128" y="48" width="44" height="34" rx="5" fill="#fff"/><path d="M128 48l6-12h38l-6 12M142 36l-6 12M156 36l-6 12M168 36l-6 12"/><path d="M145 58v14l12-7z" fill="currentColor" stroke="none"/><path d="M136 100h28M140 110h20" stroke-width="2.5"/>`),
+  // Wanted B-roll: the shot, with the 9:16 framing guide.
+  aisle: svgArt('0 0 240 140', `
+    <path d="M14 6v128M14 6l86 40v44l-86 44" fill="#ffffff80"/><path d="M14 38l86 22M14 70l86 14M14 102l86 4" stroke-width="2.5"/>
+    <path d="M226 6v128M226 6l-86 40v44l86 44" fill="#ffffff80"/><path d="M226 38l-86 22M226 70l-86 14M226 102l-86 4" stroke-width="2.5"/>
+    <path d="M100 90h40M100 46h40" stroke-width="2.5"/><path d="M24 30h10M44 38h10M30 62h12M58 70h8M26 94h12M52 98h10M206 30h10M186 38h10M198 62h12M174 70h8M202 94h12M178 98h10" stroke-width="4"/>
+    <path d="M114 14h12M106 24h28" stroke-width="2.5"/>${artGuide(84, 6)}`),
+  strollerFold: svgArt('0 0 240 140', `
+    <path d="M88 32 L118 108" /><path d="M80 28h16" stroke-width="5"/>
+    <path d="M118 108 L168 70" /><path d="M134 96 L176 112"/>
+    <path d="M110 76 Q 116 42 150 44 L 164 64 Z" fill="#fff"/><path d="M106 84h52" stroke-width="2.5"/>
+    <circle cx="118" cy="114" r="12" fill="#fff"/><circle cx="118" cy="114" r="3" fill="currentColor"/><circle cx="178" cy="116" r="9" fill="#fff"/><circle cx="178" cy="116" r="2.5" fill="currentColor"/>
+    <path d="M76 20 q2-6 8-6h8q6 0 7 6l1 10q0 4-4 4H80q-4 0-4-4z" fill="#fff" stroke-width="2.5"/><path d="M84 18v10M90 18v10M96 20v8" stroke-width="2"/><path d="M78 32 q-6 4-8 12" stroke-width="2.5"/>
+    <path d="M58 70 q-8 26 18 40" stroke-width="2.5"/><path d="M72 112l6-2-2-6" stroke-width="2.5"/>${artGuide(52, 6)}`),
+  seatBase: svgArt('0 0 240 140', `
+    <path d="M70 126h108l-7-18H80z" fill="#fff"/><path d="M88 117h72" stroke-width="2.5"/>
+    <path d="M74 48 Q 60 100 100 106 H 160 Q 180 104 178 86 L 176 78 Q 146 84 122 74 Q 98 64 94 48 Z" fill="#fff"/>
+    <path d="M86 58 Q 80 92 104 96 H 156" stroke-width="2.5"/>
+    <path d="M70 54 Q 72 24 104 22 Q 118 24 118 36" fill="#fff" stroke-width="2.5"/>
+    <path d="M106 80 Q 130 6 158 84"/><circle cx="106" cy="80" r="3.5" fill="#fff" stroke-width="2.5"/><circle cx="158" cy="84" r="3.5" fill="#fff" stroke-width="2.5"/>
+    <path d="M64 108l-8-3M62 116h-9M184 108l8-3M186 116h9" stroke-width="2.5"/>${artGuide(84, 6)}`),
+  gearDemo: svgArt('0 0 240 140', `
+    <path d="M12 118h216" stroke-width="2.5"/><rect x="176" y="70" width="30" height="48" rx="8" fill="#fff"/><path d="M182 70v-8h18v8M180 86h22" stroke-width="2.5"/>
+    <rect x="84" y="6" width="72" height="128" rx="10" fill="#fff"/><path d="M110 12h20" stroke-width="2.5"/>
+    <rect x="106" y="48" width="28" height="44" rx="7"/><path d="M111 48v-7h18v7M110 62h20" stroke-width="2.5"/><circle cx="146" cy="22" r="3" fill="#c2453a" stroke="none"/>
+    <path d="M84 104 q-14 4-14 16v14M156 104 q14 4 14 16v14" stroke-width="2.5"/>`),
+  // Community
+  chat: svgArt('0 0 240 100', `
+    <path d="M40 18h96a12 12 0 0 1 12 12v26a12 12 0 0 1-12 12H76l-18 14V68H40a12 12 0 0 1-12-12V30a12 12 0 0 1 12-12z" fill="#fff"/>
+    <circle cx="66" cy="43" r="3" fill="currentColor" stroke="none"/><circle cx="88" cy="43" r="3" fill="currentColor" stroke="none"/><circle cx="110" cy="43" r="3" fill="currentColor" stroke="none"/>
+    <path d="M124 46h76a12 12 0 0 1 12 12v18a12 12 0 0 1-12 12h-8v10l-14-10h-54a12 12 0 0 1-12-12V58a12 12 0 0 1 12-12z" fill="#fff"/>
+    <path d="M160 74c-8-5-12-9-12-13 0-3 2-5 5-5 3 0 5 2 7 4 2-2 4-4 7-4 3 0 5 2 5 5 0 4-4 8-12 13z" fill="currentColor" stroke="none"/>`),
+  circle: svgArt('0 0 240 100', `
+    <circle cx="120" cy="50" r="34" stroke-dasharray="6 7" stroke-width="2.5"/>
+    ${[0, 1, 2, 3, 4, 5].map(i => { const a = -Math.PI / 2 + i * Math.PI / 3, x = (120 + Math.cos(a) * 36).toFixed(1), y = (50 + Math.sin(a) * 36).toFixed(1); return `<circle cx="${x}" cy="${y}" r="11" fill="#fff"/><path d="M${x - 4} ${+y + 2}q4 4 8 0" stroke-width="2"/>`; }).join('')}
+    <path d="M120 40c.8 6 2.6 8.4 8 10-5.4 1.6-7.2 4-8 10-.8-6-2.6-8.4-8-10 5.4-1.6 7.2-4 8-10z" fill="currentColor" stroke="none"/>`),
+};
+// Route icons (24px line style, as in the toolkit)
+const ROUTE_SVG = d => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${d}</svg>`;
+const ROUTE_ICON = {
+  choose: ROUTE_SVG('<rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8.5l1.6 1.6L12.5 7M14.5 9H16M8 14h8M8 17.5h5"/>'),
+  film: ROUTE_SVG('<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><circle cx="12" cy="11" r="2.6"/><path d="M10.5 18.5h3"/>'),
+  send: ROUTE_SVG('<path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z"/>'),
+  upload: ROUTE_SVG('<path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>'),
+  review: ROUTE_SVG('<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 20 20M8 10.5l1.8 1.8 3.2-3.3"/>'),
+  library: ROUTE_SVG('<rect x="3" y="4" width="7.5" height="7" rx="1.5"/><rect x="13.5" y="4" width="7.5" height="7" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7" rx="1.5"/>')
+};
+
 // Everything a specialist needs before sending: who can join, the deadline, the full filming directions and how to send.
 // The card's one-line summary never replaces these; the same facts open the "Film it" step of the cast flow.
 function castFacts(p) {
@@ -205,16 +286,21 @@ function callDetails(p) {
     ${p.openCall && p.openCall.dont ? `<p>${escapeHTML(p.openCall.dont)}</p>` : ''}
     <p><strong>How to send:</strong> ${howToSend(p)}</p></div></details>`;
 }
+// Casting card header: the call's own illustration (content.js cardArt) with its sequence in words, or a plain clapper.
+function callArt(p, i = 0) {
+  const a = p.cardArt || {}; const svg = ART2[a.art] || ART2.callGeneric; const photo = imageUrl(a.photo);
+  return `<div class="call-art tint-${a.tint || TINTS[(i + 1) % TINTS.length]}">${photo ? `<img class="call-art-photo" src="${escapeHTML(photo)}" alt="${escapeHTML(a.photoAlt || '')}" loading="lazy">` : ''}<div class="call-art-seq">${svg}${(a.steps || []).length ? `<ol class="call-art-steps">${a.steps.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ol>` : ''}</div></div>`;
+}
 function renderCasting() {
   const casting = castingProjects();
-  $('#casting-projects').innerHTML = casting.length ? `<div class="call-grid">${casting.map(p => {
+  $('#casting-projects').innerHTML = casting.length ? `<div class="call-grid">${casting.map((p, ci) => {
     const primary = p.openCall && UPLOAD_ON() ? `<button class="button" data-action="cast" data-project="${escapeHTML(p.id)}">${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'}</button>`
       : messageLead(p.lead, 'button') || `<button class="button" data-action="collab" data-project="${escapeHTML(p.id)}">Prepare interest message</button>`;
     const more = [p.posted && p.call.mine ? `<button class="text-button" type="button" data-action="call-edit" data-call="${escapeHTML(p.id)}">Edit</button>` : '',
       p.openCall && UPLOAD_ON() ? messageLead(p.lead, 'text-button') : UPLOAD_ON() ? uploadButton('Upload your clips','collab',p.id,'text-button') : '',
       externalLink(p.exampleReelUrl, 'Watch an example', 'text-button'), externalLink(p.discussionUrl, 'Project discussion', 'text-button')].filter(Boolean).join('');
     const what = firstSentence(p.instructions) || firstSentence(p.description);
-    return `<article class="call-card">${whoLabel(p).replace('class="who', 'class="badge who')}<h3>${escapeHTML(p.title)}</h3>
+    return `<article class="call-card">${callArt(p, ci)}${whoLabel(p).replace('class="who', 'class="badge who')}<h3>${escapeHTML(p.title)}</h3>
     <dl class="call-meta">${p.lead ? `<div><dt>${p.posted ? 'Posted by' : 'Led by'}</dt><dd>${escapeHTML(p.lead)}</dd></div>` : ''}<div><dt>Due</dt><dd>${dateValid(p.submissionDeadline) ? `<time datetime="${p.submissionDeadline}">${dateLabel(p.submissionDeadline)} · ${escapeHTML(content.timeZone)}</time>` : 'Not announced'}</dd></div></dl>
     ${what ? `<p class="call-what"><span>Film:</span> ${escapeHTML(what)}</p>` : ''}
     ${callDetails(p)}
@@ -421,10 +507,11 @@ function toast(msg) { const t = document.getElementById ? document.getElementByI
 
 /* Landing page: Wanted B-roll. Three shots from the B-roll page's list, plus "something else useful".
    The cards are examples only: Submit B-roll opens the usual form, and nothing records which shot a clip is for. */
-const WANTED_OTHER = { title:'Something else useful', tip:'Gear, aisles or a quick demo.', art:'phone' };
+const WANTED_OTHER = { title:'Something else useful', tip:'Gear, aisles or a quick demo.', art:'gearDemo' };
+const WANTED_ART = { aisles:'aisle', strollers:'strollerFold', 'car-seats':'seatBase' }; // the shot, with its 9:16 framing guide
 function renderWanted() {
   const shots = (content.brollWanted || []).filter(w => w && w.tip).slice(0,3).concat(WANTED_OTHER);
-  $('#wanted-shots').innerHTML = shots.map(w => `<li class="shot tint-${w.category ? brollTint(w.category) : 'linen'}"><span class="shot-art">${SVG(ART[w.art || BROLL_ART[w.category]] || ART.phone)}</span><h3>${escapeHTML(w.title)}</h3><p>${escapeHTML(w.tip)}</p></li>`).join('');
+  $('#wanted-shots').innerHTML = shots.map(w => `<li class="shot tint-${w.category ? brollTint(w.category) : 'linen'}"><span class="shot-art">${ART2[w.art || WANTED_ART[w.category]] || ART2.gearDemo}</span><h3>${escapeHTML(w.title)}</h3><p>${escapeHTML(w.tip)}</p></li>`).join('');
   if (has('#wanted-actions')) $('#wanted-actions').innerHTML = `${uploadButton('Submit B-roll','broll')}<a class="text-button" href="${escapeHTML(pageUrl('b-roll.html'))}#most-wanted" data-tool-page="b-roll.html#most-wanted" data-label="B-roll library">See wanted shots</a>`;
 }
 
@@ -498,7 +585,21 @@ function toolTile(r) {
 const PUBLIC_GUIDES = ['brand','guide','checklist','templates','guidelines'];
 const PUBLIC_PAGES = ['b-roll.html']; // the Idea Bank is for signed-in creators
 const isPublicTool = r => PUBLIC_GUIDES.includes(r.action) || PUBLIC_PAGES.includes(r.page);
-function renderGuides() { $('#public-guides').innerHTML = toolkitItems().filter(isPublicTool).map(toolTile).join(''); }
+// Public resource tiles show a small preview of what's inside instead of an icon.
+const SWATCHES = ['#875782', '#f3eaf1', '#6fc9ba', '#f8f1e9'];
+const GUIDE_PREVIEW = {
+  brand: () => `<span class="pv pv-brand" aria-hidden="true"><span class="pv-swatches">${SWATCHES.map(c => `<i style="background:${c}"></i>`).join('')}</span><span class="pv-type"><b>Aa</b><span>Aa</span></span></span>`,
+  guide: () => `<span class="pv pv-story" aria-hidden="true">${svgArt('0 0 180 60', `<rect x="6" y="6" width="48" height="48" rx="6" fill="#fff"/><circle cx="30" cy="26" r="8" fill="#fff"/><path d="M20 44q10-8 20 0M40 14l6-4M44 20h6" stroke-width="2.5"/><rect x="66" y="6" width="48" height="48" rx="6" fill="#fff"/><rect x="80" y="18" width="20" height="26" rx="4"/><path d="M84 18v-4h12v4" stroke-width="2.5"/><rect x="126" y="6" width="48" height="48" rx="6" fill="#fff"/><path d="M150 42c-8-5-12-9-12-13 0-3 2-5 5-5 3 0 5 2 7 4 2-2 4-4 7-4 3 0 5 2 5 5 0 4-4 8-12 13z" fill="currentColor" stroke="none"/>`)}</span>`,
+  checklist: () => `<span class="pv pv-check" aria-hidden="true">${svgArt('0 0 180 60', [10, 26, 42].map((y, i) => `<rect x="50" y="${y - 6}" width="12" height="12" rx="3" fill="#fff" stroke-width="2.5"/><path d="M53 ${y}l2.5 2.5 4.5-5" stroke-width="2.5"/><path d="M70 ${y}h${[60, 46, 54][i]}" stroke-width="4"/>`).join(''))}</span>`,
+  templates: () => `<span class="pv pv-templates" aria-hidden="true">${svgArt('0 0 180 60', `<rect x="20" y="4" width="42" height="52" rx="4" fill="#fff"/><circle cx="41" cy="22" r="9" stroke-width="2.5"/><path d="M30 40h22M33 47h16" stroke-width="2.5"/><rect x="69" y="4" width="42" height="52" rx="4" fill="#fff"/><path d="M78 20q0-6 6-7M88 20q0-6 6-7" stroke-width="3"/><path d="M78 32h24M78 39h20M78 46h14" stroke-width="2.5"/><rect x="118" y="4" width="42" height="52" rx="4" fill="#fff"/><rect x="123" y="12" width="14" height="22" rx="3" stroke-width="2.5"/><rect x="141" y="12" width="14" height="22" rx="3" stroke-width="2.5"/><path d="M128 44h22" stroke-width="2.5"/>`)}</span>`,
+  guidelines: () => `<span class="pv pv-guidelines" aria-hidden="true">${svgArt('0 0 180 60', `<path d="M60 10h28v44H60q-6 0-6-6V16q0-6 6-6zM92 10h28q6 0 6 6v32q0 6-6 6H92z" fill="#fff" stroke-width="2.5"/><path d="M90 40c-6-4-9-7-9-10 0-2 2-4 4-4s3 1 5 3c2-2 3-3 5-3s4 2 4 4c0 3-3 6-9 10z" fill="currentColor" stroke="none"/>`)}</span>`,
+  'b-roll.html': () => `<span class="pv pv-film" aria-hidden="true">${['broll-inside-target', 'broll-wagons', 'broll-halo'].map(n => `<img src="images/${n}.jpg" alt="" loading="lazy" width="54" height="80">`).join('')}</span>`
+};
+function guideTile(r) {
+  const pv = GUIDE_PREVIEW[r.action || r.page]; if (!pv) return toolTile(r);
+  return toolTile(r).replace(/<span class="tool-icon"[^>]*>[\s\S]*?<\/span><span class="tool-text">/, `${pv()}<span class="tool-text">`).replace('class="tool"', 'class="tool tool-preview"');
+}
+function renderGuides() { $('#public-guides').innerHTML = toolkitItems().filter(isPublicTool).map(guideTile).join(''); }
 function renderResources() { $('#resource-links').innerHTML = toolkitItems().map(toolTile).join(''); }
 // Hamburger menu: every section plus every tool, in one dropdown.
 function menuItem(r) {

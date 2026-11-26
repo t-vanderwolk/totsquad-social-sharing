@@ -1294,3 +1294,95 @@ body.embed .topbar .brand{display:none}
 .cast-facts dd{margin:0;font-weight:700;color:var(--plum-ink)}
 .simulated{display:block;margin-bottom:.25rem;color:#8a3b1f}
 @media (prefers-reduced-motion:no-preference){.call-more[open]>.call-more-body{animation:rise .25s ease-out}}
+
+/* =====================================================================
+   Graphics (2026-11-26): one illustration style. 3px round strokes in the card's ink colour, white fills,
+   a dashed 9:16 guide where framing matters. Every illustration is decorative (aria-hidden); the directions
+   they show are also written out as text.
+   ===================================================================== */
+svg.art{display:block;width:100%;height:auto}
+svg.art .art-guide{stroke-opacity:.75}
+
+/* Contribution routes: icon + short label per step */
+.route-steps{gap:.5rem .375rem}
+.route-steps li{gap:.375rem}
+.route-steps li+li::before{margin:0 .125rem}
+.step-icon{display:inline-grid;place-items:center;flex:none;width:2.25rem;height:2.25rem;border-radius:50%;background:var(--lavender);color:var(--plum)}
+.step-icon svg{width:1.25rem;height:1.25rem}
+.route-steps li:last-child .step-icon{background:var(--plum);color:var(--white)}
+.route-steps li.step-maybe .step-icon{background:var(--white);color:var(--plum);border:2px dashed var(--plum)}
+.step-label{line-height:1.3}
+@media (max-width:40em){
+  .route-steps{display:grid;grid-template-columns:1fr;gap:.375rem}
+  .route-steps li+li::before{display:none}
+}
+
+/* Casting cards: two balanced columns, each with an illustrated header */
+.call-grid{grid-template-columns:repeat(auto-fit,minmax(min(21rem,100%),1fr))}
+.call-card{padding:0;overflow:hidden}
+.call-card>:not(.call-art){margin-left:var(--card-pad);margin-right:var(--card-pad)}
+.call-card>.call-actions{margin-bottom:var(--card-pad)}
+.call-card>.call-art+.badge{margin-top:.25rem}
+.call-card .call-more{width:auto}
+.call-art{align-self:stretch;display:flex;align-items:stretch;gap:0;background:var(--tint);color:var(--tint-ink);border-bottom:1px solid var(--line-soft)}
+.call-art-photo{flex:0 0 32%;width:32%;object-fit:cover;object-position:50% 88%;min-height:100%}
+.call-art-seq{flex:1;display:flex;flex-direction:column;justify-content:center;padding:.75rem 1rem .625rem;min-width:0}
+.call-art-seq svg.art{max-width:22rem;margin:0 auto}
+.call-art-steps{display:flex;justify-content:space-around;list-style:none;margin:.25rem auto 0;padding:0;width:100%;max-width:22rem;font-size:.8125rem;font-weight:700;color:var(--tint-ink)}
+.call-art-steps li{flex:1;text-align:center}
+
+/* Wanted B-roll: the shot with its framing guide */
+.shot-art{aspect-ratio:12/7;padding:.5rem .75rem}
+.shot-art svg.art{height:100%;width:auto;margin:0 auto}
+
+/* Community: an illustration per path, calendars for the Club's commitments */
+.compare-art{display:grid;place-items:center;height:6.5rem;margin:calc(-1 * var(--card-pad)) calc(-1 * var(--card-pad)) 1rem;background:var(--tint);color:var(--tint-ink);border-radius:1rem 1rem 0 0;border-bottom:1px solid var(--line-soft)}
+.compare-art svg.art{width:auto;height:5.5rem}
+.commits{display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;margin:0 0 .5rem;padding:0}
+.commits li{display:flex;align-items:center;gap:.625rem;padding:.5rem .75rem;border:1px solid var(--line);border-radius:.75rem;background:var(--white);font-size:.9375rem;line-height:1.3}
+.commits strong{color:var(--plum-ink)}
+.cal{display:grid;gap:2px;flex:none;padding:4px;border-radius:.375rem;background:var(--lavender);border-top:4px solid var(--plum)}
+.cal i{display:block;width:5px;height:5px;border-radius:1px;background:#d9c7d6}
+.cal i.on{background:var(--plum);box-shadow:0 0 0 1.5px var(--white)}
+.cal-month{grid-template-columns:repeat(7,5px)}
+.cal-week{grid-template-columns:repeat(7,5px);padding-bottom:6px}
+.cal-week i{height:10px}
+
+/* Resource tiles with a preview of what's inside */
+.landing .guide-grid .tool-preview{flex-direction:column;gap:.75rem;padding:0;overflow:hidden}
+.tool-preview .tool-text{padding:0 1.25rem 1.25rem}
+.pv{display:flex;align-items:center;justify-content:center;gap:.75rem;height:5rem;width:100%;background:var(--lavender);color:var(--plum);border-bottom:1px solid var(--line-soft)}
+.pv svg.art{width:auto;height:3.75rem}
+.pv-swatches{display:flex}
+.pv-swatches i{width:1.75rem;height:1.75rem;border-radius:50%;margin-left:-.375rem;box-shadow:0 0 0 2px var(--white)}
+.pv-swatches i:first-child{margin-left:0}
+.pv-type{display:flex;align-items:baseline;gap:.375rem;color:var(--plum-ink)}
+.pv-type b{font:800 1.75rem/1 var(--serif)}
+.pv-type span{font:600 1.375rem/1 var(--sans)}
+.pv-story,.pv-guidelines{background:var(--linen);color:#6b5340}
+.pv-check{background:var(--teal-soft);color:#2f5f57}
+.pv-templates{background:var(--peach);color:#7a4330}
+.pv-film{gap:0;background:var(--plum-ink);padding:.5rem 0;background-image:repeating-linear-gradient(90deg,#ffffff55 0 6px,transparent 6px 14px),repeating-linear-gradient(90deg,#ffffff55 0 6px,transparent 6px 14px);background-size:100% 4px;background-position:0 4px,0 calc(100% - 4px);background-repeat:no-repeat}
+.pv-film img{height:3.5rem;width:auto;aspect-ratio:2/3;object-fit:cover;margin:0 3px;border-radius:3px}
+
+/* Restrained press feedback */
+@media (prefers-reduced-motion:no-preference){
+  .landing [data-public] .button:active{transform:scale(.98)}
+  .landing .guide-grid .tool-preview:is(:hover,:focus-visible) .pv{filter:saturate(1.1)}
+}
+/* Graphics: layout refinements */
+.call-art{height:10.5rem}
+.call-art-seq svg.art{height:7.25rem;width:auto;max-width:100%}
+.landing .call-card>.badge{margin:.25rem var(--card-pad) 0;align-self:flex-start}
+.route-steps{display:flex;flex-wrap:nowrap;align-items:flex-start;gap:1.25rem}
+.route-steps li{position:relative;flex:1 1 0;min-width:0;flex-direction:column;align-items:center;text-align:center;gap:.375rem;font-size:.875rem}
+.route-steps li+li::before{position:absolute;left:-1.05rem;top:.55rem;margin:0}
+@media (max-width:40em){
+  .route-steps{display:grid;grid-template-columns:1fr;gap:.5rem}
+  .route-steps li{flex-direction:row;text-align:left;font-size:.9375rem;gap:.625rem}
+  .step-icon{width:2rem;height:2rem}
+}
+@media (min-width:40.01em){.step-icon{width:2.75rem;height:2.75rem}.step-icon svg{width:1.5rem;height:1.5rem}.route-steps li+li::before{top:.8rem}}
+.compare-art svg.art,.shot-art svg.art,.pv svg.art,.call-art-seq svg.art{max-width:100%}
+.compare-art,.call-art{max-width:100%;overflow:hidden}
+.route-steps,.call-art-steps,.commits{overflow-wrap:break-word}
