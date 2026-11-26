@@ -312,15 +312,59 @@ function coordAccounts(c) {
       <span class="acct-actions">${a.hasPassword ? `<button class="text-button" type="button" data-coord-account="reset" data-name="${escapeHTML(a.name)}">Reset password</button>` : ''}${a.bio ? `<button class="text-button danger" type="button" data-coord-account="clear-bio" data-name="${escapeHTML(a.name)}">Take bio down</button>` : ''}</span></li>`).join('')}</ul></div>`;
 }
 const standingClass = s => ({ 'On track': 'stage-published', 'Reminder': 'stage-filming', 'Needs review': 'stage-casting stage-alert', 'Paused': 'stage-idea' })[s] || 'stage-idea';
-const BRIEF_FIELDS = [['title', 'Brief title', 'text'], ['theme', 'Theme or concept', 'text'], ['weekStart', 'Starts', 'date'], ['weekEnd', 'Ends (blank = two weeks)', 'date'], ['format', 'Format', 'text', 'Reel, carousel or story'], ['length', 'Length', 'text', 'About 15–30 seconds'], ['window', 'Publishing window', 'text', 'Anytime these two weeks'], ['cta', 'Call to action', 'text', 'Explore the free Baby Concierge service'], ['audios', 'Trending audios', 'textarea'], ['hooks', 'Hooks & talking points', 'textarea'], ['direction', 'Concepts & creative direction', 'textarea'], ['launches', 'Upcoming launches', 'textarea'], ['deliverables', 'Deliverables', 'textarea'], ['resources', 'Assets & resources (links welcome)', 'textarea'], ['guidelines', 'Brand or product guidelines', 'textarea']];
+/* The bi-weekly brief template: every brief has the same parts, in this order, each with what to write and an example.
+   [key, label, type, example (placeholder), what to write (hint)] */
+const BRIEF_PARTS = [
+  ['Brief at a glance', 'These show at the top of the brief and on each creator’s dashboard card: a creator should get the whole idea from them alone.', [
+    ['title', 'Brief title', 'text', 'Holiday Registry Rush', 'A short campaign name, 2–5 words'],
+    ['theme', 'Theme or concept', 'text', 'Help families sort what’s worth registering for before the holidays', 'One sentence: the idea and who it helps'],
+    ['weekStart', 'Starts', 'date', '', 'The Monday the brief begins, right after the last brief ends'],
+    ['weekEnd', 'Ends', 'date', '', 'Leave blank for two weeks'],
+    ['format', 'Format', 'text', 'Reel or carousel', 'Reel, carousel or story'],
+    ['length', 'Length', 'text', 'About 15–30 seconds', 'A target runtime or slide count'],
+    ['window', 'Publishing window', 'text', 'Anytime these two weeks', 'When to post within the two weeks'],
+    ['cta', 'Call to action', 'text', 'Explore the free Baby Concierge service', 'One action, tied to the theme']]],
+  ['Concepts & creative direction', 'Two or three ways into the theme, one per line, plus what a strong post looks like. The first 220 characters show on the dashboard card, so lead with the best concept. Keep babies’ faces, clients’ details and other shoppers out of frame.', [
+    ['direction', 'Concepts & creative direction', 'textarea', '1. “Register for this, skip that”: one swap per clip.\n2. Your three must-haves under $50, in-store.\n3. Answer the registry question you hear most this month.\nGood looks like a friendly expert in the aisle: real products, quick reasons, no hard sell.']]],
+  ['Trending audios', 'Two to four audios, one per line. Check each link opens and the audio is available to the account creators post from (some aren’t available to business accounts).', [
+    ['audios', 'Trending audios', 'textarea', 'Audio name — link — how to use it with the theme']]],
+  ['Hooks & talking points', 'Three to five hooks for the first three seconds, written the way someone would say them out loud, then two or three talking points checked against the brand’s own materials.', [
+    ['hooks', 'Hooks & talking points', 'textarea', 'Hook: “Three things I’d never put on my registry.”\nHook: “A baby gear specialist’s holiday registry rules.”\nTalking point: a checked fact or tip']]],
+  ['Upcoming launches', 'Only launches that are already public, each with a date and a source link. Leave blank when there’s nothing to share.', [
+    ['launches', 'Upcoming launches', 'textarea', 'Product — launch date — why it matters to families — source link']]],
+  ['Deliverables', 'What a post from this brief looks like and how it fits the commitments: one feed post a month, one story a week. Briefs are inspiration, so word it as an option, not an assignment.', [
+    ['deliverables', 'Deliverables', 'textarea', 'A reel or carousel from this brief can be your feed post for the month. For a story, share one registry swap with a poll sticker. Log either one from your dashboard once it’s live.']]],
+  ['Assets, resources & guidelines', 'Only links Creators Club members can open. Product and brand rules go in guidelines. Never promise payment, brand deals, exposure or acceptance.', [
+    ['resources', 'Assets & resources (links welcome)', 'textarea', 'B-roll library → Registry clips; Brand & voice guide'],
+    ['guidelines', 'Brand or product guidelines', 'textarea', 'Use product names exactly as the brand writes them; share prices only from the retailer’s current listing.']]]
+];
+const BRIEF_FIELDS = BRIEF_PARTS.flatMap(p => p[2]);
+// Checked before Save & publish (not saved anywhere; it's a last look).
+const BRIEF_CHECKS = ['Title, theme, dates, format, length, window and call to action are filled in', 'The start date follows the last brief’s end, with no gap or overlap', 'Every audio and resource link opens for a Creators Club member', 'Launches are public and have a source', 'No babies’ faces, client details or private information in examples or assets', 'No promises of payment, brand deals, exposure or acceptance', 'Previewed: it reads well as creators will see it'];
+const isoPlus = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+// A new brief starts the day after the latest brief ends (a brief with no end runs two weeks), else next Monday.
+function nextBriefStart(briefs) {
+  const ends = (briefs || []).filter(b => b.weekStart).map(b => b.weekEnd || isoPlus(b.weekStart, 13)).sort();
+  if (ends.length) return isoPlus(ends[ends.length - 1], 1);
+  const t = new Date().toLocaleDateString('en-CA'), dow = new Date(t + 'T12:00:00Z').getUTCDay();
+  return isoPlus(t, ((8 - dow) % 7) || 7);
+}
+function briefField([k, label, type, ph, hint], b, solo = false) {
+  const id = 'bf-' + k, hid = hint ? ` aria-describedby="${id}-h"` : '', place = ph ? ` placeholder="${escapeHTML(ph)}"` : '';
+  const control = type === 'textarea' ? `<textarea id="${id}" name="${k}" maxlength="3000"${place}${hid}>${escapeHTML(b[k] || '')}</textarea>`
+    : `<input id="${id}" name="${k}" type="${type}" maxlength="300" value="${escapeHTML(b[k] || '')}"${place}${hid}>`;
+  return `<div class="${type === 'textarea' ? 'wide' : ''}"><label for="${id}"${solo ? ' class="sr-only"' : ''}>${label}</label>${control}${hint ? `<span class="brief-hint" id="${id}-h">${escapeHTML(hint)}</span>` : ''}</div>`;
+}
 // Briefs: create, preview, edit, duplicate, publish/unpublish, archive and delete.
 const briefStage = (b, c) => `<span class="stage ${b.status === 'Published' ? 'stage-published' : b.status === 'Draft' ? 'stage-filming' : 'stage-idea'}">${b.id === c.current ? 'Current' : escapeHTML(b.status)}</span>`;
 function coordBriefs(c) {
   if (briefDraft) {
     const b = briefDraft, live = b.status === 'Published';
     return `<form class="coord-card brief-editor" data-coord-form="brief"><h3>${b.id ? `Edit “${escapeHTML(b.title || b.theme || 'brief')}”` : 'New brief'}</h3>
-      <div class="brief-fields">${BRIEF_FIELDS.map(([k, label, type, ph]) => `<label class="${type === 'textarea' ? 'wide' : ''}">${label}${type === 'textarea' ? `<textarea name="${k}" maxlength="3000">${escapeHTML(b[k] || '')}</textarea>` : `<input name="${k}" type="${type}" maxlength="300" value="${escapeHTML(b[k] || '')}"${ph ? ` placeholder="${escapeHTML(ph)}"` : ''}>`}</label>`).join('')}</div>
-      <p class="quiet">Same strategy, room for each creator’s voice: give direction, not a script.${live ? ' This brief is live: changes show to creators as soon as you save.' : ''}</p>
+      <p class="quiet">Every brief follows this template, so creators always know where to look. Give direction, not a script: same strategy, room for each creator’s voice. Leave a part blank rather than writing “TBD”; blank parts don’t show to creators.${live ? ' This brief is live: changes show to creators as soon as you save.' : ''}</p>
+      ${BRIEF_PARTS.map(([name, about, fields], i) => `<fieldset class="brief-part-edit"><legend><span class="brief-step">${i + 1}</span>${escapeHTML(name)}</legend>${fields.length > 1 ? `<p class="brief-about">${escapeHTML(about)}</p>` : ''}
+        <div class="brief-fields">${fields.map(f => fields.length > 1 ? briefField(f, b) : briefField([f[0], f[1], f[2], f[3], about], b, true)).join('')}</div></fieldset>`).join('')}
+      ${live ? '' : `<fieldset class="brief-part-edit brief-checks"><legend>Before you publish</legend>${BRIEF_CHECKS.map((x, i) => `<label class="check"><input type="checkbox" data-brief-check="${i}"><span>${escapeHTML(x)}</span></label>`).join('')}</fieldset>`}
       <div class="form-actions"><button class="button" type="submit">${live ? 'Save changes' : 'Save draft'}</button>${live ? '' : '<button class="button secondary" type="submit" data-publish>Save &amp; publish</button>'}<button class="button secondary" type="button" data-coord-cancel>Cancel</button>${b.id ? `<button class="text-button danger" type="button" data-coord-brief-del="${escapeHTML(b.id)}">Delete</button>` : ''}</div></form>`;
   }
   const v = briefView && c.briefs.find(b => b.id === briefView.id);
@@ -414,7 +458,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (d.coordFilter) { coordFilter = d.coordFilter; renderCoord(); return; }
     if ('coordSeed' in d) { const people = [content.leader, ...(content.featuredSpecialists || [])].filter(p => p && p.name).map(p => ({ name: p.name, market: p.region || '', instagram: p.instagram || '' })); refreshCoord('admin-seed', { members: people }, 'Roster updated.'); return; }
     if ('coordRequest' in d) { refreshCoord('admin-member', { name: d.coordRequest, ...(d.to ? { status: d.to } : {}), ...('keep' in d ? {} : { clearRequest: true }) }, 'Saved.'); return; }
-    if ('coordNewBrief' in d) { briefDraft = {}; briefView = null; renderCoord(); return; }
+    if ('coordNewBrief' in d) { briefDraft = { weekStart: nextBriefStart(coord.briefs) }; briefView = null; renderCoord(); return; }
     if (d.coordEdit) { briefDraft = { ...(coord.briefs.find(b => b.id === d.coordEdit) || {}) }; briefView = null; renderCoord(); return; }
     if ('coordCancel' in d || 'coordBack' in d) { briefDraft = null; briefView = null; status.textContent = ''; renderCoord(); return; }
     if (d.coordPreview) { briefView = { id: d.coordPreview, mode: 'preview' }; renderCoord(); return; }
@@ -431,6 +475,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     if (kind === 'settings') refreshCoord('admin-settings', { settings: v }, 'Settings saved.');
     if (kind === 'creator-password') { if (String(v.creatorPassword || '').length < 8) return toast('Use at least 8 characters.'); refreshCoord('admin-settings', { settings: {}, creatorPassword: v.creatorPassword }, 'Creator password changed. Share the new one privately, like in the Creator Circle.'); }
     if (kind === 'brief') { const publish = !!(e.submitter && 'publish' in e.submitter.dataset), live = briefDraft && briefDraft.status === 'Published';
+      if (publish) { const open = [...f.querySelectorAll('[data-brief-check]')].find(x => !x.checked); if (open) { status.textContent = 'Check each item under “Before you publish” first, or save it as a draft.'; open.focus(); return; } }
       const res = await refreshCoord('admin-brief', { op: 'save', publish, brief: { ...v, id: briefDraft && briefDraft.id || '' } }, publish ? 'Saved and published. Creators see it now.' : live ? 'Saved. Creators see the changes now.' : 'Saved as a draft. Publish it when it’s ready.');
       if (res) { briefDraft = null; briefView = null; renderCoord(); } }
   });

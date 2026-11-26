@@ -448,6 +448,15 @@ console.log('PASS: bell badge');
   t13.run(`briefView = { id:'b1', mode:'delete' }; renderCoord();`); bl = t13.html('#modal-body'); assert.match(bl, /Creators stop seeing it right away/); assert.match(bl, /data-coord-brief="delete" data-id="b1"/);
   t13.run(`briefView = null; briefDraft = { ...coord.briefs[0] }; renderCoord();`); bl = t13.html('#modal-body'); assert.match(bl, /Save changes/); assert.doesNotMatch(bl, /data-publish/); assert.match(bl, /data-coord-brief-del="b1"/);
   t13.run(`briefDraft = {}; renderCoord();`); bl = t13.html('#modal-body'); assert.match(bl, /Save draft/); assert.match(bl, /data-publish/); assert.doesNotMatch(bl, /data-coord-brief-del/); t13.run('briefDraft = null;');
+  // The bi-weekly template: seven parts in order, examples as placeholders, a checklist before publishing, and the next start date.
+  t13.run(`briefDraft = { weekStart: nextBriefStart(coord.briefs) }; renderCoord();`); bl = t13.html('#modal-body');
+  const parts = ['Brief at a glance', 'Concepts &amp; creative direction', 'Trending audios', 'Hooks &amp; talking points', 'Upcoming launches', 'Deliverables', 'Assets, resources &amp; guidelines'].map(p => bl.indexOf(p));
+  assert.ok(parts.every((x, i) => x > 0 && (i === 0 || x > parts[i - 1])), 'template parts in order');
+  assert.match(bl, /placeholder="Holiday Registry Rush"/); assert.match(bl, /Leave blank for two weeks/); assert.match(bl, /Before you publish/);
+  assert.equal((bl.match(/data-brief-check=/g) || []).length, 7);
+  assert.match(bl, /name="weekStart" type="date" maxlength="300" value="2026-12-07"/); // the day after b1 ends
+  assert.equal(t13.run(`nextBriefStart([{ weekStart:'2026-11-23' }])`), '2026-12-07'); // no end: two weeks
+  t13.run('briefDraft = null;');
   t13.run(`coordTab = 'analytics'; renderCoord();`); assert.match(t13.html('#modal-body'), /aren’t tracked yet/); // no invented reach numbers
 }
 console.log('PASS: Creators Club dashboard and coordinator tools');
