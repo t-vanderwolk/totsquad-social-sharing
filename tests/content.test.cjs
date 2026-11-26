@@ -187,44 +187,56 @@ assert.match(t.html('#modal-body'), /Copy link/);
 assert.match(t.html('#modal-body'), /Copy caption/);
 t.run("openPanel('reel-share',{project:'not-published'})"); // unknown ids do nothing
 
-// B-roll library: folders only; a folder's clips show when it's opened.
+// B-roll library. Signed in: folders and clips come live from the approved Drive folders. Signed out: public preview stills, no Drive links.
+const LIVE = { ok: true, total: 3, libraryUrl: 'https://drive.google.com/drive/folders/lib', folders: [
+  { name: 'Sarah', url: 'https://drive.google.com/drive/folders/sarah', count: 2, clips: [
+    { id: 'sv1', title: 'Bugaboo fold <b>', category: 'strollers', url: 'https://drive.google.com/file/d/sv1/view', thumbnail: 'https://lh3.googleusercontent.com/t1=s400', length: '0:09' },
+    { id: 'sv2', title: 'Vista uppababy fold & walk', category: 'strollers', url: 'https://drive.google.com/file/d/sv2/view', thumbnail: '', length: '' }] },
+  { name: 'Taylor', url: 'https://drive.google.com/drive/folders/taylor', count: 1, clips: [{ id: 'tv', title: 'Lost', category: 'other', url: 'javascript:alert(1)', thumbnail: '', length: '0:21' }] },
+  { name: 'Pat', url: 'https://drive.google.com/drive/folders/p', count: 0, clips: [] }] };
 t = boot();
-assert.match(t.html('#broll-folders'), /data-broll-folder="Taylor"/); assert.match(t.html('#broll-folders'), /7 clips/);
-assert.equal(t.html('#broll-grid'), ''); assert.equal(t.html('#broll-filters'), ''); // previews hidden until a folder is opened
-assert.match(t.el('#broll-summary').textContent, /7 clips/);
-assert.match(t.html('#broll-add'), /data-action="upload" data-dest="broll"/); // uploads straight to the B-roll folder
-assert.match(t.html('#broll-wanted'), /One-hand stroller fold/);
-t.run("brollPerson='Taylor';renderBroll()");
-assert.match(t.html('#broll-folders'), /Taylor’s folder/); assert.match(t.html('#broll-folders'), /drive\.google\.com\/drive\/folders\/[\w-]{20,}/);
-assert.match(t.html('#broll-folders'), /All folders/);
-assert.match(t.html('#broll-grid'), /Inside Target/); assert.match(t.html('#broll-grid'), /images\/broll-wagons\.jpg/);
-assert.doesNotMatch(t.html('#broll-grid'), /shot by/);
-t.run("brollPerson='';renderBroll()"); assert.equal(t.html('#broll-grid'), ''); // closing hides them again
-t.run("brollPerson='Nobody';renderBroll()"); assert.match(t.html('#broll-folders'), /Folders/); assert.equal(t.html('#broll-grid'), '');
-t = boot({ brollFolders: [] });
-assert.match(t.html('#broll-folders'), /No folders yet/);
-t = boot({ brollFolders: [{ name: 'Kristin', url: 'https://drive.google.com/drive/folders/k' }], brollClips: [{ id: 'c1', title: 'Aisle walk <b>', category: 'aisles', url: 'https://drive.google.com/file/d/x', length: '0:08', credit: 'Kristin' }, { id: 'c2', title: 'Fold', category: 'strollers', url: 'javascript:alert(1)', credit: 'Kristin' }] });
-t.run("brollPerson='Kristin';renderBroll()");
-assert.match(t.html('#broll-grid'), /Aisle walk &lt;b&gt;/);
-assert.match(t.html('#broll-grid'), /data-copy="https:\/\/drive\.google\.com\/file\/d\/x"/);
-assert.doesNotMatch(t.html('#broll-grid'), /javascript:/);
+// While the library loads, folders never claim to be empty.
+t.run("brollState='loading'; renderBroll()");
+assert.match(t.html('#broll-folders'), /Loading the latest clips from Drive/); assert.match(t.html('#broll-folders'), /Loading clips…/); assert.doesNotMatch(t.html('#broll-folders'), /0 clips/);
+t.run("brollPerson='Sarah'; renderBroll()"); assert.equal(t.html('#broll-grid'), ''); assert.doesNotMatch(t.html('#broll-folders'), /0 clips/); t.run("brollPerson=''");
+// A failed load says so, offers a retry, and the page keeps working.
+t.run("brollState='failed'; renderBroll()"); assert.match(t.html('#broll-folders'), /couldn’t load from Drive/); assert.match(t.html('#broll-folders'), /data-broll-retry/); assert.match(t.html('#broll-add'), /data-dest="broll"/);
+t.run("brollState='signin'; renderBroll()"); assert.match(t.html('#broll-folders'), /sign-in has expired/);
+// Loaded: one folder per approved Drive folder, with live counts.
+t.run(`brollLive = ${JSON.stringify(LIVE)}; brollState='done'; renderBroll()`);
+assert.deepEqual([...t.html('#broll-folders').matchAll(/data-broll-folder="([^"]+)"/g)].map(m => m[1]), ['Sarah', 'Taylor', 'Pat']);
+assert.match(t.html('#broll-folders'), /Sarah<\/strong><small>2 clips/); assert.match(t.html('#broll-folders'), /Pat<\/strong><small>0 clips/);
+assert.match(t.el('#broll-summary').textContent, /3 clips in the library/);
+assert.match(t.html('#broll-folders'), /images\/squad-sarah\.jpg/); // her Meet the Squad photo
+assert.match(t.html('#broll-folders'), /folder-avatar" aria-hidden="true">P/); // no photo: the initial
+assert.equal(t.html('#broll-grid'), ''); // clips show once a folder is opened
+t.run("brollPerson='Sarah';renderBroll()");
+assert.match(t.html('#broll-grid'), /Bugaboo fold &lt;b&gt;/); assert.match(t.html('#broll-grid'), /Vista uppababy fold &amp; walk/);
+assert.match(t.html('#broll-grid'), /href="https:\/\/drive\.google\.com\/file\/d\/sv1\/view"[^>]*>Open in Drive/); assert.match(t.html('#broll-grid'), /data-copy="https:\/\/drive\.google\.com\/file\/d\/sv1\/view"/);
+assert.match(t.html('#broll-grid'), /src="https:\/\/lh3\.googleusercontent\.com\/t1=s400"[^>]*referrerpolicy="no-referrer"/); assert.match(t.html('#broll-grid'), /data-art="stroller"/);
+assert.match(t.html('#broll-folders'), /href="https:\/\/drive\.google\.com\/drive\/folders\/sarah"[^>]*>Open folder in Drive/);
+assert.match(t.el('#broll-access').innerHTML, /request access, contact Sarah or Taylor/);
+t.run("brollPerson='Taylor';renderBroll()"); assert.match(t.html('#broll-filters'), /Other footage/); assert.doesNotMatch(t.html('#broll-grid'), /javascript:/);
+t.run("brollPerson='Pat';renderBroll()"); assert.match(t.html('#broll-grid'), /No approved clips here yet/);
+t.run("brollPerson='Sarah';brollFilter='nursery';renderBroll()"); assert.match(t.html('#broll-grid'), /Bugaboo/); // unknown filter falls back to All
 assert.doesNotMatch(t.html('#broll-filters'), /Feeding/); // only categories that have clips
-assert.match(t.html('#broll-grid'), /Open in Drive/); assert.equal(t.el('#broll-access').innerHTML, ''); // signed-in creators open and copy clips
-{ const out = boot(undefined, false, new Map()); out.run("brollPerson='Taylor';renderBroll()");
+t.run("brollPerson='';renderBroll()"); assert.equal(t.html('#broll-grid'), '');
+t = boot(); t.run(`brollLive = { ok: true, total: 0, folders: [] }; brollState='done'; renderBroll()`); assert.match(t.html('#broll-folders'), /No folders yet/);
+// Signed out: the public preview stills only, and no Drive links anywhere (content.js holds none).
+{ const out = boot(undefined, false, new Map()); out.run('renderBroll()');
   assert.match(out.html('#broll-add'), /data-action="upload" data-dest="broll"/); // anyone can add footage
-  assert.match(out.html('#broll-grid'), /Inside Target/); // previews stay open
-  assert.doesNotMatch(out.html('#broll-grid') + out.html('#broll-folders'), /Open in Drive|Open folder in Drive|data-copy|drive\.google/); // but Drive links are for members
+  assert.match(out.html('#broll-folders'), /Taylor<\/strong><small>7 clips/); assert.match(out.html('#broll-folders'), /Sarah<\/strong><small>Clips for members/);
+  out.run("brollPerson='Taylor';renderBroll()"); assert.match(out.html('#broll-grid'), /Inside Target/);
+  out.run(`brollLive = ${JSON.stringify(LIVE)}; brollState='done'; renderBroll()`); // even if live data were somehow present, signed out shows none of it
+  assert.doesNotMatch(out.html('#broll-grid') + out.html('#broll-folders'), /Open in Drive|Open folder in Drive|data-copy|drive\.google|Bugaboo/);
   assert.match(out.el('#broll-access').innerHTML, /Creators Club members/); }
+assert.doesNotMatch(require('node:fs').readFileSync(root + '/content.js', 'utf8').split('brollFolders')[1].split('brollWanted')[0], /drive\.google|url:/); // no Drive links in the public file
 console.log('PASS: B-roll: anyone adds, members open and copy');
-t.run("brollFilter='strollers';renderBroll()");
-assert.doesNotMatch(t.html('#broll-grid'), /Aisle walk/);
-t = boot({ brollFolders: [{ name: 'Kristin', url: 'https://drive.google.com/drive/folders/k' }], brollClips: [] });
-t.run("brollPerson='Kristin';renderBroll()"); assert.match(t.html('#broll-grid'), /No clips here yet/);
 assert.ok(validate({ ...load(), brollFolders: [{ name: '' }] }).some(e => /needs a name/.test(e)));
 // Upload form: falls back to Drive links when uploadEndpoint is blank.
 t = boot({ uploadEndpoint: '' });
 assert.match(t.run('submissionHelp()'), /href="https:\/\/drive\.google\.com\/drive\/folders\/0ADqEscN50JTEUk9PVA"/);
-assert.match(t.html('#broll-add'), /href="https:\/\/drive\.google\.com\/drive\/folders\/[\w-]{20,}"/);
+assert.match(t.html('#broll-add'), /href="https:\/\/drive\.google\.com\/drive\/folders\/[\w-]{19,}"/); // uploads off: the submission folder
 assert.doesNotMatch(t.html('#casting-projects'), /data-action="upload"/);
 const EP = 'https://script.google.com/macros/s/AKfyc-test_123/exec';
 t = boot({ uploadEndpoint: EP });

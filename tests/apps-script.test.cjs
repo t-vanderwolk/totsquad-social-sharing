@@ -33,7 +33,7 @@ function fakeGoogle(props) {
     insertSheet(x) { const s = makeSheet(x); this.sheets.push(s); return s; }, setSpreadsheetTimeZone() {} }; books.set(id, book); return book; };
   const folders = new Map(), made = [];
   const folder = (id, name = id) => { if (!folders.has(id)) folders.set(id, { id, name, kids: new Map(), getId() { return this.id; }, getName() { return this.name; }, getUrl() { return 'https://drive.google.com/drive/folders/' + this.id; },
-    getParents: () => ({ hasNext: () => false }), getFoldersByName(n) { const f = this.kids.get(n); return { hasNext: () => !!f, next: () => f }; },
+    getParents: () => ({ hasNext: () => false }), isTrashed: () => false, getFoldersByName(n) { const f = this.kids.get(n); return { hasNext: () => !!f, next: () => f }; },
     createFolder(n) { const f = folder(this.id + '/' + n, n); this.kids.set(n, f); made.push(f.id); return f; } }); return folders.get(id); };
   const validation = { requireValueInList() { return this; }, setAllowInvalid() { return this; }, build() { return {}; } };
   const store = new Map(Object.entries(props));
@@ -459,3 +459,72 @@ assert.match(t6.post({ action: 'account-login', name: 'Kristin Smith', password:
   assert.equal(r.call.review, 'approved'); assert.equal(r.call.description[0], "'");
 }
 console.log('PASS: Creators Club 2.0 backend workflows');
+
+// B-roll library sync: approved folders only, signed-in creators only, no client-chosen folders, paging and a short cache.
+{
+  const LIB_OLD = '1Nl5OGfhaRJ1ltRYNNrJGiAFTia-lnYHS', LIB = '1Q6fuKOaiTbkB2vTT7koOgHbDQcNTSx5c', TAYLOR = '1SCiEs_VRfE0UbxVWFoMmftbynu2iUo0O', SARAH = '1GN0ZXqA2881MHN5dcLrNMI8c4AZ-YXls';
+  const t = boot({ MENTOR_PASSCODE: 'shared-test-pass', COORDINATOR_PASSCODE: 'Coord-123', ['C_' + LIB_OLD]: LIB });
+  const REVIEW = vm.runInContext('brollReviewFolder().getId()', t.ctx);
+  const drive = new Map([ // parent → items
+    [LIB, [{ id: SARAH, name: 'Sarah', mimeType: 'application/vnd.google-apps.folder' }, { id: TAYLOR, name: 'Taylor', mimeType: 'application/vnd.google-apps.folder' },
+      { id: 'stray-review', name: 'B-roll to review (old)', mimeType: 'application/vnd.google-apps.folder' }]],
+    [SARAH, [{ id: 'sv1', name: 'Bugaboo fold.mov', mimeType: 'video/quicktime', webViewLink: 'https://drive.google.com/file/d/sv1/view', thumbnailLink: 'https://lh3.googleusercontent.com/t1=s220', videoMediaMetadata: { durationMillis: '9400' } },
+      { id: 'sv2', name: 'Vista uppababy fold & walk.mov', mimeType: 'video/quicktime', webViewLink: 'https://drive.google.com/file/d/sv2/view' },
+      { id: 'sdoc', name: 'notes.txt', mimeType: 'text/plain' }]],
+    [TAYLOR, Array.from({ length: 205 }, (_, i) => ({ id: 'tv' + i, name: i === 0 ? 'B-roll - Halo' : i === 1 ? 'Lost' : 'strollers_one-hand-fold-' + i + '.mov', mimeType: 'video/mp4' }))],
+    [REVIEW, [{ id: 'pending1', name: 'Unreviewed.mov', mimeType: 'video/mp4' }]],
+    ['stray-review', [{ id: 'pending2', name: 'Old pending.mov', mimeType: 'video/mp4' }]]
+  ]);
+  const asked = [];
+  t.ctx.UrlFetchApp = { fetch: url => {
+    const u = new URL(url), q = u.searchParams.get('q'), parent = q.match(/'([^']+)' in parents/)[1]; asked.push(parent);
+    assert.equal(u.searchParams.get('supportsAllDrives'), 'true'); assert.equal(u.searchParams.get('includeItemsFromAllDrives'), 'true');
+    let items = (drive.get(parent) || []).filter(f => /mimeType = 'application\/vnd.google-apps.folder'/.test(q) ? f.mimeType === 'application/vnd.google-apps.folder' : /video\//.test(q) ? /^video\//.test(f.mimeType) : true);
+    const start = Number(u.searchParams.get('pageToken') || 0), page = items.slice(start, start + 200);
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ files: page, nextPageToken: start + 200 < items.length ? String(start + 200) : undefined }) };
+  } };
+  // Signed out, a wrong key, or the shared creator password: nothing.
+  for (const k of [undefined, '', 'acct.fake.key', 'shared-test-pass']) assert.equal(t.get({ action: 'broll-library', key: k }).locked, true, String(k));
+  assert.equal(asked.length, 0);
+  // Signed in: Taylor's and Sarah's approved folders, Sarah's two videos (not her text file), no review folders.
+  t.post({ action: 'admin-seed', key, coordKey: 'Coord-123', coordName: 'Sarah', members: [{ name: 'Sarah' }] });
+  const sk = t.post({ action: 'account-setup', agreed: true, key: 'shared-test-pass', name: 'Sarah Stewart', claim: 'Sarah', password: 'stroller-fold-9' }).key;
+  let r = t.get({ action: 'broll-library', key: sk });
+  assert.equal(r.ok, true); assert.deepEqual(r.folders.map(f => f.name), ['Sarah', 'Taylor']);
+  assert.ok(!JSON.stringify(r).includes('pending')); assert.ok(!asked.includes(REVIEW) && !asked.includes('stray-review'));
+  const sarah = r.folders.find(f => f.name === 'Sarah');
+  assert.equal(sarah.count, 2); assert.equal(sarah.url, 'https://drive.google.com/drive/folders/' + SARAH);
+  assert.deepEqual(sarah.clips.map(c => [c.title, c.category]), [['Bugaboo fold', 'strollers'], ['Vista uppababy fold & walk', 'strollers']]);
+  assert.equal(sarah.clips[0].url, 'https://drive.google.com/file/d/sv1/view'); assert.equal(sarah.clips[0].length, '0:09'); assert.match(sarah.clips[0].thumbnail, /=s400$/);
+  const taylor = r.folders.find(f => f.name === 'Taylor'); assert.equal(taylor.count, 205); // paged past 200
+  assert.deepEqual(taylor.clips.slice(0, 3).map(c => [c.title, c.category]), [['Halo', 'nursery'], ['Lost', 'other'], ['One hand fold 2', 'strollers']]); // unclear names stay "other"
+  assert.equal(r.total, 207); assert.ok(!('key' in r) && !JSON.stringify(r).includes('Coord-123'));
+  // Coordinators too. Cached: a second request doesn't go back to Drive; a coordinator refresh does.
+  const before = asked.length; assert.equal(t.get({ action: 'broll-library', key: 'Coord-123' }).ok, true); assert.equal(asked.length, before);
+  drive.get(SARAH).push({ id: 'sv3', name: 'car-seats_click.mov', mimeType: 'video/mp4' });
+  assert.equal(t.get({ action: 'broll-library', key: sk }).folders.find(f => f.name === 'Sarah').count, 2); // still cached
+  assert.equal(t.post({ action: 'admin-broll', key, coordKey: 'Sarah-wrong', coordName: 'Sarah' }).coordLocked, true);
+  assert.equal(t.post({ action: 'admin-broll', key, coordKey: 'Coord-123', coordName: 'Sarah' }).refreshed, true);
+  r = t.get({ action: 'broll-library', key: sk }); const s3 = r.folders.find(f => f.name === 'Sarah'); assert.equal(s3.count, 3); assert.equal(s3.clips[2].category, 'car-seats');
+  // Moved out of the folder: gone after the cache clears.
+  drive.set(SARAH, drive.get(SARAH).filter(f => f.id !== 'sv1')); vm.runInContext('brollRefresh()', t.ctx);
+  assert.deepEqual(t.get({ action: 'broll-library', key: sk }).folders.find(f => f.name === 'Sarah').clips.map(c => c.id), ['sv2', 'sv3']);
+  // A folder ID in the request is ignored: there is no way to ask for another folder.
+  vm.runInContext('brollRefresh()', t.ctx); const n = asked.length;
+  r = t.get({ action: 'broll-library', key: sk, folder: REVIEW, id: 'pending1', parent: REVIEW }); assert.ok(!JSON.stringify(r).includes('pending')); assert.ok(!asked.slice(n).includes(REVIEW));
+  // Extra approved folders (outside the library) come from the coordinators' list only, never the review folder.
+  assert.throws(() => vm.runInContext("addBrollFolder('Brollreview2026x', 'Sneaky')", t.ctx), /review folder/); // (the fake folder is named after its ID)
+  assert.throws(() => vm.runInContext(`addBrollFolder(${JSON.stringify(REVIEW)}, 'Sneaky')`, t.ctx));
+  drive.set('elsewhere01', [{ id: 'ev1', name: 'feeding_bottle-prep.mov', mimeType: 'video/mp4' }]);
+  vm.runInContext("addBrollFolder('elsewhere01', 'Kristin')", t.ctx);
+  r = t.get({ action: 'broll-library', key: sk }); const k = r.folders.find(f => f.name === 'Kristin'); assert.equal(k.count, 1); assert.equal(k.clips[0].category, 'feeding');
+  vm.runInContext("removeBrollFolder('elsewhere01')", t.ctx); assert.ok(!t.get({ action: 'broll-library', key: sk }).folders.some(f => f.name === 'Kristin'));
+  // A Drive error is reported, not cached.
+  t.ctx.UrlFetchApp = { fetch: () => ({ getResponseCode: () => 500, getContentText: () => '{}' }) }; vm.runInContext('brollRefresh()', t.ctx);
+  assert.match(t.get({ action: 'broll-library', key: sk }).error, /couldn’t load/);
+  // Uploads still land in the review folder, never the library.
+  t.ctx.UrlFetchApp = { fetch: (url, opts) => { t.g.made.push(JSON.parse(opts.payload).parents[0]); return { getHeaders: () => ({ Location: 'https://upload.example/x' }), getResponseCode: () => 200 }; } };
+  assert.equal(t.post({ action: 'broll-start', name: 'Pat', fileName: 'x.mov', type: 'video/mp4', size: 10, agreed: true }).ok, true);
+  assert.match(t.g.made[t.g.made.length - 1], /B-roll to review\/Pat$/);
+}
+console.log('PASS: B-roll library sync');

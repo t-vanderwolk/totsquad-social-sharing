@@ -4,7 +4,7 @@ A public, buildless GitHub Pages hub for Tot Squad Baby Specialists: one home fo
 
 ## Files
 - `index.html`: Creators Club home: hero with the newest published Reel covers, the four-step “How a Reel comes together” path, Casting now, This week + Toolkit, Made by the Squad, Meet the Squad and a closing call to action. Ideas live only on `ideas.html`.
-- `b-roll.html`: the B-roll library: clips by category with Open in Drive and Copy link, most-wanted shots and upload rules. Configure `brollFolderUrl`, `brollClips` and `brollWanted` in `content.js`.
+- `b-roll.html`: the B-roll library: one folder per specialist, clips by category with Open in Drive and Copy link, most-wanted shots and upload rules. Signed-in creators see the approved clips live from Drive (see "B-roll library sync" below); signed-out visitors see the public preview stills in `brollClips` and can still send clips. `content.js` holds no Drive links for B-roll.
 - `ideas.html`: the full Idea Bank with series filters, idea details and How we work. Links between the two pages keep `?embed=1`.
 - `styles.css`: one token-based stylesheet (brand tokens, series tints, components, embed mode, responsive rules).
 - `content.js`: all ideas, projects, events, people, deadlines and resources. **Edit this file for content changes.**
@@ -152,3 +152,16 @@ Two levels: **the Squad** (open to every specialist: casting, guides, B-roll, Ma
 - **Statuses:** applications Submitted / Under Review / Approved / Waitlisted / Declined; members Active / Paused / Needs Check-In / Inactive / Alumni; briefs Draft / Published / Archived; submissions Submitted / Counted / Needs changes.
 - **Participation:** a month is met with `requiredPosts` feed posts (reel, carousel or collab) and a week (Monday–Sunday) with `requiredStories` stories. Only whole weeks/months after joining count. Reminder/check-in thresholds are on the Settings tab. Older `themed`/`flexible` submissions read as feed posts. Standing (On track / Reminder / Needs review) is a suggestion; only coordinators change a member's status.
 - **Tests:** `node tests/apps-script.test.cjs` runs the backend workflows against in-memory sheets.
+
+## B-roll library sync
+
+The B-roll page lists approved clips straight from Google Drive, so nothing in this repo changes when a clip is approved.
+
+- **Endpoint:** `GET ?action=broll-library&key=…` in `apps-script/upload.gs`. Signed-in creators (their own password) and coordinators only; anything else gets `locked`. The request takes no folder ID.
+- **What it reads:** every folder directly inside the **B-Roll Library** folder in the Creators Club shared drive (`ROOTS.broll`, resolved with `moved()`), one per specialist, plus any folder a coordinator adds with `addBrollFolder('FOLDER_ID', 'Name')` in the Apps Script editor (for approved footage kept elsewhere; `removeBrollFolder` takes it off). Video files only, with paging. **B-roll to review** is never read: it sits at the shared drive's top level, and any folder named like it is skipped.
+- **Approving a clip:** in Drive, move the file from `B-roll to review / <Name>` into `B-Roll Library / <Name>` (make the specialist's folder there if it's their first approved clip). It shows on the page within 3 minutes, or right away with **Refresh from Drive** on the B-roll page (coordinators).
+- **Titles and categories:** the file name, tidied (`B-roll - Halo.mov` → `Halo`). Category comes from a `#category` tag in the file's Drive description, then the `category_what.mov` naming rule, then a few clear words in the name; anything unclear is **Other footage**.
+- **Thumbnails:** Drive's own short-lived thumbnails, sent only to signed-in creators. If one doesn't load (no access, or expired), the card shows its category illustration.
+- **Access:** listing a clip doesn't share it. Clips open in Drive only for Google accounts the shared drive already allows; the page tells creators to contact Sarah or Taylor if Drive asks them to request access. Sharing settings are never changed by the site.
+- **Check after deploying:** run `checkBrollLibrary` in the Apps Script editor (read-only); the log lists each folder, its clip count and categories.
+

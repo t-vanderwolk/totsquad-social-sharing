@@ -580,6 +580,7 @@ function doGet(e) {
   if (action === 'casting') return castingReply(e.parameter); // public calls for everyone; Creators Club calls only with a sign-in
   if (action && !isMentor(e.parameter.key)) return locked();
   if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // creators only
+  if (action === 'broll-library') return brollLibraryReply(e.parameter); // creators only: approved B-roll, synced from Drive
   if (action === 'club') { const me = accountName(e.parameter.key); return reply(clubForCreator(me ? rosterName(me) : clean(e.parameter.name))); }
   if (action === 'gate') return reply({ ok: true });
   if (action === 'activity') return reply({ ok: true, activity: readActivity() });
@@ -659,3 +660,106 @@ function childFolder(parent, name) {
 function clean(s) { return String(s || '').replace(/[^\p{L}\p{N} '’&.,#:()!?-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 80); }
 function cleanFile(s) { return String(s || '').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').trim().slice(0, 120) || 'clip'; }
 function reply(obj) { return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON); }
+
+/* ---------- B-roll library sync (b-roll.html, creators only) ----------
+   GET ?action=broll-library&key=…  Signed-in creators and coordinators only (doGet checks isMentor before this runs,
+   and this checks again). It lists APPROVED clips only:
+     - every folder directly inside the B-Roll Library (ROOTS.broll), one per specialist, and
+     - folders a coordinator added with addBrollFolder() (script property BROLL_EXTRA_FOLDERS), for approved
+       footage kept somewhere else in the shared drive.
+   Never "B-roll to review", which is where new uploads wait (it lives at the shared drive's top level, and any
+   folder named like it is skipped). The request takes no folder ID, so nobody can ask for another folder.
+   Approving a clip = moving it, in Drive, from B-roll to review / <Name> into B-Roll Library / <Name>.
+   The answer is cached for 3 minutes; brollRefresh() (or Coordinator tools > admin-broll) clears it. */
+const BROLL_CACHE = 'broll-library-v1', BROLL_TTL = 180, BROLL_MAX_FOLDERS = 60, BROLL_MAX_CLIPS = 300;
+const BROLL_CATS = ['aisles', 'strollers', 'car-seats', 'nursery', 'feeding', 'babywearing', 'registry', 'squad'];
+// Filename words → category. Conservative on purpose: anything unclear is "other" rather than a wrong label.
+const BROLL_WORDS = [
+  ['strollers', /\b(strollers?|wagons?|bugaboo|uppababy|vista|cruz|minu|joolz|nuna\s+(mixx|trvl|swiv)|bob\s+gear)\b/i],
+  ['car-seats', /\b(car[\s-]?seats?|carseats?|car seat base|isofix|latch)\b/i],
+  ['nursery', /\b(nursery|crib|bassinet|halo|sleep|swaddle|mattress|glider)\b/i],
+  ['feeding', /\b(feeding|bottles?|bibs?|pump(ing)?|high[\s-]?chair|formula|nursing pillow)\b/i],
+  ['babywearing', /\b(babywearing|carriers?|ergo|wrap|sling)\b/i],
+  ['registry', /\b(registry|scan(ning)?|target app)\b/i],
+  ['aisles', /\b(aisles?|inside target|store walk|shelf|shelves)\b/i],
+  ['squad', /\b(squad|tot squad shirt|totsquad shirt|entrance)\b/i]
+];
+function brollCategory(name, description) {
+  const tag = String(description || '').match(/#([a-z-]+)/i); if (tag && BROLL_CATS.indexOf(tag[1].toLowerCase()) >= 0) return tag[1].toLowerCase(); // a coordinator's #tag in the file's Drive description wins
+  const base = String(name || '').replace(/\.[a-z0-9]{2,4}$/i, ''), prefix = base.split('_')[0].toLowerCase().replace(/\s+/g, '-');
+  if (base.indexOf('_') > 0 && BROLL_CATS.indexOf(prefix) >= 0) return prefix; // the naming rule on the page: category_what.mov
+  const hits = BROLL_WORDS.filter(([, re]) => re.test(base.replace(/[_-]+/g, ' '))).map(([c]) => c);
+  return hits.length === 1 ? hits[0] : 'other'; // two different matches is a guess, so it isn't labelled
+}
+function brollTitle(name) {
+  let t = String(name || '').replace(/\.[a-z0-9]{2,4}$/i, '');
+  t = t.replace(/^(b[\s-]?roll)\s*[-–:]\s*/i, ''); // "B-roll - Halo" → "Halo"
+  const cat = t.split('_')[0].toLowerCase(); if (t.indexOf('_') > 0 && BROLL_CATS.indexOf(cat.replace(/\s+/g, '-')) >= 0) t = t.slice(t.indexOf('_') + 1);
+  t = t.replace(/[_]+/g, ' ').replace(/\s+-\s+/g, ' · ').replace(/(\w)-(?=\w)/g, '$1 ').replace(/\s+/g, ' ').trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Clip';
+}
+const brollLength = ms => { const s = Math.round(Number(ms) / 1000); return s > 0 ? Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') : ''; };
+// Drive API v3 list with paging (shared drives included).
+function driveList(q, fields, limit) {
+  const out = []; let page = '';
+  do {
+    const url = 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&includeItemsFromAllDrives=true&corpora=allDrives&pageSize=200&orderBy=name'
+      + '&q=' + encodeURIComponent(q) + '&fields=' + encodeURIComponent('nextPageToken,files(' + fields + ')') + (page ? '&pageToken=' + encodeURIComponent(page) : '');
+    const res = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) throw new Error('Drive list failed (' + res.getResponseCode() + ')');
+    const data = JSON.parse(res.getContentText()); (data.files || []).forEach(f => out.push(f)); page = data.nextPageToken || '';
+  } while (page && out.length < limit);
+  return out.slice(0, limit);
+}
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+const isReviewFolder = name => /review/i.test(String(name || '')) || String(name || '').trim() === BROLL_REVIEW;
+function brollExtraFolders() { try { const v = JSON.parse(PropertiesService.getScriptProperties().getProperty('BROLL_EXTRA_FOLDERS') || '[]'); return Array.isArray(v) ? v.filter(f => f && /^[\w-]{10,}$/.test(String(f.id))) : []; } catch (err) { return []; } }
+// The approved specialist folders: children of the B-Roll Library plus the coordinators' extra list. Never the review folder.
+function brollApprovedFolders() {
+  const review = (() => { try { const r = DriveApp.getFolderById(ROOTS.collab).getFoldersByName(BROLL_REVIEW); return r.hasNext() ? r.next().getId() : ''; } catch (err) { return ''; } })(); // look it up, never create it
+  const kids = driveList("'" + ROOTS.broll + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false", 'id,name', BROLL_MAX_FOLDERS)
+    .filter(f => f.id !== review && !isReviewFolder(f.name)).map(f => ({ id: f.id, name: f.name }));
+  brollExtraFolders().forEach(x => {
+    const id = moved(String(x.id)); if (id === review || id === ROOTS.collab || id === ROOTS.broll || kids.some(k => k.id === id)) return;
+    try { const f = DriveApp.getFolderById(id); if (!f.isTrashed() && !isReviewFolder(f.getName())) kids.push({ id: id, name: clean(x.name) || f.getName() }); } catch (err) { console.error('B-roll folder not found: ' + id); }
+  });
+  return kids.slice(0, BROLL_MAX_FOLDERS);
+}
+function readBrollLibrary() {
+  let total = 0;
+  const folders = brollApprovedFolders().map(f => {
+    const files = total >= BROLL_MAX_CLIPS ? [] : driveList("'" + f.id + "' in parents and trashed = false and mimeType contains 'video/'", 'id,name,mimeType,description,webViewLink,thumbnailLink,videoMediaMetadata(durationMillis)', BROLL_MAX_CLIPS - total);
+    total += files.length;
+    return { id: f.id, name: clean(f.name), url: 'https://drive.google.com/drive/folders/' + f.id, count: files.length,
+      clips: files.map(x => ({ id: x.id, title: brollTitle(x.name), mimeType: x.mimeType, url: x.webViewLink || 'https://drive.google.com/file/d/' + x.id + '/view',
+        category: brollCategory(x.name, x.description), thumbnail: x.thumbnailLink ? x.thumbnailLink.replace(/=s\d+$/, '=s400') : '', length: brollLength(x.videoMediaMetadata && x.videoMediaMetadata.durationMillis) })) };
+  });
+  return { ok: true, updated: new Date().toISOString(), libraryUrl: 'https://drive.google.com/drive/folders/' + ROOTS.broll, total: total, folders: folders };
+}
+function brollLibraryReply(params) {
+  if (!isMentor(params && params.key)) return locked(); // checked again here: never list clips without a sign-in
+  try {
+    const cache = CacheService.getScriptCache(), hit = cache.get(BROLL_CACHE);
+    if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
+    const out = JSON.stringify(readBrollLibrary());
+    if (out.length < 95000) cache.put(BROLL_CACHE, out, BROLL_TTL); // CacheService holds up to 100 KB per key
+    return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) { console.error(err); return reply({ ok: false, error: 'The B-roll library couldn’t load from Drive. Try again in a minute.' }); }
+}
+function brollRefresh() { CacheService.getScriptCache().remove(BROLL_CACHE); }
+// Coordinators: run from the editor to show approved footage kept outside the B-Roll Library, e.g. addBrollFolder('FOLDER_ID', 'Sarah').
+function addBrollFolder(id, name) {
+  id = String(id || '').trim(); if (!/^[\w-]{10,}$/.test(id)) throw new Error('Use the folder ID from its Drive link.');
+  const f = DriveApp.getFolderById(moved(id)); if (isReviewFolder(f.getName())) throw new Error('That looks like a review folder. Only approved folders can be listed.');
+  const list = brollExtraFolders().filter(x => x.id !== id); list.push({ id: id, name: clean(name) || f.getName() });
+  PropertiesService.getScriptProperties().setProperty('BROLL_EXTRA_FOLDERS', JSON.stringify(list)); brollRefresh(); return list;
+}
+function removeBrollFolder(id) { const list = brollExtraFolders().filter(x => x.id !== String(id)); PropertiesService.getScriptProperties().setProperty('BROLL_EXTRA_FOLDERS', JSON.stringify(list)); brollRefresh(); return list; }
+// Read-only check to run from the editor after deploying: which folders and how many clips the page will show.
+function checkBrollLibrary() {
+  const lib = readBrollLibrary();
+  console.log('B-Roll Library: ' + DriveApp.getFolderById(ROOTS.broll).getName() + ' (' + ROOTS.broll + ')');
+  lib.folders.forEach(f => console.log(f.name + ': ' + f.count + ' clips · ' + f.clips.map(c => c.title + ' [' + c.category + ']').join(', ')));
+  return lib.folders.map(f => ({ name: f.name, count: f.count }));
+}
+

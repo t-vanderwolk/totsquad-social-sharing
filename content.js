@@ -271,36 +271,26 @@ window.HUB_CONTENT = {
       disco: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjAwMDUx?drawerProfileId=VXNlcjozNzQzODAxMTk4ODEyOTYwNDkw&profileSettingsTab=profile' }
   ],
 
-  /* B-roll library (b-roll.html). brollFolderUrl: the shared Drive folder for clips (blank = the submission folder).
-     brollClips: { id, title, category, url (Drive file link), thumbnail ('images/…' or https), length ('0:08'), credit (first name) }.
+  /* B-roll library (b-roll.html). Signed-in creators see the APPROVED clips live from Drive: every specialist folder
+     inside the B-Roll Library, synced by the Apps Script (?action=broll-library). Nothing to add here when a clip is approved.
+     This file is public, so it holds no Drive links. For signed-out visitors it only lists:
+     brollFolders: specialist names, shown as folders (no links), and
+     brollClips: public preview stills { id, title, category, thumbnail ('images/…'), length ('0:08'), credit (first name) }.
      brollWanted is a starter shot list; edit it freely. Shots with a tip also appear on the landing page (the first three). */
-  brollFolderUrl: 'https://drive.google.com/drive/folders/1Q6fuKOaiTbkB2vTT7koOgHbDQcNTSx5c',
-  // One Drive folder per specialist who has sent clips. Clips show in a folder when their credit matches its name.
-
-brollFolders: [
-  {
-    name: 'Taylor',
-    url: 'https://drive.google.com/drive/folders/1SCiEs_VRfE0UbxVWFoMmftbynu2iUo0O'
-  },
-  {
-    name: 'Sarah',
-    url: 'https://drive.google.com/drive/folders/1GN0ZXqA2881MHN5dcLrNMI8c4AZ-YXls'
-  }
-],
-
+  brollFolders: [{ name: 'Taylor' }, { name: 'Sarah' }],
   brollCategories: [
     { id: 'aisles', label: 'In-store & aisles' }, { id: 'strollers', label: 'Strollers' }, { id: 'car-seats', label: 'Car seats' },
     { id: 'nursery', label: 'Nursery & sleep' }, { id: 'feeding', label: 'Feeding' }, { id: 'babywearing', label: 'Babywearing' },
     { id: 'registry', label: 'Registry moments' }, { id: 'squad', label: 'Squad life' }
   ],
   brollClips: [
-    { id: 'entrance', title: 'Store entrance in a Tot Squad shirt', category: 'squad', url: 'https://drive.google.com/file/d/1zbObm8ndEbcXwoTNOD_CVLRyvkfVqM53/view', thumbnail: 'images/broll-entrance.jpg', length: '0:11', credit: 'Taylor' },
-    { id: 'inside-target', title: 'Inside Target', category: 'aisles', url: 'https://drive.google.com/file/d/1gXyDBhfwkddNP9Tsp1-aCku1RJOKGYrS/view', thumbnail: 'images/broll-inside-target.jpg', length: '0:13', credit: 'Taylor' },
-    { id: 'lost', title: 'Lost in the aisles', category: 'aisles', url: 'https://drive.google.com/file/d/1IunScZssJOyYg9IhdMldf6EMJXveSu1j/view', thumbnail: 'images/broll-lost.jpg', length: '0:21', credit: 'Taylor' },
-    { id: 'wagons', title: 'Wagons', category: 'strollers', url: 'https://drive.google.com/file/d/1Nb8Zx3XdhOICtMyGzFwa2nKFnNEdNYvR/view', thumbnail: 'images/broll-wagons.jpg', length: '0:11', credit: 'Taylor' },
-    { id: 'halo', title: 'Halo bassinet', category: 'nursery', url: 'https://drive.google.com/file/d/1DQjM1YkaqhQmph-arTAFOKo2QGOb_blj/view', thumbnail: 'images/broll-halo.jpg', length: '0:06', credit: 'Taylor' },
-    { id: 'lalo-bibs', title: 'Lalo long-sleeve bibs', category: 'feeding', url: 'https://drive.google.com/file/d/1vJbjstmLvluY3I8qpZmRfbDvodwsE4Zp/view', thumbnail: 'images/broll-lalo-bibs.jpg', length: '0:09', credit: 'Taylor' },
-    { id: 'live-demo', title: 'Live demo', category: 'squad', url: 'https://drive.google.com/file/d/1cGZpmq45VzpuwDM5RDcdK-LbnWxIGVaW/view', thumbnail: 'images/broll-live-demo.jpg', length: '1:06', credit: 'Taylor' }
+    { id: 'entrance', title: 'Store entrance in a Tot Squad shirt', category: 'squad', thumbnail: 'images/broll-entrance.jpg', length: '0:11', credit: 'Taylor' },
+    { id: 'inside-target', title: 'Inside Target', category: 'aisles', thumbnail: 'images/broll-inside-target.jpg', length: '0:13', credit: 'Taylor' },
+    { id: 'lost', title: 'Lost in the aisles', category: 'aisles', thumbnail: 'images/broll-lost.jpg', length: '0:21', credit: 'Taylor' },
+    { id: 'wagons', title: 'Wagons', category: 'strollers', thumbnail: 'images/broll-wagons.jpg', length: '0:11', credit: 'Taylor' },
+    { id: 'halo', title: 'Halo bassinet', category: 'nursery', thumbnail: 'images/broll-halo.jpg', length: '0:06', credit: 'Taylor' },
+    { id: 'lalo-bibs', title: 'Lalo long-sleeve bibs', category: 'feeding', thumbnail: 'images/broll-lalo-bibs.jpg', length: '0:09', credit: 'Taylor' },
+    { id: 'live-demo', title: 'Live demo', category: 'squad', thumbnail: 'images/broll-live-demo.jpg', length: '1:06', credit: 'Taylor' }
   ],
   brollWanted: [
     { title: 'Slow walk down the baby aisle, wide', category: 'aisles', tip: 'Walk slowly; keep the phone steady.' },
