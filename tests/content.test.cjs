@@ -713,11 +713,17 @@ console.log('PASS: graphics');
 // Creators add ideas straight to the Idea Bank; B-roll Drive links come only from the signed-in endpoint.
 {
   const fs = require('node:fs');
-  assert.match(fs.readFileSync(root + '/ideas.html', 'utf8'), /<button class="button secondary" type="button" data-action="idea-new">Add an idea<\/button>/); // not coordinator-only any more
+  const ideasHtml = fs.readFileSync(root + '/ideas.html', 'utf8');
+  assert.match(ideasHtml, /<button class="button" type="button" data-action="idea-new">Add an idea<\/button>/); // every signed-in creator, not just coordinators
+  // Signed in, "Add an idea" replaces "Pitch an idea" everywhere; the public pitch box is for signed-out visitors.
+  assert.doesNotMatch(ideasHtml + fs.readFileSync(root + '/club.js', 'utf8'), /Pitch an idea|data-action="pitch"/);
+  assert.match(fs.readFileSync(root + '/index.html', 'utf8'), /<section class="crew-band"[^>]*data-mentor>[\s\S]*data-action="idea-new">Add an idea<\/button>/);
+  assert.doesNotMatch(fs.readFileSync(root + '/index.html', 'utf8').split('<section class="crew-band"')[1].split('</section>')[0], /data-action="pitch"/);
   const me = boot(); me.run("openPanel('idea-new')"); const f = me.html('#modal-body');
   assert.match(f, /id="idea-edit-form"/); assert.match(f, />Add idea</); assert.doesNotMatch(f, /id="ie-stage"/); assert.doesNotMatch(f, /id="ie-credit"/); assert.doesNotMatch(f, /id="ie-name"/); // you, as yourself; it starts as an idea
   assert.match(fs.readFileSync(root + '/club.js', 'utf8'), /const quick = [^\n]*data-action="idea-new">Add an idea<\/button>/); // dashboard quick action
-  me.run("openMyIdeas()"); assert.match(me.html('#modal-body'), /data-action="idea-new">Add an idea/);
+  me.run("openMyIdeas()"); assert.match(me.html('#modal-body'), /data-action="idea-new">Add an idea/); assert.doesNotMatch(me.html('#modal-body'), /data-action="pitch"/);
+  me.run("liveIdeas = []; ideasState = 'done'; renderIdeas()"); assert.match(me.html('#idea-grid'), /data-action="idea-new">Add an idea/); assert.doesNotMatch(me.html('#idea-grid'), /Pitch an idea/);
   const out = boot(undefined, false, new Map()); out.run("openIdeaEdit('')"); assert.doesNotMatch(out.html('#modal-body'), /idea-edit-form/); // signed out: no form
   // A preview still that somehow carried a Drive link never shows it; only clips from the signed-in endpoint do.
   const b = boot({ brollClips: [{ id: 'x', title: 'Preview', category: 'aisles', url: 'https://drive.google.com/file/d/leak/view', credit: 'Taylor' }] });

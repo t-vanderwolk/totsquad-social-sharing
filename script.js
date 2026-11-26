@@ -82,7 +82,7 @@ const openProjects = () => content.activeCollaborations.filter(p => p.status ===
 const publishedProjects = () => allProjects.filter(isPublished);
 /* Ideas come live from the Creators Club ideas sheet once a creator is signed in (loadIdeas); content.js is the fallback. */
 let liveIdeas = null;
-// The Idea Bank lives in a sheet: until it answers, show a loading state, never the empty "Pitch an idea" state.
+// The Idea Bank lives in a sheet: until it answers, show a loading state, never the empty "Add an idea" state.
 let ideasState = 'idle'; // idle | loading | done | failed
 const ideasPending = () => !liveIdeas && ['idle','loading'].includes(ideasState) && UPLOAD_ON() && !!mentorKey() && typeof fetch === 'function';
 // Expanded concepts from content.js fill in whatever an idea doesn't have yet (edits in the app always win).
@@ -372,7 +372,7 @@ function renderIdeas() {
   if (other.length) groups.push({ s: { id: 'other', label: 'More ideas' }, list: other });
   $('#idea-grid').innerHTML = groups.length
     ? groups.map(({s, list}) => `<section class="idea-group tint-${tintFor(list[0])}" aria-label="${escapeHTML(s.label)}"><h2><span class="dot" aria-hidden="true"></span>${escapeHTML(s.label)}<span class="count">${list.length}</span></h2>${s.description ? `<p class="quiet">${escapeHTML(s.description)}</p>` : ''}<div class="idea-list">${list.map(ideaCard).join('')}</div></section>`).join('')
-    : emptyState('The Idea Bank is open.','Pitch an idea and it can appear here once the team has reviewed it.','<button class="button" data-action="pitch">Pitch an idea</button>', ICON.bulb);
+    : emptyState('The Idea Bank is open.','Add an idea and it shows up here right away for the Squad to build on.','<button class="button" type="button" data-action="idea-new">Add an idea</button>', ICON.bulb);
 }
 
 // My ideas (and the dashboard card): ideas credited to you or led by you, by stage.
@@ -877,7 +877,7 @@ function openMyIdeas() {
     ${calls.length ? `<ul class="my-calls">${calls.map(callRow).join('')}</ul>` : '<p class="quiet">You haven’t posted a casting call yet. Post one to find creators for your idea.</p>'}` : ''}
     <h3>Drafts on this device</h3>
     ${drafts.length ? `<p class="quiet">Saved in this browser until you send them.</p><div class="draft-grid">${drafts.join('')}</div>` : '<p class="quiet">No unsent drafts on this device.</p>'}
-    <div class="button-row">${signedIn || isCoord() ? '<button class="button" type="button" data-action="idea-new">Add an idea</button><button class="button secondary" type="button" data-action="call-new">Post a casting call</button>' : ''}<button class="button secondary" type="button" data-action="pitch">Pitch an idea</button><a class="button secondary" href="${escapeHTML(pageUrl('ideas.html'))}">Open the Idea Bank</a></div>
+    <div class="button-row">${signedIn || isCoord() ? '<button class="button" type="button" data-action="idea-new">Add an idea</button><button class="button secondary" type="button" data-action="call-new">Post a casting call</button>' : '<button class="button secondary" type="button" data-action="pitch">Pitch an idea</button>'}<a class="button secondary" href="${escapeHTML(pageUrl('ideas.html'))}">Open the Idea Bank</a></div>
   </div>`;
   showModal();
 }

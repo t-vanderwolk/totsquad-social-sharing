@@ -53,7 +53,7 @@ function drawDashboard() {
   if (!club) { box.innerHTML = `<p class="quiet">${clubBusy ? 'Loading your Creators Club…' : ''}</p>`; return; }
   if (!club.ok) { box.innerHTML = '<p class="quiet">Your Creators Club dashboard couldn’t load right now. Try again in a minute.</p>'; return; }
   const name = clubName(), m = club.member, b = club.brief;
-  const quick = `<div class="club-quick" role="group" aria-label="Quick actions"><button class="button" type="button" data-action="pitch">Pitch an idea</button><button class="button secondary" type="button" data-action="idea-new">Add an idea</button><button class="button secondary" type="button" data-action="call-new">Post a casting call</button>${UPLOAD_ON() ? '<button class="button secondary" type="button" data-action="upload" data-dest="collab">Upload clips</button>' : ''}</div>`;
+  const quick = `<div class="club-quick" role="group" aria-label="Quick actions"><button class="button" type="button" data-action="idea-new">Add an idea</button><button class="button secondary" type="button" data-action="call-new">Post a casting call</button>${UPLOAD_ON() ? '<button class="button secondary" type="button" data-action="upload" data-dest="collab">Upload clips</button>' : ''}</div>`;
   const head = `<div class="club-head"><div><h2 id="dash-title">${name ? `Hi, ${escapeHTML(firstName(name))}!` : 'Your Creators Club'}</h2><p>${m ? escapeHTML(memberLine(m)) : 'Your brief, casting calls, ideas and standing, all in one place.'}</p></div>${namePickerHTML('club-name', name ? 'Not you?' : 'Who are you?')}</div>${name ? quick : ''}`;
   if (!name) { box.innerHTML = head + `<p class="quiet">Choose your name to see the current brief and your commitments.</p>`; return; }
   if (!m || ['Inactive', 'Alumni'].includes(m.status)) { box.innerHTML = head + outsiderCard(m) + `<div class="club-stack">${castingCard()}${myIdeasCard()}</div>`; return; }
@@ -120,7 +120,7 @@ function myIdeasCard() {
   const waiting = calls.filter(c => c.audience === 'public' && c.review === 'waiting').length, responses = calls.reduce((n, c) => n + (c.responses || 0), 0);
   return `<article class="club-card club-ideas" id="dash-ideas">
     <div class="club-ideas-head"><div><p class="club-kicker">My ideas</p><h3>${mine.length ? plural(mine.length, 'idea') : 'Your ideas live here'}</h3>
-      <p>${mine.length ? 'Credited to you or led by you, from first spark to published Reel.' : liveIdeas ? 'Pitch an idea, or take the lead on one in the Idea Bank, and it shows up here.' : 'Loading your ideas…'}</p></div>
+      <p>${mine.length ? 'Credited to you or led by you, from first spark to published Reel.' : liveIdeas ? 'Add an idea, or take the lead on one in the Idea Bank, and it shows up here.' : 'Loading your ideas…'}</p></div>
       <div class="button-row"><button class="button secondary" type="button" data-action="my-ideas">Open My ideas</button></div></div>
     <ol class="stage-track" aria-label="Your ideas by stage">${STAGE_ORDER.map(st => `<li class="stage-step stage-step-${st}"><b>${mine.filter(i => stageKey(i.stage) === st).length}</b><span>${STAGES[st]}</span></li>`).join('')}</ol>
     <p class="quiet">${calls.length ? `You have ${plural(calls.length, 'casting call')} open${waiting ? `, ${waiting} waiting for public approval` : ''} · ${plural(responses, 'response')} so far.` : 'You have no casting calls open. Post one to find creators for your idea.'}</p>
