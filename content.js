@@ -9,6 +9,8 @@ window.HUB_CONTENT = {
   squadChatUrl: 'https://ig.me/j/hTZzg7b07ZRFT3eU/',
   // Private Creator Circle channel in Disco (coordinators can override it in Coordinator tools > Settings).
   creatorCircleUrl: 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjM0ODYw',
+  // Tot Squad's Canva social templates (Instagram post, 4:5). Opening the link makes the viewer their own copy in Canva.
+  socialTemplatesUrl: 'https://canva.link/ifqvvtay28yrfmk',
   // Creators Club guidelines (from "Tot Squad Creator's Club: Purpose, Expectations, & Community Guidelines").
   // Shown in the toolkit, on the application and when a creator sets up their password. The tracking in
   // apps-script/club.gs follows the expectations: 1 feed post a month, 1 story a week, a brief every other week.

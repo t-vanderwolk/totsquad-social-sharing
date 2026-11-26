@@ -421,13 +421,14 @@ function renderDeadlines() {
   $('#deadlines').innerHTML = unique.length ? unique.map(d => `<div class="deadline-item"><strong>${escapeHTML(d.title)}</strong><time datetime="${d.date}">${dateLabel(d.date)} · ${escapeHTML(content.timeZone)}</time>${externalLink(d.url,'View details','text-button')}</div>`).join('') : '<p class="quiet">No deadlines have been announced. New dates show up here first.</p>';
 }
 
-const TOOL_ICON = { heart:'💜', palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝', bulb:'💡', wave:'👋' };
+const TOOL_ICON = { frame:'🖼️', heart:'💜', palette:'🎨', spark:'✨', check:'✅', upload:'📤', film:'🎬', board:'📋', calendar:'📅', draft:'📝', bulb:'💡', wave:'👋' };
 // Toolkit: everything opens inside the Creators Club (panels or pages in this site), never an outside link.
 function toolkitItems() {
   return [
     { label:'Brand & voice', action:'brand', desc:'Colors, fonts and how we sound', icon:'palette' },
     { label:'Starter guide', action:'guide', desc:'Turn a spark into a Reel', icon:'spark' },
     { label:'Before you share', action:'checklist', desc:'A quick final check', icon:'check' },
+    ...(publicUrl(content.socialTemplatesUrl) ? [{ label:'Social templates', action:'templates', desc:'Tot Squad’s Canva posts, ready for your photo', icon:'frame' }] : []),
     { label:'Creators Club guidelines', action:'guidelines', desc:'Our purpose, expectations and community', icon:'heart' },
     ...(UPLOAD_ON() ? [{ label:'Upload clips', action:'upload', dest:'collab', desc:'Send footage straight to the Squad’s Drive', icon:'upload' }] : []),
     { label:'Idea Bank', page:'ideas.html', desc:'Every Squad idea, ready to lead or build on', icon:'bulb' },
@@ -443,7 +444,7 @@ function toolTile(r) {
     : `<button type="button" class="tool" data-action="${escapeHTML(r.action)}"${r.dest ? ` data-dest="${escapeHTML(r.dest)}"` : ''}>${inner}</button>`;
 }
 // The three guides anyone can read on the landing page, no password.
-const PUBLIC_GUIDES = ['brand','guide','checklist','guidelines'];
+const PUBLIC_GUIDES = ['brand','guide','checklist','templates','guidelines'];
 const PUBLIC_PAGES = ['b-roll.html']; // the Idea Bank is for signed-in creators
 const isPublicTool = r => PUBLIC_GUIDES.includes(r.action) || PUBLIC_PAGES.includes(r.page);
 function renderGuides() { $('#public-guides').innerHTML = toolkitItems().filter(isPublicTool).map(toolTile).join(''); }
@@ -1424,6 +1425,7 @@ function openPanel(action,data={}) {
   if (action === 'reel') return openReel(data.reel);
   if (action === 'profile') return openProfile();
   if (action === 'guidelines') return openGuidelines();
+  if (action === 'templates') return openTemplates();
   if (action === 'reel-new') return openReelForm('', data);
   if (action === 'reel-edit') return openReelForm(data.rid);
   if (action === 'reel-delete') return openReelDelete(data.rid);
@@ -1481,6 +1483,22 @@ function guidelinesHTML() {
     <h3>Community guidelines</h3><p>To make this a valuable + welcoming space for everyone, we ask members to follow a few shared community principles:</p><ul>${pairs(g.principles)}</ul>
     <h3>Accountability & membership</h3><p><strong>${e(g.accountability)}</strong></p><ul>${(g.accountabilityPoints || []).map(x => `<li>${e(x)}</li>`).join('')}</ul>
     <h3>Our shared commitment</h3><p>${e(g.commitment)}</p><p><strong>Welcome to the Squad!</strong></p></div>`;
+}
+/* Tot Squad's social templates in Canva (content.socialTemplatesUrl). Described in words: the templates' sample photos stay in Canva. */
+const SOCIAL_TEMPLATES = [
+  ['Baby Specialist intro, four styles', 'Your photo, name and store, with “Book a FREE baby registry consultation” and totsquad.com/baby-concierge. Pick the photo banner, teal frame, lavender snapshot or round-photo look.'],
+  ['Quote card', 'A short, funny line about life with a baby, in a big quote frame. Swap in your own.'],
+  ['This or That', 'Two products side by side with a “real mom review” tag. Great for strollers, car seats or carriers.']
+];
+function openTemplates() {
+  title.textContent = 'Social templates';
+  body.innerHTML = `<p>Tot Squad’s ready-made Instagram posts (4:5), made in Canva. Make them yours in a few minutes.</p>
+    <ul class="template-list">${SOCIAL_TEMPLATES.map(([t, d]) => `<li><strong>${escapeHTML(t)}</strong><span>${escapeHTML(d)}</span></li>`).join('')}</ul>
+    <h3>How to use them</h3>
+    <ol class="cast-howto"><li>Open the templates. Canva adds your own copy to your account.</li><li>Swap in your headshot, your name and your store location.</li><li>Keep the Baby Concierge powered by Tot Squad logo and the totsquad.com/baby-concierge link.</li><li>Download it and post it as a feed post or a story.</li></ol>
+    <p class="flow-note">Use your own photos: no babies’ faces, clients or other shoppers.</p>
+    <div class="button-row">${externalLink(content.socialTemplatesUrl, 'Open the templates in Canva')}<button class="button secondary" type="button" data-action="brand">Brand &amp; voice</button></div>`;
+  showModal();
 }
 function openGuidelines() {
   title.textContent = 'Creators Club guidelines';

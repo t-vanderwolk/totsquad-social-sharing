@@ -590,3 +590,12 @@ console.log('PASS: creator casting calls, My ideas');
   L.run("ideasState = 'done'; renderIdeas();"); assert.match(L.html('#idea-grid'), /The Idea Bank is open/); // loaded and truly empty
 }
 console.log('PASS: Idea Bank loading state');
+
+// Social templates: a public resource that opens Tot Squad's Canva templates (no template photos on the site).
+{
+  const T = boot(); T.run('renderGuides()');
+  assert.match(T.html('#public-guides'), /data-action="templates"/); assert.match(T.html('#resource-links'), /Social templates/);
+  T.run("openPanel('templates')"); const m = T.html('#modal-body');
+  assert.match(m, /href="https:\/\/canva\.link\/ifqvvtay28yrfmk"/); assert.match(m, /This or That/); assert.doesNotMatch(m, /<img/);
+}
+console.log('PASS: social templates');
