@@ -576,7 +576,7 @@ console.log('PASS: claimed cards and applicants');
   // Signed in, the public sections (casting, published Reels, Meet the Squad, the path) are hidden.
   { const html = require('node:fs').readFileSync(root + '/index.html', 'utf8');
     for (const id of ['casting', 'made', 'squad']) assert.match(html, new RegExp(`<section class="section" id="${id}"[^>]*data-public>`), id);
-    assert.match(html, /<section class="path"[^>]*data-public>/); assert.match(html, /<li data-mentor><a href="#dash-casting">Casting calls<\/a><\/li>/); }
+    assert.match(html, /<section class="path[^"]*"[^>]*data-public>/); assert.match(html, /Submit B-roll anytime/); assert.doesNotMatch(html, /permission to use the footage/); assert.match(html, /<li data-mentor><a href="#dash-casting">Casting calls<\/a><\/li>/); }
   { const tab = c.run(`coordCalls({ calls: ${calls} })`); assert.match(tab, /Approve for the public page/); assert.match(tab, /data-coord-call="call-b" data-decision="club"/); assert.match(tab, /data-coord-call="call-c" data-decision="open">Reopen/); }
 }
 console.log('PASS: creator casting calls, My ideas');

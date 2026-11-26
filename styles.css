@@ -102,6 +102,12 @@ main{max-width:1320px;margin:0 auto;padding:var(--s6) var(--gutter) var(--s8)}
 .path :is(button,a)::before{content:counter(step);position:relative;z-index:1;display:grid;place-items:center;width:36px;height:36px;margin-bottom:var(--s3);border:2px solid var(--plum);border-radius:50%;background:var(--white);color:var(--plum);font-size:14px;font-weight:700}
 .path :is(button,a):hover::before{background:var(--plum);color:var(--white)}
 .path strong{font-size:16px;font-weight:700}
+.path>p{max-width:720px;margin:0 0 var(--s5);color:var(--body)}
+.path>p.path-note{margin:var(--s4) 0 0;font-size:14px;color:var(--muted)}
+.path .path-note a{display:inline;grid-template-columns:none;width:auto;color:var(--plum-text);font-weight:700;text-decoration:underline;text-underline-offset:3px}
+.path .path-note a::before{content:none}
+.path-two ol{grid-template-columns:repeat(2,minmax(0,1fr));max-width:900px}
+.path-two li:not(:last-child)::after{content:none}
 .path :is(button,a):hover strong{text-decoration:underline;text-underline-offset:3px}
 .path span{font-size:13px;line-height:1.5;color:var(--muted)}
 
