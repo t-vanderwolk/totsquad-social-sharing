@@ -46,13 +46,14 @@ function renderDashboard() {
   if (!club) { box.innerHTML = `<p class="quiet">${clubBusy ? 'Loading your Creators Club…' : ''}</p>`; return; }
   if (!club.ok) { box.innerHTML = '<p class="quiet">Your Creators Club dashboard couldn’t load right now. Try again in a minute.</p>'; return; }
   const name = clubName(), m = club.member, b = club.brief;
-  const head = `<div class="club-head"><div><h2 id="dash-title">${name ? `Hi, ${escapeHTML(firstName(name))}!` : 'Your Creators Club'}</h2><p>${m ? escapeHTML(memberLine(m)) : 'Your brief, feed posts, stories and standing, all in one place.'}</p></div>${namePickerHTML('club-name', name ? 'Not you?' : 'Who are you?')}</div>`;
+  const quick = `<div class="club-quick" role="group" aria-label="Quick actions"><button class="button" type="button" data-action="pitch">Pitch an idea</button><button class="button secondary" type="button" data-action="call-new">Post a casting call</button>${UPLOAD_ON() ? '<button class="button secondary" type="button" data-action="upload" data-dest="collab">Upload clips</button>' : ''}</div>`;
+  const head = `<div class="club-head"><div><h2 id="dash-title">${name ? `Hi, ${escapeHTML(firstName(name))}!` : 'Your Creators Club'}</h2><p>${m ? escapeHTML(memberLine(m)) : 'Your brief, casting calls, ideas and standing, all in one place.'}</p></div>${namePickerHTML('club-name', name ? 'Not you?' : 'Who are you?')}</div>${name ? quick : ''}`;
   if (!name) { box.innerHTML = head + `<p class="quiet">Choose your name to see the current brief and your commitments.</p>`; return; }
-  if (!m || ['Inactive', 'Alumni'].includes(m.status)) { box.innerHTML = head + outsiderCard(m); return; }
+  if (!m || ['Inactive', 'Alumni'].includes(m.status)) { box.innerHTML = head + outsiderCard(m) + `<div class="club-stack">${castingCard()}${myIdeasCard()}</div>`; return; }
   const part = club.participation || {}, week = part.thisWeek || { stories: 0 }, month = part.thisMonth || { posts: 0 };
   const req = club.settings || {}, need = n => Math.max(0, Number(n) || 0);
   const paused = m.status === 'Paused';
-  box.innerHTML = head + `<div class="club-grid">
+  box.innerHTML = head + `<div class="club-grid"><div class="club-main">
     <article class="club-card brief-card">${b ? `
       <p class="club-kicker">Current brief${weekRange(b) ? ` · ${escapeHTML(weekRange(b))}` : ''}</p>
       <h3>${escapeHTML(b.title || b.theme)}</h3>
@@ -62,7 +63,10 @@ function renderDashboard() {
       <div class="button-row"><button class="button" type="button" data-action="club-brief">Read the full brief</button></div>`
       : `<p class="club-kicker">Brief</p><h3>Coming soon</h3><p>A new brief with trending audios, hooks and ideas lands here every other week. Meanwhile, pick an idea from the Idea Bank or join a casting call.</p>`}
     </article>
-    <article class="club-card">
+    ${castingCard()}
+    ${myIdeasCard()}
+    </div><div class="club-side">
+    <article class="club-card club-commit">
       <p class="club-kicker">My commitments</p>
       ${paused ? `<p class="standing standing-paused">Paused${m.requestUntil ? ` until ${escapeHTML(shortDate(m.requestUntil))}` : ''}</p><p>Your history is saved. Come back whenever you’re ready.</p><div class="button-row"><button class="button secondary" type="button" data-action="club-request" data-type="resume">I’m back</button></div>` : `
       <ul class="club-progress">
@@ -73,7 +77,7 @@ function renderDashboard() {
       <div class="button-row"><button class="button" type="button" data-action="club-submit" data-kind="post">Log a feed post</button><button class="button secondary" type="button" data-action="club-submit" data-kind="story">Log a story</button></div>`}
       ${m.request ? `<p class="quiet">Your “${escapeHTML(m.request.toLowerCase())}” request is with the coordinators.</p>` : paused ? '' : `<p class="quiet club-pause"><button class="text-button" type="button" data-action="club-request" data-type="pause">Need a break? Request a pause</button></p>`}
     </article>
-    <article class="club-card">
+    <article class="club-card club-contrib">
       <p class="club-kicker">My contributions</p>
       ${(club.submissions || []).length ? `<ul class="club-subs">${club.submissions.slice(0, 5).map(subRow).join('')}</ul>` : '<p class="quiet">Nothing yet. Your published links show up here once you submit them.</p>'}
       ${part.weeksFinished || part.monthsFinished ? `<p class="quiet">${[part.monthsFinished ? `Feed posts: ${part.monthsMet} of ${plural(part.monthsFinished, 'month')}` : '', part.weeksFinished ? `stories: ${part.weeksMet} of ${plural(part.weeksFinished, 'week')}` : ''].filter(Boolean).join(' · ')} since you joined.</p>` : ''}
@@ -81,26 +85,38 @@ function renderDashboard() {
     </article>
     <article class="club-card club-links">
       <p class="club-kicker">Around the Club</p>
-      <a href="#casting"><span aria-hidden="true">📣</span><span><strong>Upcoming collaborations</strong>Reels looking for creators</span></a>
+      <a href="${escapeHTML(pageUrl('ideas.html'))}" data-tool-page="ideas.html" data-label="Idea Bank"><span aria-hidden="true">💡</span><span><strong>Idea Bank</strong>Every Squad idea, ready to lead or build on</span></a>
       <a href="#toolkit"><span aria-hidden="true">🧰</span><span><strong>Creator resources</strong>Footage, templates and guides</span></a>
       ${clubCircle() ? `<a href="${escapeHTML(clubCircle())}" target="_top"><span aria-hidden="true">🔒</span><span><strong>Creator Circle</strong>Our private channel in Disco</span></a>` : ''}
-      <a href="#made"><span aria-hidden="true">🌟</span><span><strong>Community highlights</strong>What the Squad has published</span></a>
       ${publicUrl(content.squadChatUrl) ? `<a href="${escapeHTML(publicUrl(content.squadChatUrl))}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">💬</span><span><strong>Squad group chat</strong>Our open Instagram chat</span></a>` : ''}
+      <button type="button" data-action="profile"><span aria-hidden="true">🙋</span><span><strong>Edit my bio</strong>How the Squad sees you</span></button>
     </article>
-    ${myIdeasCard()}
-  </div>${(club.upcoming || []).length ? `<p class="quiet club-next">Coming up: ${club.upcoming.map(u => `${escapeHTML(u.title || u.theme)} (${escapeHTML(weekRange(u))})`).join(' · ')}</p>` : ''}`;
+  </div></div>${(club.upcoming || []).length ? `<p class="quiet club-next">Coming up: ${club.upcoming.map(u => `${escapeHTML(u.title || u.theme)} (${escapeHTML(weekRange(u))})`).join(' · ')}</p>` : ''}`;
+}
+// Casting calls for you: every open call (the Squad's and those creators posted), with its action right here.
+function castingCard() {
+  if (typeof castingProjects !== 'function') return '';
+  const list = castingProjects();
+  const row = p => `<li class="cast-row"><div><span class="cast-who">${whoLabel(p)}</span><strong>${escapeHTML(p.title)}</strong>
+      <span class="quiet">${escapeHTML([p.lead ? `${p.posted ? 'Posted' : 'Led'} by ${p.lead}` : '', dateValid(p.submissionDeadline) ? 'Due ' + shortDate(p.submissionDeadline) : ''].filter(Boolean).join(' · '))}</span>
+      ${p.instructions ? `<span class="cast-what">${escapeHTML(p.instructions)}</span>` : ''}</div>
+    <div class="cast-acts">${p.openCall && UPLOAD_ON() ? `<button class="button" type="button" data-action="cast" data-project="${escapeHTML(p.id)}">${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'}</button>` : `<button class="button" type="button" data-action="collab" data-project="${escapeHTML(p.id)}">I’m interested</button>`}${p.posted && p.call.mine ? `<button class="text-button" type="button" data-action="call-edit" data-call="${escapeHTML(p.id)}">Edit</button>` : ''}</div></li>`;
+  return `<article class="club-card club-casting" id="dash-casting">
+    <div class="card-head"><p class="club-kicker">Casting calls${list.length ? ` <span class="count">${list.length}</span>` : ''}</p><button class="text-button" type="button" data-action="call-new">Post a casting call</button></div>
+    ${list.length ? `<ul class="cast-list">${list.map(row).join('')}</ul>` : '<p class="quiet">No calls are open right now. Post one to find creators for your idea.</p>'}
+  </article>`;
 }
 // My ideas on the dashboard: your ideas by stage and your casting calls, with the full list one tap away (script.js).
 function myIdeasCard() {
   if (typeof isMine !== 'function') return '';
   const mine = ideas().filter(isMine), calls = myCalls().filter(c => c.status !== 'closed' && c.open !== false);
   const waiting = calls.filter(c => c.audience === 'public' && c.review === 'waiting').length, responses = calls.reduce((n, c) => n + (c.responses || 0), 0);
-  return `<article class="club-card club-ideas">
+  return `<article class="club-card club-ideas" id="dash-ideas">
     <div class="club-ideas-head"><div><p class="club-kicker">My ideas</p><h3>${mine.length ? plural(mine.length, 'idea') : 'Your ideas live here'}</h3>
       <p>${mine.length ? 'Credited to you or led by you, from first spark to published Reel.' : liveIdeas ? 'Pitch an idea, or take the lead on one in the Idea Bank, and it shows up here.' : 'Loading your ideas…'}</p></div>
-      <div class="button-row"><button class="button" type="button" data-action="my-ideas">Open My ideas</button><button class="button secondary" type="button" data-action="call-new">Post a casting call</button></div></div>
+      <div class="button-row"><button class="button secondary" type="button" data-action="my-ideas">Open My ideas</button></div></div>
     <ol class="stage-track" aria-label="Your ideas by stage">${STAGE_ORDER.map(st => `<li class="stage-step stage-step-${st}"><b>${mine.filter(i => stageKey(i.stage) === st).length}</b><span>${STAGES[st]}</span></li>`).join('')}</ol>
-    <p class="quiet">${calls.length ? `${plural(calls.length, 'casting call')} open${waiting ? `, ${waiting} waiting for public approval` : ''} · ${plural(responses, 'response')} so far.` : 'No casting calls open. Post one to find creators for your idea.'}</p>
+    <p class="quiet">${calls.length ? `You have ${plural(calls.length, 'casting call')} open${waiting ? `, ${waiting} waiting for public approval` : ''} · ${plural(responses, 'response')} so far.` : 'You have no casting calls open. Post one to find creators for your idea.'}</p>
   </article>`;
 }
 function memberLine(m) {
@@ -130,7 +146,7 @@ function outsiderCard(m) {
   if (!a) return ''; // not on the roster and no application: nothing to nag about
   const line = !a ? ''
     : { 'Submitted': 'Your application is in. A coordinator will review it soon.', 'Under Review': 'Your application is being reviewed. A coordinator will reach out in Disco.', 'Waitlisted': 'You’re on the waitlist. We’ll reach out as soon as a spot opens.', 'Declined': 'Your application wasn’t approved this round. Reach out to a coordinator anytime.', 'Approved': 'You’re approved! Your dashboard appears as soon as a coordinator adds you to the roster.' }[a.status] || '';
-  return `<div class="club-card club-outside"><p class="club-kicker">${a ? `Application · ${escapeHTML(a.status)}` : 'Almost there'}</p><p>${escapeHTML(line)}</p><div class="button-row"><a class="button secondary" href="#casting">Casting calls</a><a class="button secondary" href="#toolkit">Toolkit</a></div></div>`;
+  return `<div class="club-card club-outside"><p class="club-kicker">${a ? `Application · ${escapeHTML(a.status)}` : 'Almost there'}</p><p>${escapeHTML(line)}</p><div class="button-row"><a class="button secondary" href="#dash-casting">Casting calls</a><a class="button secondary" href="#toolkit">Toolkit</a></div></div>`;
 }
 
 /* ---------- Brief, submissions and requests ---------- */

@@ -13,7 +13,7 @@
 <meta property="og:image" content="https://t-vanderwolk.github.io/totsquad-social-sharing/images/meet-the-squad.jpg">
 <meta property="og:image:alt" content="Tot Squad Baby Specialists in the Meet the Squad Reel">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="styles.css?v=20261125-10">
+<link rel="stylesheet" href="styles.css?v=20261125-11">
 <script>try{if(localStorage.getItem('totsquad-mentor-key'))document.documentElement.classList.add('unlocked')}catch(e){}</script>
 </head>
 <body>
@@ -78,11 +78,13 @@
   <nav class="section-nav" aria-label="On this page">
     <ul>
       <li data-mentor><a href="#dashboard">Dashboard</a></li>
-      <li><a href="#casting">Casting</a></li>
+      <li data-public><a href="#casting">Casting</a></li>
+      <li data-mentor><a href="#dash-casting">Casting calls</a></li>
+      <li data-mentor><a href="#dash-ideas">My ideas</a></li>
       <li data-mentor><a href="#toolkit">Toolkit</a></li>
       <li data-mentor><a href="ideas.html" data-tool-page="ideas.html" data-label="Idea Bank">Idea Bank</a></li>
       <li data-public><a href="#guides">Resources</a></li>
-      <li class="nav-squad"><a href="#squad">Squad</a></li>
+      <li class="nav-squad" data-public><a href="#squad">Squad</a></li>
       <li data-public><a href="#squad-pitch">Pitch an idea</a></li>
       <li data-public><a href="#mentor-signin">Sign in</a></li>
     </ul>
@@ -99,13 +101,15 @@
         <p class="menu-head">On this page</p>
         <div class="menu-list">
           <a data-mentor href="#dashboard"><span aria-hidden="true">🗒️</span>My dashboard</a>
-          <a href="#casting"><span aria-hidden="true">📣</span>Casting now</a>
+          <a data-public href="#casting"><span aria-hidden="true">📣</span>Casting now</a>
+          <a data-mentor href="#dash-casting"><span aria-hidden="true">📣</span>Casting calls</a>
+          <a data-mentor href="#dash-ideas"><span aria-hidden="true">💡</span>My ideas</a>
           <a data-mentor href="#toolkit"><span aria-hidden="true">🧰</span>Toolkit</a>
           <a data-mentor href="#week"><span aria-hidden="true">🗓️</span>This week</a>
           <a data-public href="#where"><span aria-hidden="true">🧭</span>Where everything lives</a>
           <a data-public href="#guides"><span aria-hidden="true">📖</span>Creator resources</a>
-          <a href="#made"><span aria-hidden="true">🌟</span>Made by the Squad</a>
-          <a href="#squad"><span aria-hidden="true">👯</span>Meet the Squad</a>
+          <a data-public href="#made"><span aria-hidden="true">🌟</span>Made by the Squad</a>
+          <a data-public href="#squad"><span aria-hidden="true">👯</span>Meet the Squad</a>
           <a data-public href="#squad-pitch"><span aria-hidden="true">💬</span>Pitch an idea</a>
         </div>
         <p class="menu-head" data-mentor>Tools</p>
@@ -129,15 +133,9 @@
     <div id="club-dash"><h2 id="dash-title" class="sr-only">Your Creators Club</h2></div>
   </section>
 
-  <section class="path" aria-labelledby="path-title">
+  <section class="path" aria-labelledby="path-title" data-public>
     <h2 id="path-title">How a Reel comes together</h2>
-    <ol data-mentor>
-      <li><button type="button" data-action="pitch"><strong>Pitch an idea</strong><span>Share a concept. The team adds it to the Idea Bank.</span></button></li>
-      <li><button type="button" data-action="collab"><strong>Join a Reel</strong><span>Raise your hand for an open casting call.</span></button></li>
-      <li><button type="button" data-action="upload" data-dest="collab"><strong>Upload your clip</strong><span>Send it right here. No links needed.</span></button></li>
-      <li><button type="button" data-action="share"><strong>Share it</strong><span>Post, like and reshare once it’s live.</span></button></li>
-    </ol>
-    <ol data-public>
+    <ol>
       <li><a href="#squad-pitch"><strong>Pitch an idea</strong><span>Anyone can share a concept. Sarah and Taylor read every one.</span></a></li>
       <li><a href="#casting"><strong>Join a Reel</strong><span>Creators raise a hand for an open casting call.</span></a></li>
       <li><a href="#casting"><strong>Film your part</strong><span>Follow the steps and send your clip right here.</span></a></li>
@@ -160,8 +158,8 @@
 
   <noscript><p>Please enable JavaScript to view collaborations and the draft tools.</p></noscript>
 
-  <section class="section" id="casting" aria-labelledby="casting-title">
-    <div class="section-head"><div><h2 id="casting-title">Casting now</h2><p>Reels that need creators. Each call says who can join it.</p></div><div class="button-row" data-mentor><button class="button secondary" type="button" data-action="call-new">Post a casting call</button></div></div>
+  <section class="section" id="casting" aria-labelledby="casting-title" data-public>
+    <div class="section-head"><div><h2 id="casting-title">Casting now</h2><p>Reels that need creators. Each call says who can join it.</p></div></div>
     <div id="casting-projects"></div>
   </section>
 
@@ -191,12 +189,12 @@
     <div class="tool-grid guide-grid" id="public-guides"></div>
   </section>
 
-  <section class="section" id="made" aria-labelledby="gallery-title">
+  <section class="section" id="made" aria-labelledby="gallery-title" data-public>
     <div class="section-head"><div><h2 id="gallery-title">Made by the Squad</h2><p>Reels the Squad has published. Watch, share and cheer each other on.</p></div></div>
     <div class="gallery" id="project-gallery"></div>
   </section>
 
-  <section class="section" id="squad" aria-labelledby="squad-title">
+  <section class="section" id="squad" aria-labelledby="squad-title" data-public>
     <div class="section-head"><div><h2 id="squad-title">Meet the Squad</h2><p>The specialists behind the Reels.</p></div></div>
     <div class="squad-grid" id="squad-grid"></div>
   </section>
@@ -239,9 +237,9 @@
   <p id="status" role="status" aria-live="polite"></p>
 </dialog>
 
-<script src="content.js?v=20261125-10" defer></script>
-<script src="reels-data.js?v=20261125-10" defer></script>
-<script src="script.js?v=20261125-10" defer></script>
-<script src="club.js?v=20261125-10" defer></script>
+<script src="content.js?v=20261125-11" defer></script>
+<script src="reels-data.js?v=20261125-11" defer></script>
+<script src="script.js?v=20261125-11" defer></script>
+<script src="club.js?v=20261125-11" defer></script>
 </body>
 </html>

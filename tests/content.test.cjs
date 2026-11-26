@@ -569,7 +569,14 @@ console.log('PASS: claimed cards and applicants');
   assert.match(o.html('#casting-projects'), /Bath Time Tips/); assert.match(o.html('#casting-projects'), /Open to every specialist, no sign-in/); assert.doesNotMatch(o.html('#casting-projects'), /call-edit/);
   // Dashboard card and coordinator review (club.js).
   c.run(require('node:fs').readFileSync(root + '/club.js', 'utf8'));
-  { const card = c.run('myIdeasCard()'); assert.match(card, /2 ideas/); assert.match(card, /1 casting call open, 1 waiting for public approval/); assert.match(card, /data-action="call-new"/); }
+  { const card = c.run('myIdeasCard()'); assert.match(card, /2 ideas/); assert.match(card, /1 casting call open, 1 waiting for public approval/); assert.match(card, /data-action="my-ideas"/); }
+  // Casting calls live on the dashboard once signed in: every open call, with its action and Edit for your own.
+  { const cc = c.run('castingCard()'); assert.match(cc, /id="dash-casting"/); assert.match(cc, /Stroller Fold Race/); assert.match(cc, /Car Seat Myths/); assert.doesNotMatch(cc, /Closed One/);
+    assert.match(cc, /Meet the Squad, Part 2/); assert.match(cc, /data-action="call-edit" data-call="call-b"/); assert.match(cc, /data-action="call-new"/); }
+  // Signed in, the public sections (casting, published Reels, Meet the Squad, the path) are hidden.
+  { const html = require('node:fs').readFileSync(root + '/index.html', 'utf8');
+    for (const id of ['casting', 'made', 'squad']) assert.match(html, new RegExp(`<section class="section" id="${id}"[^>]*data-public>`), id);
+    assert.match(html, /<section class="path"[^>]*data-public>/); assert.match(html, /<li data-mentor><a href="#dash-casting">Casting calls<\/a><\/li>/); }
   { const tab = c.run(`coordCalls({ calls: ${calls} })`); assert.match(tab, /Approve for the public page/); assert.match(tab, /data-coord-call="call-b" data-decision="club"/); assert.match(tab, /data-coord-call="call-c" data-decision="open">Reopen/); }
 }
 console.log('PASS: creator casting calls, My ideas');

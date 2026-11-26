@@ -729,7 +729,7 @@ function openCallForm(id = '', ideaId = '') {
       const pub = res.call.audience === 'public', waiting = pub && res.call.review === 'waiting';
       title.textContent = c ? 'Casting call saved' : 'Your casting call is up';
       body.innerHTML = `<div class="cast-done"><h3>${escapeHTML(res.call.title)}</h3><p>${waiting ? 'It’s live for the Creators Club now. Taylor, Sarah or Linden will look it over before it goes on the public page.' : pub ? 'It’s live for every Tot Squad specialist, signed in or not.' : 'It’s live for signed-in Creators Club members.'} Videos people send land in the Squad’s Drive under its title.</p>
-        <div class="button-row"><a class="button" href="${escapeHTML(pageUrl('index.html'))}#casting">See it in Casting now</a><button class="button secondary" type="button" data-action="my-ideas">My ideas</button></div></div>`;
+        <div class="button-row"><a class="button" href="${escapeHTML(pageUrl('index.html'))}#dash-casting">See it on your dashboard</a><button class="button secondary" type="button" data-action="my-ideas">My ideas</button></div></div>`;
       loadActivity();
     } catch (err) { status.textContent = err.message || 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = label; }
   };
