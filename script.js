@@ -2199,8 +2199,14 @@ const signinDialog = () => document.getElementById ? document.getElementById('si
 function openSignin(note = '', from) {
   const d = signinDialog(); if (!d || !d.showModal) return;
   const n = document.getElementById('signin-note'); if (n) n.textContent = note;
-  if (!d.open) { signinOpener = from || document.activeElement; d.showModal(); placeModal(d); }
-  setTimeout(() => document.getElementById('signin-name')?.focus(), 0);
+  if (!d.open) {
+    signinOpener = from || document.activeElement;
+    // Place it before opening: showModal focuses inside the dialog at once, and in Disco's tall frame a dialog still
+    // centred in the frame would make Disco scroll to it. Before the frame knows what's on screen, use its top.
+    placeModal(d); if (EMBED && !onScreen && d.style) { d.style.marginTop = '24px'; d.style.marginBottom = 'auto'; }
+    d.showModal(); placeModal(d);
+  }
+  setTimeout(() => document.getElementById('signin-name')?.focus({ preventScroll: true }), 0);
 }
 function closeSignin(restore = true) {
   const d = signinDialog(); if (!d || !d.open) return;
