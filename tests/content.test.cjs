@@ -580,3 +580,13 @@ console.log('PASS: claimed cards and applicants');
   { const tab = c.run(`coordCalls({ calls: ${calls} })`); assert.match(tab, /Approve for the public page/); assert.match(tab, /data-coord-call="call-b" data-decision="club"/); assert.match(tab, /data-coord-call="call-c" data-decision="open">Reopen/); }
 }
 console.log('PASS: creator casting calls, My ideas');
+
+// Idea Bank while the sheet loads: placeholders, never the empty "Pitch an idea" state; a failed load says so.
+{
+  const L = boot({ ideas: [] });
+  L.run("globalThis.fetch = () => new Promise(() => {}); liveIdeas = null; ideasState = 'loading'; renderIdeas();");
+  assert.match(L.html('#idea-grid'), /idea-loading/); assert.doesNotMatch(L.html('#idea-grid'), /The Idea Bank is open/); assert.equal(L.html('#idea-filters'), '');
+  L.run("ideasState = 'failed'; renderIdeas();"); assert.match(L.html('#idea-grid'), /didn’t load/); assert.match(L.html('#idea-grid'), /data-ideas-retry/);
+  L.run("ideasState = 'done'; renderIdeas();"); assert.match(L.html('#idea-grid'), /The Idea Bank is open/); // loaded and truly empty
+}
+console.log('PASS: Idea Bank loading state');

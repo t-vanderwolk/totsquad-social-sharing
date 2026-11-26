@@ -82,6 +82,9 @@ const openProjects = () => content.activeCollaborations.filter(p => p.status ===
 const publishedProjects = () => allProjects.filter(isPublished);
 /* Ideas come live from the Creators Club ideas sheet once a creator is signed in (loadIdeas); content.js is the fallback. */
 let liveIdeas = null;
+// The Idea Bank lives in a sheet: until it answers, show a loading state, never the empty "Pitch an idea" state.
+let ideasState = 'idle'; // idle | loading | done | failed
+const ideasPending = () => !liveIdeas && ['idle','loading'].includes(ideasState) && UPLOAD_ON() && !!mentorKey() && typeof fetch === 'function';
 // Expanded concepts from content.js fill in whatever an idea doesn't have yet (edits in the app always win).
 const withConcept = i => { const x = (content.ideaConcepts || {})[i.id]; if (!x) return i; const o = {...i};
   if (!o.concept && x.concept) o.concept = x.concept;
@@ -233,6 +236,16 @@ function ideaCard(i) {
 }
 function renderIdeas() {
   const all = ideas();
+  if (!all.length && ideasPending()) { // still loading: placeholder groups, no filters, no empty state
+    $('#idea-summary').textContent = ''; $('#idea-filters').innerHTML = '';
+    $('#idea-grid').innerHTML = `<p class="sr-only" role="status">Loading the Idea Bank…</p>${[3, 2, 1].map(n => `<div class="idea-group idea-loading" aria-hidden="true"><span class="sk sk-head"></span><div class="idea-list">${'<span class="sk sk-tile"></span>'.repeat(n)}</div></div>`).join('')}`;
+    return;
+  }
+  if (!all.length && ideasState === 'failed') {
+    $('#idea-summary').textContent = ''; $('#idea-filters').innerHTML = '';
+    $('#idea-grid').innerHTML = emptyState('The Idea Bank didn’t load.', 'Check your connection and try again in a minute.', '<button class="button" type="button" data-ideas-retry>Try again</button>', ICON.bulb);
+    return;
+  }
   const count = id => id === 'all' ? all.length : all.filter(i => i.series === id).length;
   const people = new Set(all.flatMap(i => credits(i.credit)));
   $('#idea-summary').textContent = all.length ? `${all.length} ideas from ${people.size} specialists.` : '';
@@ -1547,10 +1560,13 @@ function rerenderIdeas() {
 }
 async function loadIdeas() {
   if (!UPLOAD_ON() || !mentorKey() || typeof fetch !== 'function') return;
+  ideasState = 'loading';
   try {
     const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=ideas&key=${encodeURIComponent(mentorKey())}`); const data = await res.json(); // creators only
-    if (data.ok && Array.isArray(data.ideas) && data.ideas.length) { liveIdeas = data.ideas; rerenderIdeas(); }
-  } catch {}
+    if (data.ok && Array.isArray(data.ideas) && data.ideas.length) liveIdeas = data.ideas;
+    ideasState = data.ok ? 'done' : 'failed';
+  } catch { ideasState = 'failed'; }
+  rerenderIdeas();
 }
 function upsertIdea(idea) {
   if (!idea || !idea.id) return;
@@ -1809,6 +1825,7 @@ document.addEventListener('click', e => {
   if (cs && castProject) { status.textContent = ''; openCast(castProject, +cs.dataset.castStep); return; }
   const more = t.closest('[data-bio]');
   if (more) { const open = more.getAttribute('aria-expanded') !== 'true'; more.setAttribute('aria-expanded', String(open)); more.textContent = open ? 'Show less' : 'Read more'; more.closest('.person')?.classList.toggle('open', open); return; }
+  if (t.closest('[data-ideas-retry]')) { ideasState = 'idle'; renderIdeas(); loadIdeas(); return; }
   const filter = t.closest('[data-filter]');
   if (filter) { ideaFilter = filter.dataset.filter; renderIdeas(); document.querySelector(`[data-filter="${CSS.escape(ideaFilter)}"]`)?.focus(); return; }
   const dismiss = t.closest('[data-dismiss]');

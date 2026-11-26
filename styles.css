@@ -586,6 +586,7 @@ html.unlocked [data-public]{display:none!important}
 
 /* Idea Bank: same pieces as the Reels board (segmented tabs, linen groups, compact white cards) */
 .series-switch{display:flex;flex-wrap:wrap;width:fit-content;max-width:100%;margin-bottom:var(--s5);border-radius:22px}
+.series-switch:empty{display:none}
 .series-switch button{min-height:38px;padding:0 var(--s4);border:0;border-radius:100px;background:none;font-size:14px;font-weight:700;color:var(--plum-text);cursor:pointer}
 .series-switch button .count{font-weight:600;color:var(--muted);margin-left:2px}
 .series-switch button[aria-pressed=true]{background:var(--white);color:var(--plum-ink);box-shadow:0 1px 4px #3b213922}
@@ -606,6 +607,11 @@ html.unlocked [data-public]{display:none!important}
 .idea-body strong{font-size:14px;line-height:1.3;color:var(--plum-ink)}
 .idea-sum{font-size:13px;line-height:1.45;color:var(--body);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .reel-card-meta .new{color:var(--plum);font-weight:700}
+.idea-loading .sk{display:block;border-radius:var(--r-sm);background:linear-gradient(90deg,var(--line-soft) 0%,var(--white) 50%,var(--line-soft) 100%);background-size:200% 100%;animation:sk 1.4s ease-in-out infinite}
+.idea-loading .sk-head{width:180px;height:16px;margin:2px 0 var(--s3)}
+.idea-loading .sk-tile{height:92px;border:1px solid var(--line-soft)}
+@keyframes sk{from{background-position:100% 0}to{background-position:-100% 0}}
+@media (prefers-reduced-motion:reduce){.idea-loading .sk{animation:none}}
 .stage-step-idea{--stage:#c9b8c6}.stage-step-casting{--stage:var(--teal)}.stage-step-filming{--stage:#e8a083}
 .stage-step-editing{--stage:var(--plum)}.stage-step-published{--stage:var(--teal-dark)}
 /* My ideas: your ideas by stage, your casting calls, drafts on this device */
