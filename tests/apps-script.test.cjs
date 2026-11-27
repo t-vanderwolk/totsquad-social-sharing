@@ -528,3 +528,63 @@ console.log('PASS: Creators Club 2.0 backend workflows');
   assert.match(t.g.made[t.g.made.length - 1], /B-roll to review\/Pat$/);
 }
 console.log('PASS: B-roll library sync');
+
+// Casting call videos: signed-in creators see every call's videos; only folders named after a casting call are read;
+// each call folder is shared link-viewable once; nothing without a sign-in.
+{
+  const ROOT = '0ADqEscN50JTEUk9PVA', PT = 'passToyFolder01', REV = 'reviewFolder001';
+  const t = boot();
+  t.post({ action: 'admin-seed', key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Sarah', members: [{ name: 'Kristin' }] });
+  const kk = t.post({ action: 'account-setup', agreed: true, key: 'shared-test-pass', name: 'Kristin Smith', claim: 'Kristin', password: 'squad-pass-1' }).key;
+  const due = new Date(Date.now() + 10 * 864e5).toISOString().slice(0, 10);
+  assert.equal(t.post({ action: 'call-save', key: kk, call: { title: 'Stroller Fold Race', description: 'Fastest fold wins.', instructions: 'Film one fold.', deadline: due, audience: 'network' } }).ok, true);
+  const F = 'application/vnd.google-apps.folder';
+  const drive = new Map([
+    [ROOT, [{ id: PT, name: 'Meet the Squad, Part 2: Pass the Toy', mimeType: F }, { id: 'raceFolder00001', name: 'stroller fold race', mimeType: F },
+      { id: REV, name: 'B-roll to review', mimeType: F }, { id: 'collabFolder001', name: 'Some brand collab', mimeType: F }]],
+    [PT, [{ id: 'kristinFolder01', name: 'Kristin', mimeType: F }, { id: 'patFolder000001', name: 'Pat', mimeType: F }]],
+    ['kristinFolder01', [{ id: 'kv1', name: 'pass the toy take 2.mov', mimeType: 'video/quicktime', createdTime: '2026-11-20T10:00:00Z', webViewLink: 'https://drive.google.com/file/d/kv1/view', thumbnailLink: 'https://lh3.googleusercontent.com/k=s220', videoMediaMetadata: { durationMillis: '12000' } },
+      { id: 'kdoc', name: 'answers.txt', mimeType: 'text/plain' }]],
+    ['patFolder000001', [{ id: 'pv1', name: 'IMG_0042.MOV', mimeType: 'video/quicktime', createdTime: '2026-11-25T10:00:00Z' }]],
+    ['raceFolder00001', [{ id: 'rf1', name: 'Kristin', mimeType: F }]],
+    ['rf1', [{ id: 'rv1', name: 'fold.mp4', mimeType: 'video/mp4', createdTime: '2026-11-26T10:00:00Z' }]],
+    [REV, [{ id: 'pendingB', name: 'Unreviewed.mov', mimeType: 'video/mp4' }]],
+    ['collabFolder001', [{ id: 'collabV', name: 'brand.mov', mimeType: 'video/mp4' }]]
+  ]);
+  const asked = [], shared = [];
+  t.ctx.UrlFetchApp = { fetch: (url, opts) => {
+    const u = new URL(url);
+    if (/\/permissions$/.test(u.pathname)) { assert.equal(opts.method, 'post'); assert.equal(u.searchParams.get('supportsAllDrives'), 'true'); assert.deepEqual(JSON.parse(opts.payload), { role: 'reader', type: 'anyone', allowFileDiscovery: false }); shared.push(decodeURIComponent(u.pathname.split('/')[4])); return { getResponseCode: () => 200, getContentText: () => '{}' }; }
+    const q = u.searchParams.get('q'), parent = q.match(/'([^']+)' in parents/)[1]; asked.push(parent);
+    const items = (drive.get(parent) || []).filter(f => /mimeType = 'application\/vnd.google-apps.folder'/.test(q) ? f.mimeType === F : /video\//.test(q) ? /^video\//.test(f.mimeType) : true);
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ files: items }) };
+  } };
+  for (const k of [undefined, '', 'acct.fake.key', 'shared-test-pass']) assert.equal(t.get({ action: 'cast-videos', key: k }).locked, true, String(k));
+  assert.equal(asked.length + shared.length, 0);
+  let r = t.get({ action: 'cast-videos', key: kk });
+  assert.equal(r.ok, true); assert.deepEqual(r.calls.map(c => [c.title, c.count]), [['Meet the Squad, Part 2: Pass the Toy', 2], ['Stroller Fold Race', 1]]); // folder names match calls case-insensitively
+  const pt = r.calls[0];
+  assert.deepEqual(pt.videos.map(v => [v.from, v.id]), [['Pat', 'pv1'], ['Kristin', 'kv1']]); // newest first, text file left out
+  assert.equal(pt.videos[1].title, 'Pass the toy take 2'); assert.equal(pt.videos[1].length, '0:12'); assert.match(pt.videos[1].thumbnail, /=s400$/);
+  assert.equal(pt.videos[0].url, 'https://drive.google.com/file/d/pv1/view'); assert.equal(pt.url, 'https://drive.google.com/drive/folders/' + PT); assert.equal(pt.shared, true);
+  const text = JSON.stringify(r); assert.ok(!text.includes('pendingB') && !text.includes('collabV'));
+  assert.ok(!asked.includes(REV) && !asked.includes('collabFolder001')); // only casting call folders are read
+  assert.deepEqual(shared.sort(), [PT, 'raceFolder00001'].sort()); // call folders only, never the review folder or the shared drive
+  // Cached, and folders are shared once: a coordinator refresh reads Drive again without re-sharing.
+  const n = asked.length; t.get({ action: 'cast-videos', key: 'Coord-123' }); assert.equal(asked.length, n);
+  assert.equal(t.post({ action: 'admin-cast-videos', key: 'Coord-123', coordKey: 'nope', coordName: 'Sarah' }).coordLocked, true);
+  assert.equal(t.post({ action: 'admin-cast-videos', key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Sarah' }).refreshed, true);
+  drive.get('patFolder000001').push({ id: 'pv2', name: 'second.mov', mimeType: 'video/mp4', createdTime: '2026-11-26T12:00:00Z' });
+  assert.equal(t.get({ action: 'cast-videos', key: kk }).calls[0].count, 3); assert.equal(shared.length, 2);
+  // No folder parameters: the request can't point at another folder.
+  vm.runInContext('castVideosRefresh()', t.ctx); r = t.get({ action: 'cast-videos', key: kk, folder: REV, parent: REV, id: REV }); assert.ok(!JSON.stringify(r).includes('pendingB'));
+  // Sharing refused by Drive: still listed, flagged, and tried again next time.
+  t.ctx.PropertiesService.getScriptProperties().setProperty('CAST_SHARED_' + PT, ''); vm.runInContext('castVideosRefresh()', t.ctx);
+  const ok = t.ctx.UrlFetchApp.fetch; t.ctx.UrlFetchApp = { fetch: (url, opts) => /\/permissions/.test(url) ? { getResponseCode: () => 403, getContentText: () => '{"error":"no"}' } : ok(url, opts) };
+  assert.equal(t.get({ action: 'cast-videos', key: kk }).calls[0].shared, false);
+  assert.ok(!t.ctx.PropertiesService.getScriptProperties().getProperty('CAST_SHARED_' + PT));
+  // A Drive error is reported, not cached.
+  t.ctx.UrlFetchApp = { fetch: () => ({ getResponseCode: () => 500, getContentText: () => '{}' }) }; vm.runInContext('castVideosRefresh()', t.ctx);
+  assert.match(t.get({ action: 'cast-videos', key: kk }).error, /couldn’t load/);
+}
+console.log('PASS: casting call videos for signed-in creators');

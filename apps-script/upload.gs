@@ -564,7 +564,7 @@ function uploadDone(req) {
   const top = up.getParents().hasNext() ? up.getParents().next() : null;
   if (up.getId() === ROOTS.broll) logActivity('broll', person.getName(), 'added B-roll: ' + file.getName(), file.getUrl());
   else if (up.getName() === BROLL_REVIEW && top && top.getId() === ROOTS.collab) logActivity('broll', person.getName(), 'sent B-roll for review: ' + file.getName(), ''); // private until reviewed
-  else if (top && top.getId() === ROOTS.collab) { logActivity('video', person.getName(), 'sent a video for ' + up.getName(), file.getUrl()); countCallResponse(up.getName()); }
+  else if (top && top.getId() === ROOTS.collab) { logActivity('video', person.getName(), 'sent a video for ' + up.getName(), file.getUrl()); countCallResponse(up.getName()); castVideosRefresh(); }
   else return reply({ ok: false });
   return reply({ ok: true });
 }
@@ -581,6 +581,7 @@ function doGet(e) {
   if (action && !isMentor(e.parameter.key)) return locked();
   if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // creators only
   if (action === 'broll-library') return brollLibraryReply(e.parameter); // creators only: approved B-roll, synced from Drive
+  if (action === 'cast-videos') return castVideosReply(e.parameter); // creators only: videos sent in for each casting call
   if (action === 'club') { const me = accountName(e.parameter.key); return reply(clubForCreator(me ? rosterName(me) : clean(e.parameter.name))); }
   if (action === 'gate') return reply({ ok: true });
   if (action === 'activity') return reply({ ok: true, activity: readActivity() });
@@ -763,3 +764,67 @@ function checkBrollLibrary() {
   return lib.folders.map(f => ({ name: f.name, count: f.count }));
 }
 
+/* ---------- Casting call videos (index.html casting cards, creators only) ----------
+   GET ?action=cast-videos&key=…  Signed-in creators and coordinators only (doGet checks isMentor first; this checks again).
+   Lists the videos sent in for each casting call: the shared drive's top-level folder named after the call
+   (OPEN_CASTING and every call on the Casting calls tab), then one folder per sender inside it. Only folders whose
+   name matches a casting call are read, so "B-roll to review", the B-Roll Library, sheets and other folders never show.
+   Taylor's decision (Nov 27, 2026): every signed-in creator can watch every call's videos, so each call folder is
+   shared "anyone with the link can view" (like the B-Roll Library); only signed-in creators get the links.
+   The answer is cached for 3 minutes; castVideosRefresh() (or Coordinator tools > admin-cast-videos) clears it. */
+const CAST_CACHE = 'cast-videos-v1', CAST_TTL = 180, CAST_MAX_VIDEOS = 300;
+function castTitles() {
+  const titles = OPEN_CASTING.slice();
+  callRows().forEach(r => { if (!titles.some(t => sameName(clean(t), clean(r.title)))) titles.push(r.title); });
+  return titles;
+}
+// Link viewing for one call folder. Remembered in a script property, so Drive is asked once per folder.
+function shareCastFolder(id) {
+  const props = PropertiesService.getScriptProperties(), memo = 'CAST_SHARED_' + id;
+  if (props.getProperty(memo)) return true;
+  const res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '/permissions?supportsAllDrives=true&sendNotificationEmail=false', {
+    method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    payload: JSON.stringify({ role: 'reader', type: 'anyone', allowFileDiscovery: false }), muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) { console.error('Couldn’t share casting folder ' + id + ': ' + res.getContentText().slice(0, 300)); return false; }
+  props.setProperty(memo, new Date().toISOString()); return true;
+}
+function readCastVideos() {
+  const titles = castTitles(), reviewName = String(BROLL_REVIEW);
+  const tops = driveList("'" + ROOTS.collab + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false", 'id,name', 400)
+    .filter(f => f.id !== ROOTS.broll && f.name !== reviewName && !isReviewFolder(f.name));
+  let total = 0;
+  const calls = titles.map(t => {
+    const folder = tops.find(f => sameName(f.name, clean(t))); if (!folder) return null;
+    const shared = shareCastFolder(folder.id);
+    const people = driveList("'" + folder.id + "' in parents and mimeType = '" + FOLDER_MIME + "' and trashed = false", 'id,name', 200);
+    const videos = [];
+    [{ id: folder.id, name: '' }].concat(people).forEach(person => {
+      if (total >= CAST_MAX_VIDEOS) return;
+      driveList("'" + person.id + "' in parents and trashed = false and mimeType contains 'video/'", 'id,name,createdTime,webViewLink,thumbnailLink,videoMediaMetadata(durationMillis)', CAST_MAX_VIDEOS - total).forEach(x => {
+        total++;
+        videos.push({ id: x.id, title: brollTitle(x.name), from: clean(person.name), sent: x.createdTime || '', url: x.webViewLink || 'https://drive.google.com/file/d/' + x.id + '/view',
+          thumbnail: x.thumbnailLink ? x.thumbnailLink.replace(/=s\d+$/, '=s400') : '', length: brollLength(x.videoMediaMetadata && x.videoMediaMetadata.durationMillis) });
+      });
+    });
+    videos.sort((a, b) => String(b.sent).localeCompare(String(a.sent))); // newest first
+    return { title: t, url: 'https://drive.google.com/drive/folders/' + folder.id, shared: shared, count: videos.length, videos: videos };
+  }).filter(Boolean);
+  return { ok: true, updated: new Date().toISOString(), total: total, calls: calls };
+}
+function castVideosReply(params) {
+  if (!isMentor(params && params.key)) return locked(); // checked again here: never list videos without a sign-in
+  try {
+    const cache = CacheService.getScriptCache(), hit = cache.get(CAST_CACHE);
+    if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
+    const out = JSON.stringify(readCastVideos());
+    if (out.length < 95000) cache.put(CAST_CACHE, out, CAST_TTL);
+    return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) { console.error(err); return reply({ ok: false, error: 'The casting videos couldn’t load from Drive. Try again in a minute.' }); }
+}
+function castVideosRefresh() { CacheService.getScriptCache().remove(CAST_CACHE); }
+// Read-only check to run from the editor after deploying (it does share call folders it finds, as the page would).
+function checkCastVideos() {
+  const r = readCastVideos();
+  r.calls.forEach(c => console.log(c.title + ': ' + c.count + ' videos' + (c.shared ? '' : ' (folder NOT link-viewable)') + ' · ' + c.videos.map(v => v.from + ': ' + v.title).join(', ')));
+  return r.calls.map(c => ({ title: c.title, count: c.count, shared: c.shared }));
+}

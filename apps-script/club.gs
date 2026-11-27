@@ -291,6 +291,7 @@ function adminReply(req) {
     else if (req.action === 'admin-settings') adminSettings(req);
     else if (req.action === 'admin-account') adminAccount(req, who); // reset a password or take a bio down
     else if (req.action === 'admin-broll') { brollRefresh(); return reply({ ok: true, refreshed: true }); } // B-roll library: show Drive changes now (upload.gs)
+    else if (req.action === 'admin-cast-videos') { castVideosRefresh(); return reply({ ok: true, refreshed: true }); } // casting videos: show Drive changes now (upload.gs)
     else if (req.action === 'admin-call') adminCall(req, who); // approve a public casting call, keep it in the Club, close or reopen (upload.gs)
     else if (req.action !== 'admin-data') return reply({ ok: false, error: 'Unknown request.' });
     return reply(Object.assign(adminData(), { savedId: savedId }));

@@ -732,3 +732,31 @@ console.log('PASS: graphics');
   assert.match(b.html('#broll-grid'), /Open in Drive/); assert.match(b.html('#broll-grid'), /data-copy="https:\/\/drive\.google\.com\/file\/d\/live\/view"/);
 }
 console.log('PASS: creators add ideas; B-roll links only for signed-in creators');
+
+// Casting call videos: signed-in creators see what's been sent in for each call (dashboard); signed out, nothing shows.
+{
+  const fs = require('node:fs');
+  const strip = (L, id) => L.run(`castVideoStrip(projectById(${JSON.stringify(id)}))`);
+  const out = boot(undefined, false, new Map()); out.run("castVideos = { ok: true, calls: [{ title: 'Meet the Squad, Part 2: Pass the Toy', count: 1, videos: [{ id: 'v', from: 'Pat', url: 'https://drive.google.com/file/d/leak/view' }] }] }; castVideosState = 'done'; renderCasting()");
+  const pt = out.run("castingProjects().find(p => /pass the toy/i.test(p.title)).id");
+  assert.equal(strip(out, pt), ''); assert.doesNotMatch(out.html('#casting-projects'), /leak|sent in/);
+  out.run(`openCastVideos(${JSON.stringify(pt)})`); assert.doesNotMatch(out.html('#modal-body'), /leak/);
+  const me = boot(); me.run("castVideosState = 'loading'"); assert.match(strip(me, pt), /Loading videos sent in…/); // never "none" while loading
+  me.run("castVideosState = 'failed'"); assert.match(strip(me, pt), /data-cast-videos-retry/);
+  me.run(`castVideos = { ok: true, calls: [{ title: 'meet the squad, part 2: pass the toy', url: 'https://drive.google.com/drive/folders/pt', count: 2, videos: [
+    { id: 'p', from: 'Pat', title: 'Take 1', sent: '2026-11-25T10:00:00Z', length: '0:12', url: 'https://drive.google.com/file/d/pv1/view', thumbnail: 'https://lh3.googleusercontent.com/p=s400' },
+    { id: 'k', from: 'Kristin', title: 'Take 2', url: 'https://drive.google.com/file/d/kv1/view' }] }] }; castVideosState = 'done'`);
+  assert.match(strip(me, pt), /data-action="cast-videos" data-project="[^"]+">Watch 2 videos sent in<\/button>/);
+  assert.match(strip(me, pt), /class="call-videos-peek" aria-hidden="true"><img src="https:\/\/lh3\.googleusercontent\.com\/p=s400" alt="" loading="lazy" referrerpolicy="no-referrer">/);
+  const other = me.run("castingProjects().find(p => !/pass the toy/i.test(p.title)).id"); assert.match(strip(me, other), /No videos sent in yet\./);
+  assert.match(fs.readFileSync(root + '/club.js', 'utf8'), /castVideoStrip\(p\)/); // shown under each call on the dashboard
+  me.run(`openCastVideos(${JSON.stringify(pt)})`); const d = me.html('#modal-body');
+  assert.match(d, /2 videos sent in, newest first/); assert.match(d, /<h3>Pat<\/h3><p>Take 1 · /); assert.match(d, /<span class="clip-length">0:12<\/span>/);
+  assert.match(d, /href="https:\/\/drive\.google\.com\/file\/d\/pv1\/view"[^>]*>Watch ↗<\/a>/); assert.match(d, /data-copy="https:\/\/drive\.google\.com\/file\/d\/kv1\/view"/);
+  assert.doesNotMatch(d, /data-cast-videos-refresh/); // coordinators only
+  // Senders are told who can watch: no more "only the team can see them".
+  const js = fs.readFileSync(root + '/script.js', 'utf8');
+  assert.doesNotMatch(js, /only the Creators Club team can see them|safe in the Squad’s private Drive/);
+  assert.match(js, /signed-in Creators Club members can watch the videos sent in for this call/);
+}
+console.log('PASS: casting call videos for signed-in creators');

@@ -165,3 +165,18 @@ The B-roll page lists approved clips straight from Google Drive, so nothing in t
 - **Access:** listing a clip doesn't share it. Clips open in Drive only for Google accounts the shared drive already allows; the page tells creators to contact Sarah or Taylor if Drive asks them to request access. Sharing settings are never changed by the site.
 - **Check after deploying:** run `checkBrollLibrary` in the Apps Script editor (read-only); the log lists each folder, its clip count and categories.
 
+
+
+## Casting call videos
+
+Signed-in creators see, under each casting call on their dashboard, how many videos have been sent in, and can watch them
+(`apps-script/upload.gs`: `GET ?action=cast-videos&key=…`, creators and coordinators only).
+
+- It reads only the shared drive's top-level folders named after a casting call (the two open calls plus every call on the
+  Casting calls tab), then one folder per sender inside each. "B-roll to review", the B-Roll Library and anything else is never read.
+- Each call folder is shared "anyone with the link can view" the first time it's listed (Taylor's decision, Nov 27, 2026), so
+  every creator can play the videos in Drive. The site only hands those links to signed-in creators. The send form tells
+  senders that Creators Club members can watch what they send.
+- The list is cached for 3 minutes. A finished upload clears it, and coordinators have "Refresh from Drive" in the videos dialog.
+- To check after deploying, run `checkCastVideos()` in the Apps Script editor. It logs each call, its video count and
+  whether its folder is link-viewable.

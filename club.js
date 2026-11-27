@@ -106,7 +106,7 @@ function castingCard() {
   const list = castingProjects();
   const row = p => `<li class="cast-row"><div><span class="cast-who">${whoLabel(p)}</span><strong>${escapeHTML(p.title)}</strong>
       <span class="quiet">${escapeHTML([p.lead ? `${p.posted ? 'Posted' : 'Led'} by ${p.lead}` : '', dateValid(p.submissionDeadline) ? 'Due ' + shortDate(p.submissionDeadline) : ''].filter(Boolean).join(' · '))}</span>
-      ${p.instructions ? `<span class="cast-what">${escapeHTML(p.instructions)}</span>` : ''}</div>
+      ${p.instructions ? `<span class="cast-what">${escapeHTML(p.instructions)}</span>` : ''}${typeof castVideoStrip === 'function' ? castVideoStrip(p) : ''}</div>
     <div class="cast-acts">${p.openCall && UPLOAD_ON() ? `<button class="button" type="button" data-action="cast" data-project="${escapeHTML(p.id)}">${(p.openCall.questions || []).length ? 'Film &amp; answer' : 'Send your video'}</button>` : `<button class="button" type="button" data-action="collab" data-project="${escapeHTML(p.id)}">I’m interested</button>`}${p.posted && p.call.mine ? `<button class="text-button" type="button" data-action="call-edit" data-call="${escapeHTML(p.id)}">Edit</button>` : ''}</div></li>`;
   return `<article class="club-card club-casting" id="dash-casting">
     <div class="card-head"><p class="club-kicker">Casting calls${list.length ? ` <span class="count">${list.length}</span>` : ''}</p><button class="text-button" type="button" data-action="call-new">Post a casting call</button></div>

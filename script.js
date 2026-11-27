@@ -292,6 +292,53 @@ function callArt(p, i = 0) {
   if (!photo) return '';
   return `<div class="call-art tint-${a.tint || TINTS[(i + 1) % TINTS.length]}"><img class="call-art-photo" src="${escapeHTML(photo)}" alt="${escapeHTML(a.photoAlt || p.title + ' preview')}" loading="lazy"></div>`;
 }
+/* ---------- Videos sent in for each casting call (signed-in creators): apps-script ?action=cast-videos ----------
+   Every signed-in creator can watch every call's videos (they open in Drive). Signed out, nothing about them shows. */
+let castVideos = null, castVideosState = 'idle';
+async function loadCastVideos(force) {
+  if (LOCKED() || !UPLOAD_ON() || typeof fetch !== 'function' || (castVideosState === 'loading' && !force)) return;
+  castVideosState = 'loading'; rerenderCastVideos();
+  try {
+    const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=cast-videos&key=${encodeURIComponent(mentorKey())}`); const d = await res.json();
+    if (d && d.ok && Array.isArray(d.calls)) { castVideos = d; castVideosState = 'done'; }
+    else castVideosState = d && d.locked ? 'signin' : 'failed';
+  } catch { castVideosState = 'failed'; }
+  rerenderCastVideos();
+}
+function rerenderCastVideos() {
+  if (typeof renderDashboard === 'function' && has('#club-dash')) renderDashboard(); // club.js: the casting calls card
+  if (modal.open && castVideosOpen && body.querySelector('[data-cast-videos-body]')) openCastVideos(castVideosOpen); // only while that dialog is still showing
+}
+const sameTitle = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+const callVideos = p => ((castVideos && castVideos.calls) || []).find(c => sameTitle(c.title, p.title)) || { count: 0, videos: [] };
+const videoCount = n => n === 1 ? '1 video' : `${n} videos`;
+// The line under each call on the dashboard (club.js castingCard): how many videos are in, with a button to watch them.
+function castVideoStrip(p) {
+  if (LOCKED() || !UPLOAD_ON()) return '';
+  if (castVideosState === 'idle' || castVideosState === 'loading') return `<span class="call-videos" role="status">Loading videos sent in…</span>`;
+  if (castVideosState !== 'done') return `<span class="call-videos">Videos sent in couldn’t load. <button type="button" class="text-button" data-cast-videos-retry>Try again</button></span>`;
+  const v = callVideos(p);
+  if (!v.count) return `<span class="call-videos">No videos sent in yet.</span>`;
+  const peek = v.videos.map(x => imageUrl(x.thumbnail)).filter(Boolean).slice(0, 3);
+  return `<div class="call-videos">${peek.length ? `<span class="call-videos-peek" aria-hidden="true">${peek.map(src => `<img src="${escapeHTML(src)}" alt="" loading="lazy" referrerpolicy="no-referrer">`).join('')}</span>` : ''}
+    <button type="button" class="text-button" data-action="cast-videos" data-project="${escapeHTML(p.id)}">Watch ${videoCount(v.count)} sent in</button></div>`;
+}
+let castVideosOpen = '';
+function openCastVideos(id) {
+  const p = projectById(id); if (!p || LOCKED()) return;
+  castVideosOpen = id; const v = callVideos(p), coordTools = isCoord() && castVideosState === 'done';
+  title.textContent = p.title;
+  const cards = v.videos.map(x => { const thumb = imageUrl(x.thumbnail), url = publicUrl(x.url), when = x.sent ? timeAgo(x.sent) : '';
+    return `<article class="clip-card tint-${TINTS[0]}"><div class="clip-thumb" data-art="phone">${thumb ? `<img src="${escapeHTML(thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : SVG(ART.phone)}${x.length ? `<span class="clip-length">${escapeHTML(x.length)}</span>` : ''}</div>
+      <h3>${escapeHTML(x.from || 'Sent in')}</h3><p>${escapeHTML([x.title, when].filter(Boolean).join(' · '))}</p>
+      ${url ? `<div class="button-row">${externalLink(url, 'Watch', 'button secondary')}<button class="text-button" type="button" data-copy="${escapeHTML(url)}" data-done="Video link copied.">Copy link</button></div>` : ''}</article>`; }).join('');
+  body.innerHTML = '<div data-cast-videos-body>' + (castVideosState === 'loading' ? `<p role="status">Loading the latest videos from Drive…</p>`
+    : castVideosState !== 'done' ? `<p role="alert">The videos couldn’t load from Drive just now. <button type="button" class="text-button" data-cast-videos-retry>Try again</button></p>`
+    : `<p class="cast-videos-intro">${v.count ? `${videoCount(v.count)} sent in, newest first. They open in Google Drive. Keep the links inside the Creators Club.` : 'No videos sent in yet.'}${coordTools ? ` <button type="button" class="text-button" data-cast-videos-refresh>Refresh from Drive</button>${v.url ? ' ' + externalLink(v.url, 'Open folder in Drive', 'text-button') : ''}` : ''}</p>
+       ${v.count ? `<div class="clip-grid cast-videos-grid">${cards}</div>` : ''}`) + '</div>';
+  showModal();
+}
+
 function renderCasting() {
   const casting = castingProjects();
   $('#casting-projects').innerHTML = casting.length ? `<div class="call-grid">${casting.map((p, ci) => {
@@ -678,6 +725,7 @@ function renderContent() {
   const sections = [['#hero-reels',renderHero],['#casting-projects',renderCasting],['#idea-grid',renderIdeas],['#production-board',renderProduction],['#project-gallery',renderGallery],['#squad-grid',renderSquad],['#wanted-shots',renderWanted],['#week-events',renderWeek],['#ways',renderWays],['#broll-grid',renderBroll],['#reels-view',loadReels],['#deadlines',renderDeadlines],['#resource-links',renderResources],['#public-guides',renderGuides],['#nav-menu',renderMenu]];
   for (const [sel,render] of sections) if (has(sel)) render();
   if (has('#broll-grid') && !LOCKED() && brollState === 'idle') loadBroll(); // B-roll page, signed in: folders and clips from Drive
+  if (has('#club-dash') && !LOCKED() && castVideosState === 'idle') loadCastVideos(); // dashboard casting calls, signed in: videos sent in
   storageSet('totsquad-last-visit', today());
   if (typeof loadClub === 'function' && typeof club !== 'undefined' && !club && !clubBusy) loadClub(); // club.js, after signing in
 }
@@ -1626,6 +1674,7 @@ function openPanel(action,data={}) {
   if (action === 'upload') return openUpload(data);
   if (action === 'apply') return openApply();
   if (action === 'cast') return openCast(data.project);
+  if (action === 'cast-videos') return openCastVideos(data.project);
   if (action === 'idea') return openIdea(data.id);
   if (action === 'idea-edit') return openIdeaEdit(data.id);
   if (action === 'idea-new') return openIdeaEdit('');
@@ -1934,7 +1983,7 @@ function openCast(id, step = 1) {
       <input id="cs-contact" type="text" maxlength="120" placeholder="Disco name, email or @handle">
       <label for="cs-file">${questions.length ? 'Your clips' : 'Your video'}</label>
       <input id="cs-file" type="file" accept="video/*"${questions.length ? ' multiple' : ''} required>
-      <p class="quiet">Vertical (9:16), up to 2 GB each. ${questions.length ? 'Pick all your clips at once. ' : ''}They go straight to the Squad’s private Drive; only the Creators Club team can see them.</p>
+      <p class="quiet">Vertical (9:16), up to 2 GB each. ${questions.length ? 'Pick all your clips at once. ' : ''}They go to the Squad’s Drive, where signed-in Creators Club members can watch the videos sent in for this call.</p>
       ${questions.length ? `<p class="quiet">${answered ? `${plural2(answered, 'answer')} ready to send with your clips. ` : 'No answers yet. '}<button type="button" class="text-button" data-cast-step="${back}">${answered ? 'Review answers' : 'Answer the questions'}</button></p>` : ''}
       <label class="check agree"><input type="checkbox" id="cs-agree">Everyone in the video agreed to be filmed, and there are no shoppers’ or babies’ faces in it.</label>
       <ul class="upload-list" id="cast-list" aria-live="polite"></ul>
@@ -1976,10 +2025,11 @@ async function sendCast(p) {
     catch (err) { failed = err.message || 'Your answers didn’t send. Try again in a minute.'; }
   }
   if (failed) { status.textContent = failed; go.disabled = false; go.textContent = 'Try again'; return; }
+  if (sent && !LOCKED()) setTimeout(() => loadCastVideos(true), 4000); // the new video shows on the card once Drive has it
   storageSet(UPLOAD_NAME_KEY, name); delete castAnswers[p.id]; try { localStorage.removeItem('totsquad-cast-answers-' + p.id); } catch {}
   const what = [sent ? (asks ? plural2(sent, 'clip') : 'your video') : '', answersSent ? 'your answers' : ''].filter(Boolean).join(' and ');
   if (SIMULATED()) { body.innerHTML = `<div class="cast-done"><h3>Simulated upload</h3><p>${simulatedNote('This casting upload was simulated. No video or answers reached Drive.')}</p></div>`; status.textContent = ''; return; }
-  body.innerHTML = `<div class="cast-done"><h3>${asks ? 'Got it, thank you!' : 'Your video is in!'}</h3><p>Thanks, ${escapeHTML(name.split(/\s+/)[0])}. We have ${escapeHTML(what)} for ${escapeHTML(p.title)}, safe in the Squad’s private Drive. ${p.lead ? escapeHTML(p.lead)+' and the team will' : 'The team will'} reach out if they need anything.</p></div>`;
+  body.innerHTML = `<div class="cast-done"><h3>${asks ? 'Got it, thank you!' : 'Your video is in!'}</h3><p>Thanks, ${escapeHTML(name.split(/\s+/)[0])}. We have ${escapeHTML(what)} for ${escapeHTML(p.title)}, in the Squad’s Drive. ${p.lead ? escapeHTML(p.lead)+' and the team will' : 'The team will'} reach out if they need anything.</p></div>`;
   status.textContent = '';
 }
 
@@ -2052,6 +2102,9 @@ document.addEventListener('click', e => {
   const rr = t.closest('[data-reel]');
   if (rr) { if (!modal.open) opener = rr; openPanel('reel', { reel: rr.dataset.reel }); return; }
   if (t.closest('[data-broll-retry]')) { loadBroll(true); return; }
+  if (t.closest('[data-cast-videos-retry]')) return loadCastVideos(true);
+  const cvr = t.closest('[data-cast-videos-refresh]');
+  if (cvr) { cvr.disabled = true; cvr.textContent = 'Refreshing…'; uploadRequest({ action:'admin-cast-videos', coordKey: storageGet(COORD_CODE_KEY) || '', coordName: storageGet(UPLOAD_NAME_KEY) || 'Coordinator' }).then(() => loadCastVideos(true)).catch(() => loadCastVideos(true)); return; } // coordinators: show Drive changes now
   const br = t.closest('[data-broll-refresh]');
   if (br) { br.disabled = true; br.textContent = 'Refreshing…'; uploadRequest({ action:'admin-broll', coordKey: storageGet(COORD_CODE_KEY) || '', coordName: storageGet(UPLOAD_NAME_KEY) || 'Coordinator' }).then(() => loadBroll(true)).catch(() => loadBroll(true)); return; } // coordinators: show Drive changes now
   const bf = t.closest('[data-broll]');

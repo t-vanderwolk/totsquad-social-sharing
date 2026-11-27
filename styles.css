@@ -1415,3 +1415,12 @@ svg.art .art-guide{stroke-opacity:.75}
 .shot-still{margin:0;position:relative;overflow:hidden;background:var(--tint)}
 .shot-still img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;object-position:center}
 .shot-still figcaption{padding:.5rem .75rem;font-size:.8125rem;line-height:1.4;color:var(--plum-ink);background:var(--tint)}
+
+/* Dashboard casting calls: videos sent in (signed-in creators) */
+.call-videos{display:flex;align-items:center;gap:.625rem;margin:.25rem 0 0;font-size:13px;color:var(--muted)}
+.call-videos .text-button{font-size:14px;font-weight:700}
+.call-videos-peek{display:flex;flex:none}
+.call-videos-peek img{width:1.75rem;height:2.75rem;object-fit:cover;border-radius:.375rem;border:2px solid var(--white);background:var(--lavender)}
+.call-videos-peek img+img{margin-left:-.625rem}
+.cast-videos-intro{margin:0 0 1.25rem;color:var(--muted)}
+.cast-videos-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
