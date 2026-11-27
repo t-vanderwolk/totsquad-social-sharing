@@ -588,3 +588,117 @@ console.log('PASS: B-roll library sync');
   assert.match(t.get({ action: 'cast-videos', key: kk }).error, /couldn’t load/);
 }
 console.log('PASS: casting call videos for signed-in creators');
+
+// Idea Bank: threaded creative discussion, older build-ons kept and replyable, deliberate leads, production links.
+{
+  const t = boot(), ck = { key: 'Coord-123', coordKey: 'Coord-123', coordName: 'Taylor' };
+  t.post({ action: 'admin-seed', ...ck, members: [{ name: 'Victoria' }, { name: 'Kristin' }, { name: 'Sarah' }] });
+  const acct = (name, claim) => t.post({ action: 'account-setup', agreed: true, key: 'shared-test-pass', name, claim, password: 'squad-pass-1' }).key;
+  const vic = acct('Victoria Mattson', 'Victoria'), kris = acct('Kristin Jenkins', 'Kristin'), sar = acct('Sarah Stewart', 'Sarah'), pat = acct('Pat Other', '');
+  const props = () => t.ctx.PropertiesService.getScriptProperties();
+  const D = (action, who, extra) => t.post({ action, ...(typeof who === 'string' ? { key: who } : who), ...extra });
+  const list = (ideaId, who = kris, cursor) => D('discussion-list', who, { ideaId, cursor });
+  // Victoria's idea, with two older "Built on by the Squad" notes and Kristin as lead (as stored before this change).
+  let r = t.post({ action: 'idea-save', key: vic, idea: { title: 'The Baby Specialist Games', summary: 'Everyone films the three-finger salute.', concept: 'A games-style opener.' } });
+  const gid = r.idea.id; assert.deepEqual(r.idea.credit, ['Victoria Mattson']);
+  const builds = [{ name: 'Kristin', note: 'Start with car seats.', date: '2026-11-20T18:00:00.000Z', lead: true }, { name: 'Taylor', note: 'Make it a two-parter.', date: '2026-11-21T18:00:00.000Z', lead: false }];
+  vm.runInContext(`(() => { const f = ideaRowAt(${JSON.stringify(gid)}), i = readIdeas().find(x => x.id === ${JSON.stringify(gid)}); i.buildOns = ${JSON.stringify(builds)}; i.lead = 'Kristin'; f.sheet.getRange(f.at + 1, 1, 1, IDEA_COLUMNS.length).setValues([ideaRow(i, 'Imported')]); })()`, t.ctx);
+  const idea = () => t.get({ action: 'ideas', key: kris }).ideas.find(i => i.id === gid);
+  // Signed out, a fake key or the shared creator password: nothing.
+  for (const k of [undefined, '', 'acct.fake.keyxxxxxxxxxxxxxxxxxxxxx', 'shared-test-pass']) assert.equal(D('discussion-list', { key: k }, { ideaId: gid }).locked, true, String(k));
+  // Before anyone comments, the build-ons show as replyable top-level comments, and reading creates no sheet.
+  r = list(gid); assert.equal(r.ok, true); assert.equal(r.total, 2); assert.equal(props().getProperty('DISCUSSIONS_SHEET_ID'), null);
+  assert.deepEqual(r.comments.map(c => [c.name, c.body, c.earlier, c.parentId]), [['Taylor', 'Make it a two-parter.', true, ''], ['Kristin', 'Start with car seats.', true, '']]); // newest first
+  assert.equal(r.comments[1].created, '2026-11-20T18:00:00.000Z'); assert.match(r.comments[0].id, /^bo-/);
+  const kristinOld = r.comments[1].id, taylorOld = r.comments[0].id;
+  assert.equal(r.comments[1].mine, true); assert.equal(list(gid, vic).comments[1].mine, false); // Kristin's own note, matched by her claimed name
+  assert.equal(t.get({ action: 'ideas', key: kris }).counts[gid], 2);
+  // Victoria starts a discussion. The author comes from the sign-in, never from a sent name.
+  r = D('discussion-add', vic, { ideaId: gid, body: 'What if everyone filmed themselves doing the Hunger Games three-finger salute?', name: 'Somebody Else', requestId: 'req-v1' });
+  assert.equal(r.ok, true); const v1 = r.comment.id; assert.equal(r.comment.name, 'Victoria Mattson'); assert.equal(r.comment.mine, true); assert.match(v1, /^c-/);
+  // The first write copied the build-ons into the new sheet, once.
+  const sheetId = props().getProperty('DISCUSSIONS_SHEET_ID'); assert.ok(sheetId);
+  const rows = () => t.g.books.get(sheetId).getSheets()[0].rows.slice(1).filter(x => x[0]);
+  assert.equal(rows().length, 3); assert.equal(vm.runInContext('migrateBuildOns()', t.ctx), 0); assert.equal(vm.runInContext('runMigrateBuildOns()', t.ctx), 0);
+  assert.equal(t.post({ action: 'admin-discussion-migrate', ...ck }).added, 0); assert.equal(rows().length, 3);
+  assert.deepEqual(rows().filter(x => /^bo-/.test(x[0])).map(x => [x[0], x[4], x[5], x[10]]).sort(), [[kristinOld, 'Kristin', 'Start with car seats.', 'buildOn'], [taylorOld, 'Taylor', 'Make it a two-parter.', 'buildOn']].sort());
+  // Taylor (coordinator) replies; Sarah replies to Taylor; Kristin replies to Victoria; someone replies to an older build-on.
+  r = D('discussion-add', ck, { ideaId: gid, parentId: v1, body: 'I LOVE this! What if we turned it into a two-part series?', requestId: 'req-t1' }); const t1 = r.comment.id; assert.equal(r.comment.name, 'Taylor');
+  r = D('discussion-add', sar, { ideaId: gid, parentId: t1, body: 'We could use the same dramatic opening for both episodes!', requestId: 'req-s1' }); const s1 = r.comment.id;
+  r = D('discussion-add', kris, { ideaId: gid, parentId: v1, body: 'I’d love to help edit the finale!', requestId: 'req-k1' }); const k1 = r.comment.id;
+  r = D('discussion-add', sar, { ideaId: gid, parentId: kristinOld, body: 'Car seats first, yes.', requestId: 'req-s2' }); assert.equal(r.ok, true); const s2 = r.comment.id;
+  r = list(gid);
+  assert.deepEqual(r.comments.map(c => [c.name, c.parentId]), [['Victoria Mattson', ''], ['Taylor', v1], ['Sarah Stewart', t1], ['Kristin Jenkins', v1], ['Taylor', ''], ['Kristin', ''], ['Sarah Stewart', kristinOld]]); // threads newest first, replies in order
+  assert.equal(r.total, 7); assert.equal(r.threads, 3); assert.equal(r.next, null); assert.equal(r.moderator, false); assert.equal(list(gid, ck).moderator, true);
+  assert.ok(!JSON.stringify(r).includes('acct:')); // account references stay in the sheet
+  // A double tap (same request) posts once; two different posts both land with their own IDs.
+  r = D('discussion-add', kris, { ideaId: gid, parentId: v1, body: 'I’d love to help edit the finale!', requestId: 'req-k1' }); assert.equal(r.duplicate, true); assert.equal(r.comment.id, k1);
+  const a = D('discussion-add', kris, { ideaId: gid, body: 'Idea A', requestId: 'req-a' }).comment.id, b = D('discussion-add', sar, { ideaId: gid, body: 'Idea B', requestId: 'req-b' }).comment.id;
+  assert.notEqual(a, b); assert.equal(list(gid).total, 9);
+  // Replies can't cross ideas or point at nothing; empty comments are refused.
+  const other = t.post({ action: 'idea-save', key: kris, idea: { title: 'Registry Roast' } }).idea.id;
+  assert.match(D('discussion-add', kris, { ideaId: other, parentId: v1, body: 'Wrong place' }).error, /different idea/);
+  assert.match(D('discussion-add', kris, { ideaId: gid, parentId: 'c-nope', body: 'Hi' }).error, /wasn’t found/);
+  assert.match(D('discussion-add', kris, { ideaId: gid, body: '   ' }).error, /Write your comment/);
+  assert.match(D('discussion-add', kris, { ideaId: 'no-such-idea', body: 'Hi' }).error, /idea wasn’t found/);
+  assert.equal(D('discussion-add', kris, { ideaId: gid, body: 'x'.repeat(5000), requestId: 'long' }).comment.body.length, 2000);
+  // Editing: your own only, and not over someone else's newer change.
+  let k1c = list(gid).comments.find(c => c.id === k1);
+  r = D('discussion-edit', kris, { id: k1, body: 'I’d love to help edit the finale and the opener!', expect: k1c.created }); assert.equal(r.ok, true); assert.ok(r.comment.edited);
+  assert.match(D('discussion-edit', vic, { id: k1, body: 'Hijacked' }).error, /your own/);
+  assert.match(D('discussion-edit', ck, { id: k1, body: 'Coordinator rewrite' }).error, /your own/); // moderators remove, they don't rewrite
+  assert.equal(D('discussion-edit', kris, { id: k1, body: 'Stale edit', expect: k1c.created }).stale, true);
+  assert.equal(D('discussion-edit', kris, { id: kristinOld, body: 'Start with car seats, then strollers.' }).ok, true); // her older build-on, now in the sheet
+  assert.match(D('discussion-edit', sar, { id: taylorOld, body: 'Not mine' }).error, /your own/);
+  // Removing: your own, or any comment for a coordinator. A removed comment with replies stays as a placeholder.
+  assert.match(D('discussion-delete', kris, { id: s1 }).error, /your own/);
+  assert.equal(D('discussion-delete', vic, { id: v1 }).ok, true);
+  r = list(gid); const gone = r.comments.find(c => c.id === v1);
+  assert.deepEqual([gone.deleted, gone.name, gone.body, gone.mine], [true, '', '', false]);
+  assert.deepEqual(r.comments.filter(c => c.parentId === v1).map(c => c.id), [t1, k1]); assert.ok(r.comments.some(c => c.id === s1)); // replies kept
+  assert.match(D('discussion-add', sar, { ideaId: gid, parentId: v1, body: 'Late reply' }).error, /removed/);
+  assert.equal(D('discussion-delete', ck, { id: b }).ok, true); assert.ok(!list(gid).comments.some(c => c.id === b)); // no replies: gone from the list
+  assert.match(D('discussion-delete', kris, { id: b }).error, /wasn’t found/);
+  assert.ok(rows().some(x => x[0] === v1 && x[5])); // the text is kept in the sheet (soft delete) for coordinators
+  // The idea itself: build-ons untouched, lead untouched by comments, credit still Victoria. Older pages' idea-build posts a comment only.
+  assert.deepEqual(idea().buildOns, builds); assert.equal(idea().lead, 'Kristin'); assert.deepEqual(idea().credit, ['Victoria Mattson']);
+  assert.equal(t.post({ action: 'idea-build', key: pat, id: gid, note: 'From an older page', lead: true }).ok, true);
+  assert.equal(idea().lead, 'Kristin'); assert.ok(list(gid).comments.some(c => c.name === 'Pat Other' && c.body === 'From an older page'));
+  assert.equal(t.get({ action: 'ideas', key: kris }).counts[gid], list(gid).total);
+  // Pages: 20 threads at a time, newest first.
+  for (let i = 0; i < 24; i++) D('discussion-add', kris, { ideaId: other, body: 'Thought ' + i, requestId: 'p' + i });
+  r = list(other); assert.equal(r.comments.length, 20); assert.equal(r.comments[0].body, 'Thought 23'); assert.equal(r.next, 20);
+  r = list(other, kris, 20); assert.deepEqual(r.comments.map(c => c.body), ['Thought 3', 'Thought 2', 'Thought 1', 'Thought 0']); assert.equal(r.next, null);
+  // Leading is on purpose (idea-lead): a co-lead joins, credit stays.
+  assert.match(t.post({ action: 'idea-lead', ...ck, id: gid }).error, /own name/); // the coordinator code alone isn't a person
+  r = t.post({ action: 'idea-lead', key: sar, id: gid }); assert.equal(r.idea.lead, 'Kristin & Sarah Stewart'); assert.deepEqual(r.idea.credit, ['Victoria Mattson']);
+  assert.equal(t.post({ action: 'idea-lead', key: sar, id: gid }).idea.lead, 'Kristin & Sarah Stewart');
+  // Production Discussion link: leads and credited creators set it; it must be a Tot Squad Disco link; the original concept stays.
+  const thread = 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjM0ODYw?streamMsgId=d89d6b38-2e77-4168-a108-bb1dfdfdc809-cMgYmo_3';
+  r = t.post({ action: 'idea-save', key: sar, idea: { id: gid, discussionUrl: thread, summary: 'Rewritten by the lead', concept: 'Two-part games series.' } });
+  assert.equal(r.ok, true); assert.equal(idea().discussionUrl, thread); assert.equal(idea().summary, 'Everyone films the three-finger salute.'); assert.equal(idea().concept, 'Two-part games series.');
+  for (const bad of ['https://evil.example.com/x', 'http://tot-squad-hub.disco.co/channel/x', 'javascript:alert(1)', 'https://tot-squad-hub.disco.co.evil.com/x'])
+    assert.match(t.post({ action: 'idea-save', key: sar, idea: { id: gid, discussionUrl: bad } }).error, /Disco link/, bad);
+  assert.match(t.post({ action: 'idea-save', key: pat, idea: { id: gid, discussionUrl: thread } }).error, /credited to you or that you lead/);
+  assert.match(t.post({ action: 'idea-save', key: sar, idea: { id: gid, reelUrl: 'https://youtube.com/x' } }).error, /Instagram/);
+  assert.equal(t.post({ action: 'idea-save', key: vic, idea: { id: gid, summary: 'Everyone films the salute, then passes it on.' } }).ok, true); // the creator still can
+  assert.equal(idea().summary, 'Everyone films the salute, then passes it on.');
+  // The link survives stage changes and turning the idea into a casting call; the Reel link is kept when published.
+  r = t.post({ action: 'call-save', key: sar, call: { title: 'Baby Specialist Games', description: 'Film the salute.', instructions: 'Hold up three fingers, then pass it on.', deadline: day(10), audience: 'public', ideaId: gid } });
+  assert.equal(r.ok, true); assert.equal(idea().stage, 'casting'); assert.equal(idea().discussionUrl, thread);
+  assert.equal(t.post({ action: 'idea-save', ...ck, idea: { id: gid, stage: 'filming' } }).ok, true); assert.equal(idea().discussionUrl, thread);
+  assert.equal(t.post({ action: 'idea-save', key: sar, idea: { id: gid, stage: 'published', reelUrl: 'https://www.instagram.com/reel/DfOPl81NP3Q/' } }).ok, true);
+  assert.deepEqual([idea().stage, idea().reelUrl, idea().discussionUrl, idea().lead], ['published', 'https://www.instagram.com/reel/DfOPl81NP3Q/', thread, 'Kristin & Sarah Stewart']);
+  assert.equal(list(gid).total > 0, true); assert.deepEqual(idea().credit, ['Victoria Mattson']); // history and credit kept after publishing
+  assert.equal(t.post({ action: 'idea-save', key: sar, idea: { id: gid, discussionUrl: '' } }).ok, true); assert.equal(idea().discussionUrl, ''); // clearing is allowed
+  // Public casting stays open to non-members: a public call still takes a video with no sign-in once approved.
+  const callId = t.get({ action: 'casting', key: sar }).calls.find(c => c.ideaId === gid).id;
+  t.post({ action: 'admin-call', ...ck, id: callId, decision: 'approve' });
+  const pub = t.get({ action: 'casting' }).calls.find(c => c.id === callId); assert.equal(pub.instructions, 'Hold up three fingers, then pass it on.'); assert.ok(!JSON.stringify(pub).includes('streamMsgId'));
+  t.ctx.UrlFetchApp = { fetch: () => ({ getHeaders: () => ({ Location: 'https://upload.example/x' }), getResponseCode: () => 200 }) };
+  assert.equal(t.post({ action: 'cast-start', name: 'Nonmember Specialist', project: 'Baby Specialist Games', agreed: true, fileName: 'a.mp4', type: 'video/mp4', size: 10 }).ok, true);
+  // Activity: discussion and leads show in What's new, linked to the idea.
+  const act = t.get({ action: 'activity', key: kris }).activity.map(x => x.what);
+  assert.ok(act.some(w => /replied to Taylor on “The Baby Specialist Games”/.test(w))); assert.ok(act.some(w => /is co-leading “The Baby Specialist Games”/.test(w)));
+}
+console.log('PASS: Idea Bank discussions and production links');

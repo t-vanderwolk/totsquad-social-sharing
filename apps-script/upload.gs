@@ -50,7 +50,9 @@ function doPost(e) {
     if (/^(account-(me|password|signout)|bio-(save|delete))$/.test(String(req.action))) return accountReply(req, signedIn); // club.gs
     if (req.action === 'idea-save') return saveIdea(req);
     if (req.action === 'idea-delete') return deleteIdea(req);
-    if (req.action === 'idea-build') return buildOnIdea(req);
+    if (req.action === 'idea-build') return addComment({ key: req.key, coordKey: req.coordKey, coordName: req.coordName || req.name, ideaId: req.id, body: req.note }); // older pages: a build-on is now a discussion comment
+    if (req.action === 'idea-lead') return leadIdea(req); // take the lead (or co-lead) on an idea, on purpose: commenting never does
+    if (/^discussion-(list|add|edit|delete)$/.test(String(req.action))) return discussionReply(req); // Idea Bank threaded discussion
     if (req.action === 'call-save') return saveCall(req); // post or edit a casting call
     if (req.action === 'call-status') return setCallStatus(req); // close or reopen your casting call
     if (req.action === 'club-submit') return saveSubmission(req);
@@ -197,8 +199,19 @@ function cleanIdea(raw, base) {
   ['title','series','stage','lead','summary','concept','titleNote','date','status','basedOn'].forEach(k => { if (k in r) i[k] = text(r[k]).slice(0, 1500); });
   IDEA_LISTS.forEach(k => { if (k in r) i[k] = (Array.isArray(r[k]) ? r[k] : String(r[k] || '').split('\n')).map(x => text(x).slice(0, 500)).filter(Boolean).slice(0, 30); });
   if ('credit' in r) i.credit = (Array.isArray(r.credit) ? r.credit : String(r.credit || '').split(',')).map(clean).filter(Boolean).slice(0, 10);
+  ['discussionUrl','reelUrl'].forEach(k => { if (k in r) i[k] = String(r[k] || '').trim().slice(0, 500); }); // checked by ideaLinkProblem first
   if (['idea','casting','filming','editing','published'].indexOf(i.stage) < 0) i.stage = 'idea';
   return i;
+}
+/* Production Discussion = discussionUrl: a link into the Tot Squad Disco hub (normally a Creator Circle message, copied
+   with Disco's "Copy link": …/channel/<id>?streamMsgId=…). reelUrl = the published Instagram Reel. Empty clears either. */
+const HUB_LINK = /^https:\/\/tot-squad-hub\.disco\.co\/[^\s"'<>]+$/;
+const REEL_LINK = /^https:\/\/(www\.)?instagram\.com\/(reels?|p)\/[\w-]+\/?(\?[^\s"'<>]*)?$/;
+function ideaLinkProblem(r) {
+  const d = String(r.discussionUrl || '').trim(), v = String(r.reelUrl || '').trim();
+  if ('discussionUrl' in r && d && !HUB_LINK.test(d)) return 'Use a Tot Squad Disco link for the production discussion: in the Creator Circle, open the thread’s message menu, choose Copy link and paste it here.';
+  if ('reelUrl' in r && v && !REEL_LINK.test(v)) return 'Use the Reel’s Instagram link, like https://www.instagram.com/reel/…';
+  return '';
 }
 function ideaRow(i, by) { return IDEA_COLUMNS.map(([k]) => k === 'json' ? JSON.stringify(i).slice(0, 45000) : k === 'credit' ? (i.credit || []).join(', ') : k === 'updated' ? new Date() : k === 'updatedBy' ? (by || '') : text(i[k] || '')); }
 function readIdeas() {
@@ -215,13 +228,16 @@ function readIdeas() {
 }
 /* Who can change an idea: coordinators can add, edit and delete any idea; a creator signed in with their own
    password can edit and delete the ideas credited to them (pitches are credited to whoever sent them). Anyone signed
-   in can still build on any idea (buildOnIdea). */
+   in can join any idea’s discussion (discussion-add) and lead any idea on purpose (idea-lead). Leads edit the working concept and production links (saveIdea). */
 function ideaEditor(req) {
   if (isCoordinator(req.coordKey)) return { coord: true, name: clean(req.name) || clean(req.coordName) || 'Coordinator' };
   const full = accountName(req.key); if (!full) return null;
   return { coord: false, name: full, roster: rosterName(full), claimed: claimOf(findAccount(full)) };
 }
 // Credited by full name, roster name, or the first name they claimed ("Kristin" on older ideas).
+const ideaLeads = idea => String(idea && idea.lead || '').split(/\s*&\s*/).map(s => s.trim()).filter(Boolean);
+// Leading an idea lets you develop its working concept and production links, but never its original concept or credit.
+function leadsIdea(idea, ed) { return ideaLeads(idea).some(l => sameName(l, ed.name) || sameName(l, ed.roster) || (ed.claimed && sameName(l, ed.claimed))); }
 function creditedTo(idea, ed) { return (idea && idea.credit || []).some(c => sameName(c, ed.name) || sameName(c, ed.roster) || (ed.claimed && sameName(c, ed.claimed))); }
 function ideaRowAt(id) {
   const sheet = ideasSheet(), ids = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).getValues().map(r => String(r[0]));
@@ -234,7 +250,10 @@ function saveIdea(req) {
   try {
     const id = String(raw.id || '').replace(/[^\w-]/g, '').slice(0, 80), found = ideaRowAt(id), sheet = found.sheet, at = found.at;
     const before = at > 0 ? readIdeas().find(x => x.id === id) : null;
-    if (before && !ed.coord && !creditedTo(before, ed)) return reply({ ok: false, error: 'You can edit the ideas credited to you. Ask a coordinator about this one.' });
+    const credited = before && creditedTo(before, ed), leading = before && leadsIdea(before, ed);
+    if (before && !ed.coord && !credited && !leading) return reply({ ok: false, error: 'You can edit the ideas credited to you or that you lead. Ask a coordinator about this one.' });
+    if (before && !ed.coord && !credited) delete raw.summary; // a lead develops the idea; the original concept stays its creator’s
+    const linkProblem = ideaLinkProblem(raw); if (linkProblem) return reply({ ok: false, error: linkProblem });
     if (!ed.coord) { if (before) delete raw.credit; else raw.credit = [ed.roster || ed.name]; } // only coordinators change credit
     else if (!before && !raw.credit) raw.credit = [ed.name];
     const idea = cleanIdea(raw, before || {});
@@ -260,26 +279,169 @@ function deleteIdea(req) {
     return reply({ ok: true, id: id });
   } finally { lock.releaseLock(); }
 }
-/* "Build on this idea": any creator adds notes on top of the original concept (the concept itself is never changed),
-   and can take the lead. A second person to take the lead becomes a co-lead. */
-function buildOnIdea(req) {
-  const by = clean(req.name); if (!by) return reply({ ok: false, error: 'Choose your name first.' });
-  const note = text(req.note).slice(0, 1500); if (!note) return reply({ ok: false, error: 'Add your notes first.' });
-  const id = String(req.id || '').replace(/[^\w-]/g, '').slice(0, 80);
+// POST idea-lead { id }: a creator signed in with their own password leads (or co-leads) an idea. Credit is untouched.
+function leadIdea(req) {
+  const full = accountName(req.key); if (!full) return reply({ ok: false, error: 'Sign in with your own name and password to lead an idea.' });
+  const by = rosterName(full), id = String(req.id || '').replace(/[^\w-]/g, '').slice(0, 80);
   const lock = LockService.getScriptLock(); lock.waitLock(10000);
   try {
-    const sheet = ideasSheet(), ids = sheet.getRange(1, 1, Math.max(sheet.getLastRow(), 1), 1).getValues().map(r => String(r[0]));
-    const at = id ? ids.indexOf(id) : -1; if (at < 1) return reply({ ok: false, error: 'That idea wasn’t found. Refresh the page and try again.' });
-    const idea = readIdeas().find(x => x.id === id);
-    const leads = String(idea.lead || '').split(/\s*&\s*/).map(s => s.trim()).filter(Boolean);
-    const lead = !!req.lead && leads.indexOf(by) < 0;
-    if (lead) { leads.push(by); idea.lead = leads.join(' & '); }
-    idea.buildOns = (Array.isArray(idea.buildOns) ? idea.buildOns : []).concat([{ name: by, note: note, date: new Date().toISOString(), lead: lead }]).slice(-50);
-    sheet.getRange(at + 1, 1, 1, IDEA_COLUMNS.length).setValues([ideaRow(idea, by)]);
-    logActivity('build', by, (lead ? (leads.length > 1 ? 'is co-leading “' : 'is leading “') : 'built on “') + idea.title + '”', 'idea:' + id);
+    const found = ideaRowAt(id), idea = found.at > 0 ? readIdeas().find(x => x.id === id) : null;
+    if (!idea) return reply({ ok: false, error: 'That idea wasn’t found. Refresh the page and try again.' });
+    const leads = ideaLeads(idea), ed = { name: full, roster: by, claimed: claimOf(findAccount(full)) };
+    if (leadsIdea(idea, ed)) return reply({ ok: true, idea: idea });
+    leads.push(by); idea.lead = leads.join(' & ');
+    found.sheet.getRange(found.at + 1, 1, 1, IDEA_COLUMNS.length).setValues([ideaRow(idea, by)]);
+    logActivity('build', by, (leads.length > 1 ? 'is co-leading “' : 'is leading “') + idea.title + '”', 'idea:' + id);
     return reply({ ok: true, idea: idea });
   } finally { lock.releaseLock(); }
 }
+
+/* ---------- Idea Bank creative discussion (threaded comments) ----------
+   The Idea Bank is the writers' room: comments on an idea, replies to comments and replies to replies. One row per comment
+   in the "Creators Club discussions" sheet (created next to the other Creators Club sheets on the first comment), never
+   in the idea's own JSON, and never in this public repo. Signed-in creators and coordinators only (doPost checks isMentor).
+     - The author always comes from the sign-in: a creator's own account, or a coordinator's name with the coordinator code.
+       A client-sent name is never used for a creator.
+     - Replies must point at a comment on the same idea. Removing a comment keeps its replies (it shows as "removed").
+     - Creators edit and remove their own comments; coordinators can remove any comment (moderation).
+     - Each post carries a requestId from the page, so a double tap or a retry never posts twice.
+     - The older "Built on by the Squad" notes (idea.buildOns) stay in the idea untouched and show as top-level comments
+       with stable IDs ("bo-…"), so they can be replied to. migrateBuildOns() copies them into the sheet on the first write;
+       running it again adds nothing. */
+const DISCUSSION_COLUMNS = [['id','ID'],['ideaId','Idea ID'],['parentId','Reply to'],['authorId','Author account'],['name','Name'],['body','Comment'],['created','Posted'],['updated','Edited'],['deleted','Removed'],['deletedBy','Removed by'],['source','From'],['requestId','Request']];
+const DISCUSSION_PAGE = 20, DISCUSSION_MAX = 2000;
+// Reads without creating anything: a page view must never make a sheet.
+function discussionSheetIfAny() {
+  const id = PropertiesService.getScriptProperties().getProperty('DISCUSSIONS_SHEET_ID'); if (!id) return null;
+  try { return SpreadsheetApp.openById(id).getSheets()[0]; } catch (err) { console.error(err); return null; }
+}
+function discussionSheet() {
+  const found = discussionSheetIfAny(); if (found) return found;
+  const props = PropertiesService.getScriptProperties(), ss = SpreadsheetApp.create('Creators Club discussions'), sheet = ss.getSheets()[0];
+  sheet.setName('Discussions'); sheet.appendRow(DISCUSSION_COLUMNS.map(c => c[1])); sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, DISCUSSION_COLUMNS.length).setFontWeight('bold').setBackground('#f3eaf1');
+  DriveApp.getFileById(ss.getId()).moveTo(DriveApp.getFolderById(ROOTS.collab));
+  props.setProperty('DISCUSSIONS_SHEET_ID', ss.getId());
+  return sheet;
+}
+const discussionRows = sheet => sheet ? readTable(sheet, DISCUSSION_COLUMNS).filter(r => r.id && r.ideaId) : [];
+// A short stable ID from text (FNV-1a, two seeds): the same build-on always gets the same comment ID.
+function stableId(s) {
+  let a = 0x811c9dc5, b = 0x9747b28c; s = String(s);
+  for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b ^ c, 2246822519) >>> 0; }
+  return a.toString(36) + b.toString(36);
+}
+function legacyComments(idea) {
+  const seen = {};
+  return (Array.isArray(idea.buildOns) ? idea.buildOns : []).filter(b => b && b.note).map(b => ({
+    id: 'bo-' + stableId(idea.id + '|' + b.name + '|' + b.date + '|' + b.note), ideaId: idea.id, parentId: '', authorId: 'legacy:' + String(b.name || '').trim().toLowerCase(),
+    name: String(b.name || ''), body: String(b.note || ''), created: String(b.date || ''), updated: '', deleted: '', deletedBy: '', source: 'buildOn', requestId: ''
+  })).filter(c => !seen[c.id] && (seen[c.id] = true));
+}
+// Every comment on one idea: the sheet's rows, plus build-ons not copied into the sheet yet.
+function ideaComments(idea, rows) {
+  const mine = rows.filter(r => r.ideaId === idea.id), ids = {}; mine.forEach(r => { ids[r.id] = true; });
+  return mine.concat(legacyComments(idea).filter(c => !ids[c.id]));
+}
+// Idempotent: copies build-ons that aren't in the sheet yet. Returns how many it added.
+function migrateBuildOns(ideasList) {
+  const sheet = discussionSheet(), have = {}; discussionRows(sheet).forEach(r => { have[r.id] = true; });
+  const add = [];
+  (ideasList || readIdeas()).forEach(i => legacyComments(i).forEach(c => { if (!have[c.id]) { have[c.id] = true; add.push(c); } }));
+  if (add.length) sheet.getRange(sheet.getLastRow() + 1, 1, add.length, DISCUSSION_COLUMNS.length).setValues(add.map(c => DISCUSSION_COLUMNS.map(([k]) => k === 'created' ? (c.created ? new Date(c.created) : '') : c[k] || '')));
+  return add.length;
+}
+function discussionCounts(ideasList) {
+  const rows = discussionRows(discussionSheetIfAny()), out = {};
+  (ideasList || []).forEach(i => { const n = ideaComments(i, rows).filter(c => !c.deleted).length; if (n) out[i.id] = n; });
+  return out;
+}
+// Who is posting: from the sign-in only.
+function discussionAuthor(req) {
+  const full = accountName(req.key), coord = isCoordinator(req.key) || isCoordinator(req.coordKey);
+  if (full) return { id: 'acct:' + full.trim().toLowerCase(), name: full, roster: rosterName(full), claimed: claimOf(findAccount(full)), coord: coord };
+  if (coord) { const n = clean(req.coordName) || 'Coordinator'; return { id: 'coord:' + n.toLowerCase(), name: n, roster: n, claimed: '', coord: true }; }
+  return null;
+}
+function ownsComment(c, me) {
+  if (!me || !c) return false;
+  if (c.authorId && c.authorId === me.id) return true;
+  return /^legacy:/.test(c.authorId) && [me.name, me.roster, me.claimed].some(n => n && sameName(c.name, n)); // a build-on, by name
+}
+function commentOut(c, me) {
+  const gone = !!c.deleted;
+  return { id: c.id, parentId: c.parentId || '', name: gone ? '' : c.name, body: gone ? '' : c.body, created: isoTime(c.created), edited: !gone && c.updated ? isoTime(c.updated) : '',
+    deleted: gone, mine: !gone && ownsComment(c, me), earlier: c.source === 'buildOn' };
+}
+const ideaIdOf = v => String(v || '').replace(/[^\w-]/g, '').slice(0, 80);
+function discussionReply(req) {
+  const me = discussionAuthor(req); if (!me) return reply({ ok: false, locked: true, error: 'Sign in with your own name and password to join the discussion.' });
+  if (req.action === 'discussion-list') return listDiscussion(req, me);
+  if (req.action === 'discussion-add') return addComment(req, me);
+  return changeComment(req, me);
+}
+/* discussion-list { ideaId, cursor }: the newest DISCUSSION_PAGE threads (a top-level comment with all its replies), newest
+   first, and next (a cursor for the following page, or null). Removed comments only show when they still have replies. */
+function listDiscussion(req, me) {
+  const idea = readIdeas().find(x => x.id === ideaIdOf(req.ideaId)); if (!idea) return reply({ ok: false, error: 'That idea wasn’t found. Refresh the page and try again.' });
+  const all = ideaComments(idea, discussionRows(discussionSheetIfAny())), kids = {};
+  all.forEach(c => { (kids[c.parentId || ''] = kids[c.parentId || ''] || []).push(c); });
+  const live = {}, isLive = c => c.id in live ? live[c.id] : (live[c.id] = false, live[c.id] = !c.deleted || (kids[c.id] || []).some(isLive));
+  const shown = all.filter(isLive), byId = {}; shown.forEach(c => { byId[c.id] = c; });
+  const when = c => Date.parse(isoTime(c.created)) || 0, order = (a, b) => when(a) - when(b) || (a._row || 0) - (b._row || 0); // ties: sheet order
+  const tops = shown.filter(c => !c.parentId || !byId[c.parentId]).sort((a, b) => order(b, a));
+  const start = Math.max(0, Math.floor(Number(req.cursor) || 0)), page = tops.slice(start, start + DISCUSSION_PAGE), out = [];
+  const walk = c => { out.push(commentOut(c, me)); (kids[c.id] || []).filter(k => byId[k.id]).sort(order).forEach(walk); };
+  page.forEach(walk);
+  return reply({ ok: true, ideaId: idea.id, total: shown.filter(c => !c.deleted).length, threads: tops.length, comments: out, next: start + DISCUSSION_PAGE < tops.length ? start + DISCUSSION_PAGE : null, moderator: !!me.coord });
+}
+function addComment(req, me) {
+  me = me || discussionAuthor(req); if (!me) return reply({ ok: false, locked: true, error: 'Sign in with your own name and password to join the discussion.' });
+  const id = ideaIdOf(req.ideaId), body = text(req.body).slice(0, DISCUSSION_MAX), parentId = ideaIdOf(req.parentId), requestId = String(req.requestId || '').replace(/[^\w-]/g, '').slice(0, 40);
+  if (!body) return reply({ ok: false, error: 'Write your comment first.' });
+  const cache = CacheService.getScriptCache(), count = Number(cache.get('discussion-count') || 0);
+  if (count >= 300) return reply({ ok: false, error: 'Lots of comments are coming in right now. Try again in a few minutes.' });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    const ideasList = readIdeas(), idea = ideasList.find(x => x.id === id); if (!idea) return reply({ ok: false, error: 'That idea wasn’t found. Refresh the page and try again.' });
+    migrateBuildOns(ideasList);
+    const sheet = discussionSheet(), rows = discussionRows(sheet);
+    const again = requestId && rows.find(r => r.requestId === requestId && r.authorId === me.id);
+    if (again) return reply({ ok: true, duplicate: true, comment: commentOut(again, me) });
+    let parent = null;
+    if (parentId) {
+      parent = rows.find(r => r.id === parentId);
+      if (!parent) return reply({ ok: false, error: 'The comment you’re replying to wasn’t found. Refresh and try again.' });
+      if (parent.ideaId !== idea.id) return reply({ ok: false, error: 'That reply belongs with a different idea.' });
+      if (parent.deleted) return reply({ ok: false, error: 'That comment was removed, so it can’t take new replies.' });
+    }
+    cache.put('discussion-count', String(count + 1), 3600);
+    const c = { id: newId('c'), ideaId: idea.id, parentId: parent ? parent.id : '', authorId: me.id, name: me.roster || me.name, body: body, created: new Date(), updated: '', deleted: '', deletedBy: '', source: 'app', requestId: requestId };
+    writeRow(sheet, DISCUSSION_COLUMNS, c, 0);
+    logActivity('build', c.name, parent ? 'replied to ' + parent.name + ' on “' + idea.title + '”' : 'joined the discussion on “' + idea.title + '”', 'idea:' + idea.id);
+    return reply({ ok: true, comment: commentOut(c, me) });
+  } finally { lock.releaseLock(); }
+}
+// discussion-edit { id, body, expect } (your own) and discussion-delete { id } (your own, or any for coordinators).
+function changeComment(req, me) {
+  const cid = ideaIdOf(req.id), del = req.action === 'discussion-delete';
+  const body = del ? '' : text(req.body).slice(0, DISCUSSION_MAX); if (!del && !body) return reply({ ok: false, error: 'Write your comment first.' });
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try {
+    if (/^bo-/.test(cid)) migrateBuildOns(); // an older build-on: copy it into the sheet before changing it
+    const sheet = discussionSheetIfAny(), c = discussionRows(sheet).find(r => r.id === cid);
+    if (!c || c.deleted) return reply({ ok: false, error: 'That comment wasn’t found. It may have been removed.' });
+    const own = ownsComment(c, me);
+    if (del ? !(own || me.coord) : !own) return reply({ ok: false, error: del ? 'You can remove your own comments.' : 'You can edit your own comments.' });
+    if (!del && req.expect && isoTime(c.updated || c.created) !== String(req.expect)) return reply({ ok: false, stale: true, error: 'This comment changed since you opened it. Refresh to see the latest, then try again.' });
+    writeRow(sheet, DISCUSSION_COLUMNS, del ? { deleted: new Date(), deletedBy: me.name } : { body: body, updated: new Date() }, c._row);
+    const saved = discussionRows(sheet).find(r => r.id === cid);
+    return reply({ ok: true, comment: commentOut(saved, me) });
+  } finally { lock.releaseLock(); }
+}
+// Coordinators: run once from the editor (or admin-discussion-migrate) to copy every build-on into the discussions sheet.
+function runMigrateBuildOns() { const n = migrateBuildOns(); console.log('Copied ' + n + ' build-on(s) into Creators Club discussions.'); return n; }
+
 function seedIdeas(req) {
   const sheet = ideasSheet(); if (sheet.getLastRow() > 1) return reply({ ok: false, error: 'The Ideas sheet already has ideas.' });
   const rows = (req.ideas || []).slice(0, 300).map(r => {
@@ -579,7 +741,7 @@ function doGet(e) {
   if (action === 'claimed') return reply({ ok: true, claimed: claimedNames(), claims: claimedPairs() }); // public: Squad names already claimed, with the full names (club.gs)
   if (action === 'casting') return castingReply(e.parameter); // public calls for everyone; Creators Club calls only with a sign-in
   if (action && !isMentor(e.parameter.key)) return locked();
-  if (action === 'ideas') return reply({ ok: true, ideas: readIdeas() }); // creators only
+  if (action === 'ideas') { const list = readIdeas(); return reply({ ok: true, ideas: list, counts: discussionCounts(list) }); } // creators only; counts = live discussion comments per idea
   if (action === 'broll-library') return brollLibraryReply(e.parameter); // creators only: approved B-roll, synced from Drive
   if (action === 'cast-videos') return castVideosReply(e.parameter); // creators only: videos sent in for each casting call
   if (action === 'club') { const me = accountName(e.parameter.key); return reply(clubForCreator(me ? rosterName(me) : clean(e.parameter.name))); }

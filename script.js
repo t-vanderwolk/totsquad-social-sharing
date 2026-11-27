@@ -168,7 +168,7 @@ async function loadCalls() {
   const key = mentorKey(), coord = isCoord() ? storageGet(COORD_CODE_KEY) : '';
   try {
     const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=casting${key ? '&key=' + encodeURIComponent(key) : ''}${coord ? '&coord=' + encodeURIComponent(coord) : ''}`); const data = await res.json();
-    if (data.ok && Array.isArray(data.calls)) { liveCalls = data.calls; rerenderCalls(); }
+    if (data.ok && Array.isArray(data.calls)) { liveCalls = data.calls; rerenderCalls(); openFromHash(); }
   } catch {}
 }
 function rerenderCalls() {
@@ -393,7 +393,7 @@ function ideaCard(i) {
   const art = `<span class="idea-art">${img ? `<img src="${escapeHTML(img)}" alt="" loading="lazy">` : SVG(ART[artKey(i)])}</span>`;
   return `<button type="button" class="idea-tile tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}">${art}
     <span class="idea-body"><strong>${escapeHTML(i.title)}</strong><span class="idea-sum">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</span>
-    <span class="reel-card-meta">${[i.status === 'Pitched' ? '<span class="new">Just pitched</span>' : isNew(i.date) ? '<span class="new">New</span>' : '', i.lead ? `Led by ${escapeHTML(i.lead)}` : '', (i.buildOns || []).length ? `💬 ${(i.buildOns || []).length} ${(i.buildOns || []).length === 1 ? 'build-on' : 'build-ons'}` : '', byline(i) ? escapeHTML(byline(i)) : ''].filter(Boolean).join(' · ')}</span></span>
+    <span class="reel-card-meta">${[i.status === 'Pitched' ? '<span class="new">Just pitched</span>' : isNew(i.date) ? '<span class="new">New</span>' : '', i.lead ? `Led by ${escapeHTML(i.lead)}` : '', commentCount(i) ? `💬 ${contributions(commentCount(i))}` : '', byline(i) ? escapeHTML(byline(i)) : ''].filter(Boolean).join(' · ')}</span></span>
   </button>`;
 }
 function renderIdeas() {
@@ -919,7 +919,7 @@ function openMyIdeas() {
     <p>${signedIn ? 'Every Idea Bank idea credited to you or led by you, by stage.' : 'Sign in with your own name and password to see the ideas credited to you.'}</p>
     ${signedIn ? `<ol class="stage-track" aria-label="Your ideas by stage">${stages.map(([st, list]) => `<li class="stage-step stage-step-${st}"><b>${list.length}</b><span>${STAGES[st]}</span></li>`).join('')}</ol>
     ${mine.length ? stages.filter(([, list]) => list.length).map(([st, list]) => `<h3 class="cal-head"><span class="stage stage-${st}">${STAGES[st]}</span></h3>
-      <ul class="my-list">${list.map(i => `<li><button type="button" class="my-idea tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}"><strong>${escapeHTML(i.title)}</strong><span>${escapeHTML([role(i), (seriesById(i.series) || {}).label, (i.buildOns || []).length ? `${(i.buildOns || []).length} build-on${(i.buildOns || []).length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · '))}</span></button></li>`).join('')}</ul>`).join('')
+      <ul class="my-list">${list.map(i => `<li><button type="button" class="my-idea tint-${tintFor(i)}" data-action="idea" data-id="${escapeHTML(i.id)}"><strong>${escapeHTML(i.title)}</strong><span>${escapeHTML([role(i), (seriesById(i.series) || {}).label, commentCount(i) ? contributions(commentCount(i)) : ''].filter(Boolean).join(' · '))}</span></button></li>`).join('')}</ul>`).join('')
       : `<p class="quiet">${liveIdeas ? 'No ideas credited to you yet. Pitch one, or take the lead on an idea in the Idea Bank, and it shows up here.' : 'Loading your ideas…'}</p>`}` : ''}
     ${signedIn || isCoord() ? `<h3>My casting calls</h3>
     ${calls.length ? `<ul class="my-calls">${calls.map(callRow).join('')}</ul>` : '<p class="quiet">You haven’t posted a casting call yet. Post one to find creators for your idea.</p>'}` : ''}
@@ -1039,70 +1039,249 @@ function exampleReel(i) {
   const src = imageUrl(p.thumbnail);
   return `<a class="example-reel" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">${src ? `<img src="${escapeHTML(src)}" alt="" loading="lazy">` : ''}<span><small>See a Squad example</small><strong>${escapeHTML(p.title)}</strong><em>Watch on Instagram ↗</em></span></a>`;
 }
+/* ---------- Idea detail: the writers' room (Idea Bank) and the production room (Creator Circle) ----------
+   Four parts: 💡 Original concept (the creator's words and credit), 🎬 Production (status, lead, links), ✍️ Working concept
+   (how it's evolving) and 💬 Creative discussion (threaded comments, apps-script discussion-*). Production threads are
+   created by hand in the private Creator Circle; the idea stores the thread's link (discussionUrl) and never syncs with Disco. */
+const canDeleteIdea = i => !!liveIdeas && !LOCKED() && !!i && (isCoord() || credits(i.credit).some(isMe));
+const canEditOriginal = i => !!i && (isCoord() || credits(i.credit).some(isMe)); // a lead develops the idea; the original concept stays its creator's
+const iLead = i => leadsOf(i).some(isMe);
+const HUB_LINK = /^https:\/\/tot-squad-hub\.disco\.co\/[^\s"'<>]+$/;
+const REEL_LINK = /^https:\/\/(www\.)?instagram\.com\/(reels?|p)\/[\w-]+\/?(\?[^\s"'<>]*)?$/;
+const productionUrl = i => HUB_LINK.test(String(i.discussionUrl || '')) ? i.discussionUrl : '';
+const isThreadLink = url => /[?&]streamMsgId=/.test(url); // Disco's "Copy link" on a message
+const threadName = i => `🎬 PRODUCTION | ${i.title}`;
+const ideaCall = i => liveCalls.find(c => c.ideaId === i.id && c.open !== false) || liveCalls.find(c => c.ideaId === i.id) || null;
+const ideaProject = i => allProjects.find(p => p.ideaId === i.id) || null;
+const ideaReel = i => { const own = REEL_LINK.test(String(i.reelUrl || '')) ? i.reelUrl : '', p = ideaProject(i); return own || (p && isPublished(p) ? publicUrl(p.publishedReelUrl) : ''); };
+// Links that work outside the embed: the site itself, never the Disco page around it.
+const siteBase = () => typeof location !== 'undefined' ? (location.origin || '') + String(location.pathname || '/').replace(/[^/]*$/, '') : '';
+const ideaLink = i => `${siteBase()}ideas.html#idea=${encodeURIComponent(i.id)}`;
+const callLink = c => `${siteBase()}index.html#call=${encodeURIComponent(c.id)}`;
+let discCounts = null; // ideaId -> live comment count, from ?action=ideas
+const commentCount = i => discCounts ? (discCounts[i.id] || 0) : (i.buildOns || []).length;
+const contributions = n => `${n} ${n === 1 ? 'contribution' : 'contributions'}`;
+function starterMessage(i) {
+  const call = ideaCall(i), leads = leadsOf(i), first = arr => (Array.isArray(arr) ? arr : []).slice(0, 4).map(x => '• ' + x).join('\n');
+  const need = first(i.howItWorks) || first(i.guidance) || (call && call.instructions) || 'Add the shots, parts and help needed.';
+  const next = call && dateValid(call.deadline) ? `Videos are due ${dateLabel(call.deadline)}.` : 'Set the plan and the due date here.';
+  return [`🎬 PRODUCTION: ${i.title}`, '', `Lead: ${leads.join(' & ') || 'To be decided'}`, `Status: ${STAGES[stageKey(i.stage)]}`, '', `💡 Original idea: ${ideaLink(i)}`,
+    call ? `🎥 Casting call: ${callLink(call)}` : '', '', 'CURRENT PLAN:', i.concept || i.summary || 'Add the working concept.', '', 'WHAT WE NEED:', need, '', 'NEXT STEPS:', next, '', 'Let’s bring this one to life! ❤️']
+    .filter((x, n, a) => x !== '' || a[n - 1] !== '').join('\n');
+}
+function productionPanel(i, stage) {
+  const leads = leadsOf(i), url = productionUrl(i), call = ideaCall(i), project = ideaProject(i), reel = ideaReel(i), n = commentCount(i), canEdit = canEditIdea(i);
+  const castable = call ? (call.open !== false ? call.id : '') : project && project.openCall && openProjects().some(p => p.id === project.id) ? project.id : '';
+  const track = STAGE_ORDER.map(k => `<li${k === stage ? ' aria-current="step"' : ''}>${STAGES[k]}</li>`).join('');
+  const links = [
+    `<li><span class="prod-ico" aria-hidden="true">💬</span><div><strong>Creative discussion</strong><a href="#idea-discussion" data-disc-jump>${contributions(n)}</a></div></li>`,
+    url ? `<li><span class="prod-ico" aria-hidden="true">🔒</span><div><strong>Production discussion</strong>${externalLink(url, isThreadLink(url) ? 'Open the Creator Circle thread' : 'Open the Creator Circle', 'text-button')}${isThreadLink(url) ? '' : `<small>Look for “${escapeHTML(threadName(i))}”.</small>`}</div></li>`
+      : stage !== 'idea' ? `<li><span class="prod-ico" aria-hidden="true">🔒</span><div><strong>Production discussion</strong><small>No Creator Circle thread linked yet.${canEdit ? ' Add it with Edit idea.' : ''}</small></div></li>` : '',
+    castable ? `<li><span class="prod-ico" aria-hidden="true">🎥</span><div><strong>Casting call</strong><button type="button" class="text-button" data-action="cast" data-project="${escapeHTML(castable)}">View filming instructions and send footage</button></div></li>`
+      : call ? `<li><span class="prod-ico" aria-hidden="true">🎥</span><div><strong>Casting call</strong><small>“${escapeHTML(call.title)}” is closed.</small></div></li>` : '',
+    reel ? `<li><span class="prod-ico" aria-hidden="true">🎉</span><div><strong>Published Reel</strong>${externalLink(reel, 'Watch on Instagram', 'text-button')}</div></li>` : ''].filter(Boolean).join('');
+  const room = stage === 'idea' && !url ? `<p class="prod-room">Still in the writers’ room! Help us develop this idea in the discussion below.</p>` : '';
+  const leadBtn = isAccount() && liveIdeas && !iLead(i) ? `<button type="button" class="text-button" data-idea-lead="${escapeHTML(i.id)}">${leads.length ? 'Co-lead this idea' : 'Lead this idea'}</button>` : '';
+  const tools = canEdit || iLead(i) ? `<details class="prod-tools"><summary>Set up the production thread</summary>
+      <ol><li>In the private Creator Circle, start a thread named <strong>${escapeHTML(threadName(i))}</strong> <button type="button" class="text-button" data-copy="${escapeHTML(threadName(i))}" data-done="Thread name copied.">Copy name</button></li>
+        <li>Post the starter message <button type="button" class="text-button" data-copy="${escapeHTML(starterMessage(i))}" data-done="Starter message copied. Paste it into the thread.">Copy starter message</button></li>
+        <li>Open the message’s ⋮ menu, choose <strong>Copy link</strong>, then paste it into <strong>Production discussion link</strong> with Edit idea.</li></ol>
+      <p class="quiet">Open casting calls are for every Tot Squad specialist, so filming directions belong on the casting call, not only in the thread. If the plan changes in the thread, update the call.</p>
+      <button type="button" class="text-button" data-copy="${escapeHTML(ideaLink(i))}" data-done="Idea link copied.">Copy link to this idea</button></details>` : '';
+  return `<section class="production" aria-labelledby="prod-title"><h3 id="prod-title"><span aria-hidden="true">🎬</span> Production</h3>
+    <dl class="prod-facts"><div><dt>Original concept</dt><dd>${escapeHTML(credits(i.credit).join(' & ') || 'The Squad')}</dd></div><div><dt>Lead</dt><dd>${escapeHTML(leads.join(' & ') || 'No lead yet')}${leadBtn ? ' ' + leadBtn : ''}</dd></div><div><dt>Status</dt><dd>${STAGES[stage]}</dd></div></dl>
+    <ol class="prod-track" aria-label="Production stages">${track}</ol>${room}<ul class="prod-links">${links}</ul>${tools}</section>`;
+}
+function workingConcept(i) {
+  const list = (arr, tag = 'ul') => `<${tag}>${arr.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</${tag}>`, has = arr => Array.isArray(arr) && arr.length;
+  const variations = (i.variations || []).map(v => `<li><strong>${escapeHTML(v.title)}</strong>${v.text ? ' — ' + escapeHTML(v.text) : ''}${byline(v) ? ` <span class="quiet">(${escapeHTML(byline(v))})</span>` : ''}</li>`).join('');
+  const parts = [i.concept && i.concept !== i.summary ? `<p class="concept-text">${escapeHTML(i.concept)}</p>` : '',
+    has(i.howItWorks) ? '<h4>How it works</h4>' + list(i.howItWorks, 'ol') : '', has(i.guidance) ? `<h4>Before you film</h4><div class="guidance">${i.guidance.map(escapeHTML).join('<br>')}</div>` : '',
+    variations ? `<h4>Variations</h4><ul>${variations}</ul>` : '', has(i.notes) ? '<h4>Notes</h4>' + list(i.notes) : '', has(i.altNames) ? `<h4>Other names considered</h4><p>${escapeHTML(i.altNames.join(' · '))}</p>` : '',
+    has(i.questions) ? `<h4>Question bank</h4>${i.questions.map(q => `<div class="question"><span>${escapeHTML(q)}</span><button type="button" class="text-button" data-copy="${escapeHTML(q)}">Copy</button></div>`).join('')}` : ''].filter(Boolean).join('');
+  return `<section class="working" aria-labelledby="work-title"><h3 id="work-title"><span aria-hidden="true">✍️</span> Working concept</h3>
+    ${parts || `<p class="quiet">Nothing here yet. ${canEditIdea(i) ? 'Add the hook, steps and what to film with Edit idea as the idea comes together.' : 'The lead adds the hook, steps and what to film as the idea comes together.'}</p>`}</section>`;
+}
 function openIdea(id) {
   const i = ideas().find(x => x.id === id); if (!i) return;
-  const s = seriesById(i.series); const stage = stageKey(i.stage);
-  const list = (arr,tag='ul') => `<${tag}>${arr.map(x => `<li>${escapeHTML(x)}</li>`).join('')}</${tag}>`;
-  const has = arr => Array.isArray(arr) && arr.length;
-  const variations = (i.variations || []).map(v => `<li><strong>${escapeHTML(v.title)}</strong>${v.text ? ' — '+escapeHTML(v.text) : ''}${byline(v) ? ` <span class="quiet">(${escapeHTML(byline(v))})</span>` : ''}</li>`).join('');
-  const project = allProjects.find(p => p.ideaId === i.id);
+  const s = seriesById(i.series), stage = stageKey(i.stage), leads = leadsOf(i), project = ideaProject(i);
+  const keep = body.querySelector && body.querySelector(`[data-disc-idea="${cssEsc(id)}"]`) ? modal.scrollTop : null; // same idea re-rendered: stay put
   title.textContent = i.title;
-  const leads = leadsOf(i), builds = (i.buildOns || []).slice().reverse();
-  const names = squadNames(), savedName = storageGet(UPLOAD_NAME_KEY) || '';
-  body.innerHTML = `<div class="detail tint-${tintFor(i)}">
+  body.innerHTML = `<div class="detail tint-${tintFor(i)}" data-disc-idea="${escapeHTML(i.id)}">
     <div class="detail-meta"><span class="chip series">${escapeHTML(s ? s.label : 'Idea')}</span><span class="stage stage-${stage}">${STAGES[stage]}</span>${i.status === 'Pitched' ? '<span class="chip new">Just pitched</span>' : ''}${leads.length ? `<span class="chip lead">${leads.length > 1 ? 'Co-led' : 'Led'} by ${escapeHTML(leads.join(' & '))}</span>` : ''}</div>
     ${i.titleNote ? `<p class="idea-note">${escapeHTML(i.titleNote)}</p>` : ''}
-    <section class="concept-base" aria-label="Original concept">
-      <p class="concept-label">Original concept${byline(i) ? ` · ${escapeHTML(byline(i))}` : ''}</p>
-      <p class="lede">${escapeHTML(i.summary || 'Details to come. Ask about it in Disco.')}</p>
-      ${i.concept && i.concept !== i.summary ? `<p class="concept-text">${escapeHTML(i.concept)}</p>` : ''}
+    <section class="concept-base" aria-labelledby="orig-title">
+      <h3 id="orig-title" class="concept-label"><span aria-hidden="true">💡</span> Original concept${byline(i) ? ` · ${escapeHTML(byline(i))}` : ''}</h3>
+      <p class="lede">${escapeHTML(i.summary || 'Details to come.')}</p>
       ${exampleReel(i)}
     </section>
-    ${has(i.howItWorks) ? '<h3>How it works</h3>'+list(i.howItWorks,'ol') : ''}
-    ${has(i.guidance) ? `<h3>Before you film</h3><div class="guidance">${i.guidance.map(escapeHTML).join('<br>')}</div>` : ''}
-    ${variations ? `<h3>Variations</h3><ul>${variations}</ul>` : ''}
-    ${has(i.notes) ? '<h3>From the conversation</h3>'+list(i.notes) : ''}
-    ${has(i.altNames) ? `<h3>Other names considered</h3><p>${escapeHTML(i.altNames.join(' · '))}</p>` : ''}
-    ${has(i.questions) ? `<h3>Question bank</h3>${i.questions.map(q => `<div class="question"><span>${escapeHTML(q)}</span><button type="button" class="text-button" data-copy="${escapeHTML(q)}">Copy</button></div>`).join('')}` : ''}
-    ${project ? `<h3>On this page</h3><p>${escapeHTML(project.title)} is in Made by the Squad${isPublished(project) ? ' and has a published Reel' : '; details are coming'}.</p>` : ''}
-    <section class="buildons" aria-labelledby="bo-title">
-      <h3 id="bo-title">Built on by the Squad${builds.length ? ` <span class="quiet">${builds.length}</span>` : ''}</h3>
-      ${builds.length ? builds.map(n => `<div class="buildon"><div class="buildon-head"><strong>${escapeHTML(n.name)}</strong>${n.lead ? '<span class="chip lead">Took the lead</span>' : ''}<time datetime="${escapeHTML(n.date || '')}">${escapeHTML(timeAgo(n.date))}</time></div><p>${escapeHTML(n.note)}</p></div>`).join('')
-        : `<p class="quiet">No notes yet. ${leads.length ? 'Add yours below.' : 'Be the first to build on it, and take the lead if you’d like.'}</p>`}
+    ${productionPanel(i, stage)}
+    ${workingConcept(i)}
+    ${project ? `<p class="quiet">${escapeHTML(project.title)} is in Made by the Squad${isPublished(project) ? ' and has a published Reel' : '; details are coming'}.</p>` : ''}
+    <section class="discussion" id="idea-discussion" aria-labelledby="disc-title" tabindex="-1">
+      <h3 id="disc-title"><span aria-hidden="true">💬</span> Creative discussion <span class="quiet" id="disc-count"></span></h3>
+      <div id="disc-area"></div>
     </section>
-    ${liveIdeas && !LOCKED() ? `<form id="build-form" class="build-form" novalidate>
-      <h3>Build on this idea</h3>
-      <p class="quiet">Add your take: a twist, a hook, a shot idea, who you’d film with. The original concept stays as it is.</p>
-      <label for="bo-name">Your name</label>
-      <select id="bo-name" required><option value="">Choose your name</option>${names.map(n => `<option${n === savedName ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
-      <label for="bo-note">Your notes</label>
-      <textarea id="bo-note" maxlength="1500" required placeholder="What would you add or change?"></textarea>
-      <label class="check" id="bo-lead-row"><input type="checkbox" id="bo-lead"${leads.length ? '' : ' checked'}><span>${leads.length ? `Co-lead this idea with ${escapeHTML(leads.join(' & '))}` : 'Make me the lead on this idea'}</span></label>
-      <div class="form-actions"><button class="button" type="submit" id="bo-go">Add my notes</button></div>
-    </form>` : '<p class="quiet">Building on ideas works when the Idea Bank is connected. Try again in a moment.</p>'}
-    <div class="button-row">${liveIdeas && !LOCKED() && ['idea','casting'].includes(stage) && (isMine(i) || isCoord()) ? `<button class="button" type="button" data-action="call-new" data-idea="${escapeHTML(i.id)}">Post a casting call</button>` : ''}${canEditIdea(i) ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button><button class="text-button danger" type="button" data-action="idea-delete" data-id="${escapeHTML(i.id)}">Delete idea</button>` : ''}${externalLink(i.discussionUrl || content.discoUrl, i.discussionUrl ? 'Idea discussion' : 'Talk about it in Disco','button secondary')}</div>
+    <div class="button-row">${liveIdeas && !LOCKED() && ['idea','casting'].includes(stage) && (isMine(i) || isCoord()) && !ideaCall(i) ? `<button class="button" type="button" data-action="call-new" data-idea="${escapeHTML(i.id)}">Post a casting call</button>` : ''}${canEditIdea(i) ? `<button class="button secondary" data-action="idea-edit" data-id="${escapeHTML(i.id)}">Edit idea</button>` : ''}${canDeleteIdea(i) ? `<button class="text-button danger" type="button" data-action="idea-delete" data-id="${escapeHTML(i.id)}">Delete idea</button>` : ''}</div>
   </div>`;
-  const form = body.querySelector ? body.querySelector('#build-form') : null; // (has() is shadowed in this function)
-  if (form) {
-    const nameSel = $('#bo-name'), leadRow = $('#bo-lead-row');
-    const syncLead = () => { leadRow.hidden = leads.includes(nameSel.value); };
-    nameSel.onchange = syncLead; syncLead();
-    form.onsubmit = async ev => {
-      ev.preventDefault();
-      const name = nameSel.value, note = $('#bo-note').value.trim();
-      if (!name) { status.textContent = 'Choose your name first.'; return nameSel.focus(); }
-      if (!note) { status.textContent = 'Add your notes first.'; return $('#bo-note').focus(); }
-      const go = $('#bo-go'); go.disabled = true; go.textContent = 'Adding…'; status.textContent = '';
-      try {
-        const res = await uploadRequest({ action:'idea-build', id: i.id, name, note, lead: !leadRow.hidden && $('#bo-lead').checked });
-        if (!res.ok) throw new Error(res.error || '');
-        storageSet(UPLOAD_NAME_KEY, name); upsertIdea(res.idea); openIdea(res.idea.id);
-        status.textContent = leadsOf(res.idea).includes(name) && !leads.includes(name) ? `Added. You’re ${leadsOf(res.idea).length > 1 ? 'co-leading' : 'leading'} this idea now!` : 'Added. Thanks for building on it!';
-        loadActivity();
-      } catch (err) { status.textContent = err.message || 'That didn’t save. Check your connection and try again.'; go.disabled = false; go.textContent = 'Add my notes'; }
-    };
-  }
+  renderDiscussion(i.id);
   showModal();
+  if (keep !== null) modal.scrollTop = keep;
+  const d = disc[i.id]; if (!d || d.state === 'idle' || d.state === 'failed') loadDiscussion(i.id);
+}
+
+/* ---------- Creative discussion: threaded comments ---------- */
+const disc = {}; // ideaId -> { state: idle|loading|more|done|failed, comments, next, total, moderator }
+const discDraft = {}, discReq = {}; // unsent text and request IDs, by form key, so errors and re-renders lose nothing
+const discCollapsed = new Set();
+let discUi = { reply: '', edit: '', confirm: '' };
+const discRequest = payload => uploadRequest({ ...payload, coordKey: storageGet(COORD_CODE_KEY) || '', coordName: storageGet(UPLOAD_NAME_KEY) || '' });
+const reqId = () => 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+async function loadDiscussion(id, more) {
+  if (LOCKED() || !UPLOAD_ON() || typeof fetch !== 'function' || !liveIdeas) return;
+  const d = disc[id] = disc[id] || { state: 'idle', comments: [], next: null, total: 0 };
+  if (d.state === 'loading' || d.state === 'more') return;
+  d.state = more ? 'more' : 'loading'; renderDiscussion(id);
+  try {
+    const res = await discRequest({ action: 'discussion-list', ideaId: id, cursor: more ? d.next : 0 });
+    if (!res || !res.ok || !Array.isArray(res.comments)) throw new Error(res && res.error || '');
+    d.comments = more ? d.comments.concat(res.comments.filter(c => !d.comments.some(x => x.id === c.id))) : res.comments;
+    Object.assign(d, { state: 'done', next: res.next, total: res.total, moderator: !!res.moderator, error: '' });
+    setCount(id, res.total);
+  } catch (err) { d.state = more ? 'done' : 'failed'; d.error = err.message || 'The discussion didn’t load. Check your connection and try again.'; if (more) status.textContent = d.error; }
+  renderDiscussion(id);
+}
+function setCount(id, n) {
+  discCounts = discCounts || {}; discCounts[id] = n; if (has('#idea-grid')) renderIdeas();
+  const jump = openIdeaId() === id && body.querySelector('[data-disc-jump]'); if (jump) jump.textContent = contributions(n); // the Production panel's count
+}
+const byTime = (a, b) => (Date.parse(a.created) || 0) - (Date.parse(b.created) || 0);
+function discTree(list) {
+  const ids = new Set(list.map(c => c.id)), kids = {};
+  list.forEach(c => { const p = c.parentId && ids.has(c.parentId) ? c.parentId : ''; (kids[p] = kids[p] || []).push(c); });
+  Object.keys(kids).forEach(k => kids[k].sort(byTime)); if (kids['']) kids[''].reverse(); // threads newest first, replies in order
+  return kids;
+}
+const descendants = (kids, id) => (kids[id] || []).reduce((n, c) => n + 1 + descendants(kids, c.id), 0);
+function discForm(key, { label, button, cancel, id }) {
+  return `<form class="disc-form" data-disc-form="${escapeHTML(key)}" novalidate>
+    <label for="${id}">${escapeHTML(label)}</label>
+    <textarea id="${id}" maxlength="2000" rows="${cancel ? 2 : 3}" data-disc-draft="${escapeHTML(key)}" required>${escapeHTML(discDraft[key] || '')}</textarea>
+    <p class="disc-error" role="alert" hidden></p>
+    <div class="disc-form-actions"><button class="button" type="submit">${escapeHTML(button)}</button>${cancel ? `<button class="text-button" type="button" data-disc-cancel>${escapeHTML(cancel)}</button>` : ''}</div></form>`;
+}
+function commentHtml(c, kids, depth, parentName, ideaId, d) {
+  const replies = kids[c.id] || [], n = descendants(kids, c.id), open = !discCollapsed.has(c.id), safe = escapeHTML(c.id);
+  const head = c.deleted ? `<span class="cmt-name removed">Removed comment</span>` : `<strong class="cmt-name">${escapeHTML(c.name)}</strong>${c.earlier ? '<span class="cmt-tag">Built on earlier</span>' : ''}`;
+  const actions = c.deleted ? '' : [`<button type="button" class="text-button" data-disc-reply="${safe}" aria-expanded="${discUi.reply === c.id}">Reply</button>`,
+    c.mine ? `<button type="button" class="text-button" data-disc-edit="${safe}">Edit</button>` : '',
+    c.mine || d.moderator ? `<button type="button" class="text-button quiet-danger" data-disc-delete="${safe}">${c.mine ? 'Delete' : 'Remove'}</button>` : ''].join('');
+  const text = discUi.edit === c.id ? discForm('edit:' + c.id, { label: 'Edit your comment', button: 'Save', cancel: 'Cancel', id: 'disc-edit-' + safe })
+    : `<p class="cmt-text${c.deleted ? ' removed' : ''}">${c.deleted ? 'This comment was removed. Its replies are still here.' : escapeHTML(c.body)}</p>`;
+  const confirm = discUi.confirm === c.id ? `<div class="disc-confirm" role="group" aria-label="Confirm"><p>${c.mine ? 'Delete your comment?' : 'Remove this comment?'} Replies to it stay.</p><button type="button" class="button secondary" data-disc-delete-yes="${safe}">${c.mine ? 'Delete' : 'Remove'}</button><button type="button" class="text-button" data-disc-cancel>Cancel</button></div>` : '';
+  return `<li class="cmt" data-depth="${Math.min(depth, 6)}">
+    <article class="cmt-card" id="cmt-${safe}" tabindex="-1" aria-label="${escapeHTML(c.deleted ? 'Removed comment' : 'Comment by ' + c.name)}">
+      <div class="cmt-head">${head}${parentName ? `<span class="cmt-to">↳ ${escapeHTML(parentName)}</span>` : ''}<time datetime="${escapeHTML(c.created)}">${escapeHTML(timeAgo(c.created))}${c.edited ? ' · edited' : ''}</time></div>
+      ${text}${discUi.edit === c.id ? '' : `<div class="cmt-actions">${actions}</div>`}${confirm}
+    </article>
+    ${discUi.reply === c.id ? `<div class="cmt-reply-form">${discForm('reply:' + c.id, { label: `Reply to ${c.name}`, button: 'Post reply', cancel: 'Cancel reply', id: 'disc-reply-' + safe })}</div>` : ''}
+    ${replies.length ? `<button type="button" class="cmt-toggle" data-disc-toggle="${safe}" aria-expanded="${open}" aria-controls="replies-${safe}">${open ? `Hide replies` : `Show ${n} ${n === 1 ? 'reply' : 'replies'}`}</button>
+      <ol class="cmt-replies" id="replies-${safe}"${open ? '' : ' hidden'}>${replies.map(r => commentHtml(r, kids, depth + 1, c.deleted ? '' : c.name, ideaId, d)).join('')}</ol>` : ''}
+  </li>`;
+}
+const cssEsc = v => typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(v) : String(v).replace(/["\\\]]/g, '\\$&');
+function discussionHtml(id) {
+  const d = disc[id];
+  if (LOCKED() || !UPLOAD_ON()) return `<p class="quiet">The discussion is for Creators Club members. <a href="${escapeHTML(pageUrl('index.html'))}#mentor-signin">Sign in</a> to join it.</p>`;
+  if (!liveIdeas || !d || d.state === 'idle' || d.state === 'loading') return `<p class="quiet" role="status">Loading the discussion…</p>`;
+  if (d.state === 'failed') return `<div class="disc-status" role="alert"><p>${escapeHTML(d.error)}</p><button type="button" class="button secondary" data-disc-retry>Try again</button></div>`;
+  const kids = discTree(d.comments), tops = kids[''] || [];
+  return `${discForm('top', { label: 'Have a thought? Build on this idea with the Squad!', button: 'Post comment', id: 'disc-new' })}
+    ${tops.length ? `<ol class="cmt-list">${tops.map(c => commentHtml(c, kids, 0, '', id, d)).join('')}</ol>` : '<p class="quiet disc-empty">No comments yet. Start the conversation: a hook, a twist, a shot idea, who you’d film with.</p>'}
+    ${d.next !== null && d.next !== undefined ? `<button type="button" class="button secondary disc-more" data-disc-more${d.state === 'more' ? ' disabled' : ''}>${d.state === 'more' ? 'Loading…' : 'Show earlier conversations'}</button>` : ''}`;
+}
+function renderDiscussion(id) {
+  const area = body.querySelector && body.querySelector(`[data-disc-idea="${cssEsc(id)}"] #disc-area`); if (!area) return;
+  const d = disc[id], count = body.querySelector('#disc-count');
+  if (count) count.textContent = d && d.state === 'done' && d.total ? String(d.total) : '';
+  const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.discDraft : '';
+  area.innerHTML = discussionHtml(id);
+  if (focusKey) { const el = area.querySelector(`[data-disc-draft="${CSS.escape(focusKey)}"]`); if (el) { el.focus({ preventScroll: true }); el.setSelectionRange(el.value.length, el.value.length); } }
+}
+const openIdeaId = () => { const el = body.querySelector && body.querySelector('[data-disc-idea]'); return modal.open && el ? el.dataset.discIdea : ''; };
+function rerenderDisc(id, then) { const top = modal.scrollTop; renderDiscussion(id); modal.scrollTop = top; if (then) then(); }
+async function submitDisc(form) {
+  const id = openIdeaId(), key = form.dataset.discForm, box = form.querySelector('textarea'), err = form.querySelector('.disc-error'), go = form.querySelector('[type="submit"]');
+  const text = box.value.trim(), d = disc[id]; if (!id || !d) return;
+  const fail = msg => { err.textContent = msg; err.hidden = false; status.textContent = msg; go.disabled = false; go.textContent = go.dataset.label || go.textContent; box.focus(); };
+  if (!text) return fail('Write your comment first.');
+  go.dataset.label = go.textContent; go.disabled = true; go.textContent = key.startsWith('edit:') ? 'Saving…' : 'Posting…'; err.hidden = true;
+  try {
+    let res;
+    if (key.startsWith('edit:')) {
+      const cid = key.slice(5), c = d.comments.find(x => x.id === cid);
+      res = await discRequest({ action: 'discussion-edit', id: cid, body: text, expect: c ? (c.edited || c.created) : '' });
+      if (!res.ok) throw new Error(res.error || '');
+      d.comments = d.comments.map(x => x.id === cid ? res.comment : x);
+    } else {
+      discReq[key] = discReq[key] || reqId();
+      res = await discRequest({ action: 'discussion-add', ideaId: id, parentId: key.startsWith('reply:') ? key.slice(6) : '', body: text, requestId: discReq[key] });
+      if (!res.ok) throw new Error(res.error || '');
+      if (!d.comments.some(x => x.id === res.comment.id)) { d.comments.push(res.comment); d.total++; setCount(id, d.total); }
+      if (key.startsWith('reply:')) discCollapsed.delete(key.slice(6));
+      delete discReq[key];
+    }
+    delete discDraft[key]; discUi = { reply: '', edit: '', confirm: '' };
+    rerenderDisc(id, () => { const el = document.getElementById('cmt-' + res.comment.id); if (el) { el.classList.add('cmt-new'); el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); } });
+    status.textContent = key.startsWith('edit:') ? 'Saved.' : key.startsWith('reply:') ? 'Reply posted.' : 'Comment posted.';
+    if (!key.startsWith('edit:')) loadActivity();
+  } catch (e) { fail(e.message || 'That didn’t post. Check your connection and try again. Your text is still here.'); }
+}
+async function deleteDisc(cid) {
+  const id = openIdeaId(), d = disc[id]; if (!d) return;
+  status.textContent = 'Removing…';
+  try {
+    const res = await discRequest({ action: 'discussion-delete', id: cid }); if (!res.ok) throw new Error(res.error || '');
+    const kids = discTree(d.comments);
+    d.comments = descendants(kids, cid) ? d.comments.map(x => x.id === cid ? res.comment : x) : d.comments.filter(x => x.id !== cid);
+    d.total = Math.max(0, d.total - 1); setCount(id, d.total); discUi.confirm = '';
+    rerenderDisc(id); status.textContent = 'Removed.';
+  } catch (e) { status.textContent = e.message || 'That didn’t go through. Try again.'; }
+}
+async function leadThisIdea(ideaId, btn) {
+  btn.disabled = true; status.textContent = '';
+  try { const res = await uploadRequest({ action: 'idea-lead', id: ideaId }); if (!res.ok) throw new Error(res.error || ''); upsertIdea(res.idea); openIdea(ideaId); status.textContent = leadsOf(res.idea).length > 1 ? 'You’re co-leading this idea now.' : 'You’re leading this idea now.'; loadActivity(); }
+  catch (e) { status.textContent = e.message || 'That didn’t save. Try again.'; btn.disabled = false; }
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('submit', e => { const f = e.target.closest && e.target.closest('[data-disc-form]'); if (!f) return; e.preventDefault(); submitDisc(f); });
+  document.addEventListener('input', e => { const k = e.target.dataset && e.target.dataset.discDraft; if (k) discDraft[k] = e.target.value; });
+  document.addEventListener('keydown', e => { const k = e.target.dataset && e.target.dataset.discDraft; if (k && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitDisc(e.target.form); } });
+  // Phones: keep the box being typed in visible above the keyboard.
+  document.addEventListener('focusin', e => { if (e.target.dataset && e.target.dataset.discDraft && innerWidth < 700) setTimeout(() => e.target.scrollIntoView({ block: 'center' }), 300); });
+  document.addEventListener('click', e => {
+    const t = e.target; if (!t.closest) return;
+    const id = openIdeaId(), q = sel => t.closest(sel);
+    let el;
+    if ((el = q('[data-idea-lead]'))) return leadThisIdea(el.dataset.ideaLead, el);
+    if (!id) return;
+    if (q('[data-disc-jump]')) { e.preventDefault(); const s = document.getElementById('idea-discussion'); s.scrollIntoView({ block: 'start' }); s.focus({ preventScroll: true }); return; }
+    if (q('[data-disc-retry]')) return loadDiscussion(id);
+    if (q('[data-disc-more]')) return loadDiscussion(id, true);
+    if ((el = q('[data-disc-toggle]'))) { const c = el.dataset.discToggle; discCollapsed.has(c) ? discCollapsed.delete(c) : discCollapsed.add(c); return rerenderDisc(id, () => document.querySelector(`[data-disc-toggle="${CSS.escape(c)}"]`)?.focus({ preventScroll: true })); }
+    if ((el = q('[data-disc-reply]'))) { const c = el.dataset.discReply; discUi = { reply: discUi.reply === c ? '' : c, edit: '', confirm: '' }; return rerenderDisc(id, () => document.getElementById('disc-reply-' + c)?.focus({ preventScroll: false })); }
+    if ((el = q('[data-disc-edit]'))) { const c = el.dataset.discEdit, cm = disc[id].comments.find(x => x.id === c); if (!('edit:' + c in discDraft) && cm) discDraft['edit:' + c] = cm.body; discUi = { reply: '', edit: c, confirm: '' }; return rerenderDisc(id, () => document.getElementById('disc-edit-' + c)?.focus()); }
+    if ((el = q('[data-disc-delete]'))) { discUi = { reply: '', edit: '', confirm: el.dataset.discDelete }; return rerenderDisc(id, () => document.querySelector(`[data-disc-delete-yes="${CSS.escape(el.dataset.discDelete)}"]`)?.focus()); }
+    if ((el = q('[data-disc-delete-yes]'))) return deleteDisc(el.dataset.discDeleteYes);
+    if (q('[data-disc-cancel]')) { const was = discUi.reply || discUi.edit || discUi.confirm; if (discUi.edit) delete discDraft['edit:' + discUi.edit]; discUi = { reply: '', edit: '', confirm: '' }; return rerenderDisc(id, () => document.getElementById('cmt-' + was)?.focus({ preventScroll: true })); }
+  });
+}
+/* Deep links: ideas.html#idea=<id> opens that idea once the Idea Bank has loaded; index.html#call=<id> opens a casting call. */
+let deepOpened = '';
+function openFromHash() {
+  const m = typeof location !== 'undefined' && String(location.hash || '').match(/^#(idea|call)=([\w-]+)$/); if (!m || deepOpened === location.hash) return;
+  if (m[1] === 'idea' && has('#idea-grid') && liveIdeas && ideas().some(i => i.id === m[2])) { deepOpened = location.hash; openIdea(m[2]); }
+  if (m[1] === 'call' && projectById(m[2])) { deepOpened = location.hash; openCast(m[2]); }
 }
 
 function flowNav(action) {
@@ -1822,9 +2001,10 @@ async function loadIdeas() {
   try {
     const res = await fetch(`${publicUrl(content.uploadEndpoint)}?action=ideas&key=${encodeURIComponent(mentorKey())}`); const data = await res.json(); // creators only
     if (data.ok && Array.isArray(data.ideas) && data.ideas.length) liveIdeas = data.ideas;
+    if (data.ok && data.counts && typeof data.counts === 'object') discCounts = data.counts; // live discussion comments per idea
     ideasState = data.ok ? 'done' : 'failed';
   } catch { ideasState = 'failed'; }
-  rerenderIdeas();
+  rerenderIdeas(); openFromHash();
 }
 function upsertIdea(idea) {
   if (!idea || !idea.id) return;
@@ -1833,13 +2013,13 @@ function upsertIdea(idea) {
   liveIdeas = list; rerenderIdeas();
 }
 /* Who can change an idea (the script checks again): coordinators, any idea; creators signed in with their own
-   password, the ideas credited to them. A first-name credit ("Kristin") counts for that creator's full name. */
+   password, the ideas credited to them or that they lead (leads can't change the original concept or credit). A first-name credit ("Kristin") counts for that creator's full name. */
 function canEditIdea(i) {
   if (!liveIdeas || LOCKED() || !i) return false;
   if (isCoord()) return true;
   const me = myName(); if (!me) return false;
-  const claim = myClaim();
-  return (i.credit || []).some(c => sameName(c, me) || (!!claim && sameName(c, claim)));
+  const claim = myClaim(), isMeHere = c => sameName(c, me) || (!!claim && sameName(c, claim));
+  return (i.credit || []).some(isMeHere) || leadsOf(i).some(isMeHere); // leads develop the working concept and production links
 }
 const ideaRequest = payload => uploadRequest({ ...payload, coordKey: storageGet(COORD_CODE_KEY) || '', coordName: storageGet(UPLOAD_NAME_KEY) || '' });
 function openIdeaEdit(id) {
@@ -1862,9 +2042,9 @@ function openIdeaEdit(id) {
       </div>
       <label for="ie-lead">Lead</label>
       <select id="ie-lead"><option value="">No lead yet</option>${[...new Set([...names, i.lead].filter(Boolean))].map(n => `<option${n === i.lead ? ' selected' : ''}>${escapeHTML(n)}</option>`).join('')}</select>
-      <label for="ie-summary">The idea</label>
-      <textarea id="ie-summary" maxlength="1500">${escapeHTML(i.summary || '')}</textarea>
-      <label for="ie-concept">The concept, expanded</label>
+      <label for="ie-summary">Original concept${fresh || canEditOriginal(i) ? '' : ' <span class="quiet">(stays as its creator wrote it)</span>'}</label>
+      <textarea id="ie-summary" maxlength="1500"${fresh || canEditOriginal(i) ? '' : ' readonly aria-readonly="true"'}>${escapeHTML(i.summary || '')}</textarea>
+      <label for="ie-concept">Working concept <span class="quiet">(the hook and direction as it evolves)</span></label>
       <textarea id="ie-concept" maxlength="1500">${escapeHTML(i.concept || '')}</textarea>
       <label for="ie-how">How it works <span class="quiet">(one step per line)</span></label>
       <textarea id="ie-how" maxlength="4000">${lines(i.howItWorks)}</textarea>
@@ -1874,7 +2054,12 @@ function openIdeaEdit(id) {
       <textarea id="ie-notes" maxlength="4000">${lines(i.notes)}</textarea>
       <label for="ie-questions">Question bank <span class="quiet">(one per line)</span></label>
       <textarea id="ie-questions" maxlength="4000">${lines(i.questions)}</textarea>
-      <div class="form-actions"><button class="button" type="submit" id="ie-save">${fresh ? 'Add idea' : 'Save changes'}</button>${fresh ? '' : `<button class="button secondary" type="button" data-action="idea" data-id="${escapeHTML(i.id)}">Cancel</button><button class="text-button danger" type="button" data-action="idea-delete" data-id="${escapeHTML(i.id)}">Delete idea</button>`}</div>
+      ${fresh ? '' : `<label for="ie-disc">Production discussion link <span class="quiet">(optional)</span></label>
+      <input id="ie-disc" type="url" inputmode="url" maxlength="500" value="${escapeHTML(i.discussionUrl || '')}" placeholder="https://tot-squad-hub.disco.co/channel/…" aria-describedby="ie-disc-help">
+      <p class="quiet field-help" id="ie-disc-help">When this idea moves into production, start a thread in the private Creator Circle, open its message menu, choose Copy link and paste it here.</p>
+      <label for="ie-reel">Published Reel link <span class="quiet">(optional)</span></label>
+      <input id="ie-reel" type="url" inputmode="url" maxlength="500" value="${escapeHTML(i.reelUrl || '')}" placeholder="https://www.instagram.com/reel/…">`}
+      <div class="form-actions"><button class="button" type="submit" id="ie-save">${fresh ? 'Add idea' : 'Save changes'}</button>${fresh ? '' : `<button class="button secondary" type="button" data-action="idea" data-id="${escapeHTML(i.id)}">Cancel</button>${canDeleteIdea(i) ? `<button class="text-button danger" type="button" data-action="idea-delete" data-id="${escapeHTML(i.id)}">Delete idea</button>` : ''}`}</div>
     </form>`;
   $('#idea-edit-form').onsubmit = async ev => {
     ev.preventDefault();
@@ -1882,6 +2067,12 @@ function openIdeaEdit(id) {
     const name = askName ? val('ie-name') : myName(); if (!name) { status.textContent = 'Choose your name first.'; return document.getElementById('ie-name').focus(); }
     const idea = { id: i.id || '', title: val('ie-title').trim(), series: val('ie-series'), stage: document.getElementById('ie-stage') ? val('ie-stage') : 'idea', lead: val('ie-lead'), summary: val('ie-summary').trim(), concept: val('ie-concept').trim(),
       howItWorks: val('ie-how'), guidance: val('ie-guidance'), notes: val('ie-notes'), questions: val('ie-questions') };
+    if (!fresh && !canEditOriginal(i)) delete idea.summary;
+    if (!fresh) {
+      idea.discussionUrl = val('ie-disc').trim(); idea.reelUrl = val('ie-reel').trim();
+      if (idea.discussionUrl && !HUB_LINK.test(idea.discussionUrl)) { status.textContent = 'Use a Tot Squad Disco link for the production discussion: in the Creator Circle, open the thread’s message menu, choose Copy link and paste it here.'; return document.getElementById('ie-disc').focus(); }
+      if (idea.reelUrl && !REEL_LINK.test(idea.reelUrl)) { status.textContent = 'Use the Reel’s Instagram link, like https://www.instagram.com/reel/…'; return document.getElementById('ie-reel').focus(); }
+    }
     if (coordHere) idea.credit = val('ie-credit').split(',').map(x => x.trim()).filter(Boolean);
     if (!idea.title) { status.textContent = 'Give the idea a title.'; return document.getElementById('ie-title').focus(); }
     const go = document.getElementById('ie-save'), label = go.textContent; go.disabled = true; go.textContent = 'Saving…'; status.textContent = '';
@@ -1895,9 +2086,9 @@ function openIdeaEdit(id) {
   showModal();
 }
 function openIdeaDelete(id) {
-  const i = ideas().find(x => x.id === id); if (!i || !canEditIdea(i)) return;
+  const i = ideas().find(x => x.id === id); if (!i || !canDeleteIdea(i)) return;
   title.textContent = 'Delete this idea?';
-  body.innerHTML = `<p><strong>${escapeHTML(i.title)}</strong> comes out of the Idea Bank for everyone, along with ${(i.buildOns || []).length ? 'the notes the Squad added to it' : 'its details'}. Coordinators can restore it from the ideas sheet’s version history if needed.</p>
+  body.innerHTML = `<p><strong>${escapeHTML(i.title)}</strong> comes out of the Idea Bank for everyone, along with its details and its discussion. Coordinators can restore it from the ideas sheet’s version history if needed.</p>
     <div class="form-actions"><button class="button danger" type="button" id="idel-go">Delete idea</button><button class="button secondary" type="button" data-action="idea" data-id="${escapeHTML(i.id)}">Keep it</button></div>`;
   $('#idel-go').onclick = async () => {
     const go = $('#idel-go'); go.disabled = true; go.textContent = 'Deleting…'; status.textContent = '';
@@ -2496,4 +2687,6 @@ else if (OPEN_PAGE()) renderContent();
 else showGate();
 if (LANDING()) setupLanding();
 loadBios(); loadClaims(); loadCalls();
+if (typeof addEventListener === 'function') addEventListener('hashchange', openFromHash);
+openFromHash(); // a public casting call (index.html#call=…) opens right away; ideas wait for the Idea Bank to load
 if (movingKey) isSharedPassword(movingKey).then(r => { if (r.shared) openAccountSetup(movingKey, storageGet(UPLOAD_NAME_KEY) || '', true); }).catch(() => {});

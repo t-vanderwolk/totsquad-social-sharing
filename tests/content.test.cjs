@@ -382,14 +382,14 @@ console.log('PASS: what’s new feed');
   const t9 = boot();
   t9.run(`liveIdeas = [{ id:'gotta-have', title:'Gotta Have', series:'reels', stage:'idea', summary:'Sort baby gear into three friendly tiers.', credit:[], date:'', lead:'Kristin',
     buildOns:[{ name:'Kristin', note:'Start with car seats.', date:'2026-11-20T18:00:00Z', lead:true }, { name:'Lora', note:'Add a lightning round.', date:'2026-11-21T18:00:00Z', lead:true }] }]; renderIdeas();`);
-  assert.match(t9.html('#idea-grid'), /2 build-ons/);
+  assert.match(t9.html('#idea-grid'), /💬 2 contributions/); // older build-ons count until the discussion counts load
   t9.run("openPanel('idea',{id:'gotta-have'})"); const d = t9.html('#modal-body');
   assert.match(d, /Original concept/); assert.match(d, /Could Survive Without/); // expanded concept from content.js
   assert.match(d, /class="example-reel" href="https:\/\/www\.instagram\.com\/reel\/DeuxzYWTQhv\/"/);
-  assert.ok(d.indexOf('Add a lightning round') < d.indexOf('Start with car seats'), 'newest build-on first');
-  assert.match(d, /id="build-form"/); assert.match(d, /Co-lead this idea with Kristin/);
+  assert.match(d, /<dt>Lead<\/dt><dd>Kristin <button type="button" class="text-button" data-idea-lead="gotta-have">Co-lead this idea<\/button>/); // leading is its own, deliberate action
+  assert.match(d, /id="idea-discussion"/); assert.doesNotMatch(d, /id="build-form"/); // build-ons now live in the threaded discussion
 }
-console.log('PASS: idea concepts, examples, build-ons');
+console.log('PASS: idea concepts, examples, leads');
 
 // Toolkit pages open in a panel over the page, so nobody loses their place.
 {
@@ -760,3 +760,81 @@ console.log('PASS: creators add ideas; B-roll links only for signed-in creators'
   assert.match(js, /signed-in Creators Club members can watch the videos sent in for this call/);
 }
 console.log('PASS: casting call videos for signed-in creators');
+
+// Idea detail: 💡 original concept, 🎬 production, ✍️ working concept, 💬 threaded discussion.
+{
+  const idea = { id:'games', title:'The Baby Specialist Games', series:'reels', stage:'idea', summary:'Everyone films the three-finger salute.', concept:'A two-part games series.', howItWorks:['Salute','Pass it on'],
+    credit:['Victoria Mattson'], date:'2026-11-20', lead:'Taylor Vanderwolk', buildOns:[{ name:'Kristin', note:'Start with car seats.', date:'2026-11-20T18:00:00Z' }] };
+  const me = boot(); // signed in as Taylor Vanderwolk (claimed "Taylor")
+  me.run(`liveIdeas = [${JSON.stringify(idea)}]; discCounts = { games: 4 }; liveCalls = []; renderIdeas()`);
+  assert.match(me.html('#idea-grid'), /💬 4 contributions/); // live discussion counts win over the older build-ons
+  me.run("openIdea('games')"); let d = me.html('#modal-body');
+  // Four parts, in order, with the original concept credited to Victoria.
+  const at = s => d.indexOf(s); assert.ok(at('Original concept') < at('🎬</span> Production') && at('🎬</span> Production') < at('Working concept') && at('Working concept') < at('💬</span> Creative discussion'));
+  assert.match(d, /Original concept · Suggested by Victoria Mattson · Nov 20/); assert.match(d, /<dt>Original concept<\/dt><dd>Victoria Mattson<\/dd>/);
+  assert.match(d, /<dt>Lead<\/dt><dd>Taylor Vanderwolk<\/dd>/); assert.match(d, /<li aria-current="step">Idea<\/li>/);
+  assert.match(d, /Still in the writers’ room! Help us develop this idea in the discussion below\./);
+  assert.match(d, /data-disc-jump>4 contributions<\/a>/);
+  assert.doesNotMatch(d, /<strong>Production discussion<\/strong>|View filming instructions|Watch on Instagram/); // no dead links before production
+  // The lead (not credited) edits the working concept and production links, but not the original concept, and can't delete the idea.
+  assert.equal(me.run("canEditIdea(ideas()[0])"), true); assert.equal(me.run("canDeleteIdea(ideas()[0])"), false);
+  assert.match(d, /data-action="idea-edit"/); assert.doesNotMatch(d, /data-action="idea-delete"/); assert.match(d, /<summary>Set up the production thread<\/summary>/);
+  me.run("openIdeaEdit('games')"); const f = me.html('#modal-body');
+  assert.match(f, /<textarea id="ie-summary" maxlength="1500" readonly aria-readonly="true">/); assert.match(f, /stays as its creator wrote it/);
+  assert.match(f, /id="ie-disc" type="url"/); assert.match(f, /id="ie-reel" type="url"/); assert.doesNotMatch(f, /data-action="idea-delete"/);
+  // Production: a Creator Circle thread link, the linked casting call, then the published Reel.
+  const thread = 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjM0ODYw?streamMsgId=abc-123';
+  me.run(`liveIdeas[0].stage = 'casting'; liveIdeas[0].discussionUrl = ${JSON.stringify(thread)}; liveCalls = [{ id:'call-1', title:'Baby Specialist Games', ideaId:'games', open:true, audience:'public', instructions:'Hold up three fingers.', deadline:'2099-01-10', steps:[], questions:[] }]; openIdea('games')`);
+  d = me.html('#modal-body');
+  assert.match(d, /href="https:\/\/tot-squad-hub\.disco\.co\/channel\/Q2hhdENoYW5uZWw6MjM0ODYw\?streamMsgId=abc-123" target="_top" data-mentor>Open the Creator Circle thread<\/a>/); // inside Disco: opens in the hub
+  assert.match(d, /data-action="cast" data-project="call-1">View filming instructions and send footage<\/button>/);
+  assert.doesNotMatch(d, /writers’ room/); assert.doesNotMatch(d, /data-action="call-new"/); // a call already exists
+  me.run(`liveIdeas[0].discussionUrl = 'https://tot-squad-hub.disco.co/channel/Q2hhdENoYW5uZWw6MjM0ODYw'; openIdea('games')`);
+  assert.match(me.html('#modal-body'), />Open the Creator Circle<\/a><small>Look for “🎬 PRODUCTION \| The Baby Specialist Games”\.<\/small>/); // channel only: say which thread
+  me.run(`liveIdeas[0].discussionUrl = 'https://evil.example.com/x'; openIdea('games')`);
+  assert.doesNotMatch(me.html('#modal-body'), /evil/); assert.match(me.html('#modal-body'), /No Creator Circle thread linked yet\. Add it with Edit idea\./);
+  me.run(`liveIdeas[0].stage = 'published'; liveIdeas[0].reelUrl = 'https://www.instagram.com/reel/DfOPl81NP3Q/'; liveIdeas[0].discussionUrl = ${JSON.stringify(thread)}; liveCalls[0].open = false; openIdea('games')`);
+  d = me.html('#modal-body'); assert.match(d, /href="https:\/\/www\.instagram\.com\/reel\/DfOPl81NP3Q\/"[^>]*>Watch on Instagram/); assert.match(d, /“Baby Specialist Games” is closed\./); assert.match(d, /Open the Creator Circle thread/);
+  // The starter message links back to the idea and the casting call, outside the embed.
+  me.run("liveCalls[0].open = true; location.origin = 'https://t-vanderwolk.github.io'; location.pathname = '/totsquad-social-sharing/ideas.html'");
+  const msg = me.run("starterMessage(ideas()[0])");
+  assert.match(msg, /^🎬 PRODUCTION: The Baby Specialist Games\n\nLead: Taylor Vanderwolk\nStatus: Published\n\n💡 Original idea: https:\/\/t-vanderwolk\.github\.io\/totsquad-social-sharing\/ideas\.html#idea=games\n🎥 Casting call: https:\/\/t-vanderwolk\.github\.io\/totsquad-social-sharing\/index\.html#call=call-1\n/);
+  assert.match(msg, /CURRENT PLAN:\nA two-part games series\.\n\nWHAT WE NEED:\n• Salute\n• Pass it on\n\nNEXT STEPS:\nVideos are due/); assert.match(msg, /Let’s bring this one to life! ❤️$/); assert.doesNotMatch(msg, /embed=1/);
+  // Threads: replies nest under their parent, threads newest first, removed parents keep their replies, own vs others' actions.
+  me.run(`disc.games = { state:'done', total:4, next:20, moderator:false, comments:[
+    { id:'c1', parentId:'', name:'Victoria Mattson', body:'What if everyone filmed the salute?', created:'2026-11-25T10:00:00Z' },
+    { id:'c2', parentId:'c1', name:'Taylor Vanderwolk', body:'I LOVE this! Two parts?', created:'2026-11-25T11:00:00Z', mine:true, edited:'2026-11-25T11:05:00Z' },
+    { id:'c3', parentId:'c2', name:'Sarah', body:'Same dramatic opening <b>for both</b>!', created:'2026-11-25T12:00:00Z' },
+    { id:'c4', parentId:'c1', name:'Kristin Jenkins', body:'I’d love to help edit the finale!', created:'2026-11-25T13:00:00Z' },
+    { id:'bo-x', parentId:'', name:'Kristin', body:'Start with car seats.', created:'2026-11-20T18:00:00Z', earlier:true },
+    { id:'c5', parentId:'bo-x', name:'', body:'', created:'2026-11-21T18:00:00Z', deleted:true },
+    { id:'c6', parentId:'c5', name:'Lora', body:'Agreed.', created:'2026-11-22T18:00:00Z' }] }`);
+  let h = me.run("discussionHtml('games')");
+  assert.match(h, /<label for="disc-new">Have a thought\? Build on this idea with the Squad!<\/label>/); assert.match(h, />Post comment<\/button>/);
+  const order = ['What if everyone filmed', 'I LOVE this', 'Same dramatic opening', 'help edit the finale', 'Start with car seats', 'This comment was removed', 'Agreed.'].map(x => h.indexOf(x));
+  assert.deepEqual([...order].sort((a, b) => a - b), order); assert.ok(order.every(x => x > 0));
+  assert.match(h, /aria-controls="replies-c1">Hide replies<\/button>\s*<ol class="cmt-replies" id="replies-c1">/); // c1's replies nest under it
+  assert.match(h, /Same dramatic opening &lt;b&gt;for both&lt;\/b&gt;!/); // escaped
+  assert.match(h, /data-depth="2"[\s\S]*?<span class="cmt-to">↳ Taylor Vanderwolk<\/span>/); assert.match(h, /just now|Nov|ago/);
+  assert.match(h, /<span class="cmt-tag">Built on earlier<\/span>/); assert.match(h, /· edited<\/time>/);
+  assert.match(h, /data-disc-edit="c2"/); assert.doesNotMatch(h, /data-disc-edit="c1"|data-disc-delete="c1"/); // only your own
+  assert.match(h, /<span class="cmt-name removed">Removed comment<\/span>/); assert.doesNotMatch(h, /data-disc-reply="c5"/); assert.match(h, /data-disc-reply="c6"/);
+  assert.match(h, /data-disc-more>Show earlier conversations<\/button>/);
+  me.run("disc.games.moderator = true"); assert.match(me.run("discussionHtml('games')"), /data-disc-delete="c1">Remove<\/button>/); // coordinators moderate
+  // Collapsing, replying, editing and confirming keep the unsent text.
+  me.run("discCollapsed.add('c1')"); h = me.run("discussionHtml('games')"); assert.match(h, /aria-expanded="false" aria-controls="replies-c1">Show 3 replies<\/button>\s*<ol class="cmt-replies" id="replies-c1" hidden>/);
+  me.run("discCollapsed.clear(); discUi = { reply:'c3', edit:'', confirm:'' }; discDraft['reply:c3'] = 'Half-typed reply'"); h = me.run("discussionHtml('games')");
+  assert.match(h, /<label for="disc-reply-c3">Reply to Sarah<\/label>/); assert.match(h, />Half-typed reply<\/textarea>/); assert.match(h, />Post reply<\/button><button class="text-button" type="button" data-disc-cancel>Cancel reply<\/button>/);
+  me.run("discUi = { reply:'', edit:'c2', confirm:'' }; discDraft['edit:c2'] = 'I LOVE this! Two parts? Edited'"); assert.match(me.run("discussionHtml('games')"), /<label for="disc-edit-c2">Edit your comment<\/label>[\s\S]*>I LOVE this! Two parts\? Edited<\/textarea>/);
+  me.run("discUi = { reply:'', edit:'', confirm:'c2' }"); assert.match(me.run("discussionHtml('games')"), /Delete your comment\? Replies to it stay\./);
+  me.run("disc.games.state = 'failed'; disc.games.error = 'The discussion didn’t load.'"); assert.match(me.run("discussionHtml('games')"), /data-disc-retry>Try again/);
+  // Signed out: no discussion content, no lead or edit tools.
+  const out = boot(undefined, false, new Map()); out.run(`liveIdeas = [${JSON.stringify(idea)}]; disc.games = { state:'done', comments:[{ id:'c1', parentId:'', name:'Victoria', body:'secret' }] }`);
+  assert.match(out.run("discussionHtml('games')"), /The discussion is for Creators Club members\./); assert.doesNotMatch(out.run("discussionHtml('games')"), /secret/);
+  assert.equal(out.run("canEditIdea(ideas()[0])"), false);
+  // Deep links wait for the Idea Bank, then open the idea once.
+  const dl = boot(); dl.el('#idea-grid'); dl.run(`location.hash = '#idea=games'; liveIdeas = null; openFromHash()`); assert.equal(dl.el('#modal').open, undefined);
+  dl.run(`liveIdeas = [${JSON.stringify(idea)}]; openFromHash()`); assert.equal(dl.el('#modal-title').textContent, 'The Baby Specialist Games');
+  dl.el('#modal-title').textContent = ''; dl.run('openFromHash()'); assert.equal(dl.el('#modal-title').textContent, ''); // once per link
+}
+console.log('PASS: idea detail, production panel and threaded discussion');

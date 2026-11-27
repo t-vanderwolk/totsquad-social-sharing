@@ -45,9 +45,10 @@ Add an object to `ideas`. Only `id`, `title` and `series` are required. Leave an
   altNames: [],                // other names considered
   questions: [],               // question bank, each with a Copy button
   stage: '',                   // idea, filming, editing, published ('' = idea)
-  lead: '',                    // one lead per idea
+  lead: '',                    // the lead; co-leads joined with ' & '
   dueDate: '',
-  discussionUrl: ''            // Disco discussion for this idea
+  discussionUrl: '',           // Production discussion: the Creator Circle thread's Disco link
+  reelUrl: ''                  // the published Instagram Reel
 }
 ```
 
@@ -152,6 +153,45 @@ Two levels: **the Squad** (open to every specialist: casting, guides, B-roll, Ma
 - **Statuses:** applications Submitted / Under Review / Approved / Waitlisted / Declined; members Active / Paused / Needs Check-In / Inactive / Alumni; briefs Draft / Published / Archived; submissions Submitted / Counted / Needs changes.
 - **Participation:** a month is met with `requiredPosts` feed posts (reel, carousel or collab) and a week (Monday–Sunday) with `requiredStories` stories. Only whole weeks/months after joining count. Reminder/check-in thresholds are on the Settings tab. Older `themed`/`flexible` submissions read as feed posts. Standing (On track / Reminder / Needs review) is a suggestion; only coordinators change a member's status.
 - **Tests:** `node tests/apps-script.test.cjs` runs the backend workflows against in-memory sheets.
+
+## Idea Bank: writers' room and production room
+
+The Idea Bank is the writers' room; the private Creator Circle in Disco is the production room. Opening an idea shows:
+
+- **💡 Original concept**: the creator's summary, credit and date. Only the credited creator or a coordinator can change it.
+- **🎬 Production**: who had the idea, the lead, the stage (Idea, Casting, Filming, Editing, Published), and only the links that work: the
+  creative discussion, the Creator Circle thread, the linked casting call and the published Reel. At the Idea stage with no thread it says
+  "Still in the writers' room!".
+- **✍️ Working concept**: the evolving hook, steps, filming rules and notes. The credited creator, the lead(s) and coordinators edit it.
+- **💬 Creative discussion**: threaded comments. Members post, reply, reply to replies, edit and delete their own, and
+  show or hide reply groups. Threads are newest first, 20 at a time ("Show earlier conversations"). Deep threads stop indenting
+  (after three levels, two on phones) and show "↳ Name" instead. Unsent text survives errors and re-renders.
+
+**Backend** (`apps-script/upload.gs`, POST, signed-in creators and coordinators only):
+`discussion-list` { ideaId, cursor }, `discussion-add` { ideaId, parentId, body, requestId }, `discussion-edit` { id, body, expect },
+`discussion-delete` { id }, and `idea-lead` { id }. Comments are rows in the private **Creators Club discussions** sheet
+(created next to the other Creators Club sheets on the first comment). The author always comes from the sign-in.
+Replies must point at a comment on the same idea. Deleting is a soft delete, so replies stay. Coordinators can remove any comment.
+A repeated `requestId` never posts twice. `GET ?action=ideas` also returns `counts` (live comments per idea).
+
+**Earlier build-ons** (`buildOns` on an idea) are never deleted. They show as top-level comments with stable IDs (`bo-…`) and can be
+replied to. The first comment copies them into the discussions sheet. Running it again (`runMigrateBuildOns()` in the editor, or
+Coordinator tools `admin-discussion-migrate`) adds nothing. Older pages' `idea-build` now posts a comment, and commenting never makes anyone the lead.
+Leading is its own button ("Lead this idea" / "Co-lead this idea").
+
+**Production threads** are made by hand. Disco has no thread API here, and nothing syncs.
+1. Name the thread `🎬 PRODUCTION | <Reel title>` in the Creator Circle. The idea's **Set up the production thread** copies the name and a
+   starter message that links back to the idea (`ideas.html#idea=<id>`) and its casting call (`index.html#call=<id>`).
+2. In Disco, open the message's ⋮ menu, choose **Copy link** (`…/channel/<id>?streamMsgId=…`), and paste it into **Production discussion link**
+   with Edit idea. Only Tot Squad Disco links are accepted, and the script checks again. A channel link without a message opens the Creator Circle
+   and names the thread to look for.
+3. The link is kept through every stage change, including when a casting call moves the idea to Casting.
+
+Deep links open the site itself, not the Disco page around it. In Disco the embed always opens its own start page, so links in
+threads go to the standalone site, where members sign in once on that browser.
+
+Open casting calls are for every Tot Squad specialist, so their filming directions must stay complete on the casting call itself.
+Private thread content is never copied to the public page. Videos still go through the casting call's upload.
 
 ## B-roll library sync
 
