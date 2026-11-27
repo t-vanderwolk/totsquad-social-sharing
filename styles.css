@@ -1085,7 +1085,7 @@ html:not(.unlocked) .topbar .menu-wrap{display:none}
   .topbar .nav-signin .long{display:none}
   .topbar .nav-signin .short{display:inline}
 }
-body.embed .topbar{display:flex;position:static;min-height:0;padding:.5rem 0;background:none;backdrop-filter:none;border:0}
+body.embed .topbar{display:flex;position:relative;z-index:20;min-height:0;padding:.5rem 0;background:none;backdrop-filter:none;border:0}
 body.embed .topbar .brand{display:none}
 
 /* Hero, with the two routes underneath. */
